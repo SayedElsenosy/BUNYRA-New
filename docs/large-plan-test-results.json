@@ -1,0 +1,195 @@
+{
+  "passed": 44,
+  "regression": {
+    "passed": 24,
+    "checks": [
+      {
+        "name": "XLSX round-trip preserves text codes and exact raw decimal strings",
+        "passed": true
+      },
+      {
+        "name": "preview normalizes Arabic digits and grouped prices without writes",
+        "passed": true
+      },
+      {
+        "name": "duplicate codes within workbook return row-specific errors",
+        "passed": true
+      },
+      {
+        "name": "missing prices and invalid active flags are not silently defaulted",
+        "passed": true
+      },
+      {
+        "name": "case-insensitive opening inventory preserves reserved and sold statuses",
+        "passed": true
+      },
+      {
+        "name": "sales cannot preview or commit imports",
+        "passed": true
+      },
+      {
+        "name": "cross-company import denied",
+        "passed": true
+      },
+      {
+        "name": "commit imports whole batch and creates initial status history",
+        "passed": true
+      },
+      {
+        "name": "same payload is idempotent on retry",
+        "passed": true
+      },
+      {
+        "name": "existing-code conflict leaves valid new rows unimported",
+        "passed": true
+      },
+      {
+        "name": "row limit enforced server-side",
+        "passed": true
+      },
+      {
+        "name": "race collision rolls back batch receipt and every new unit",
+        "passed": true
+      },
+      {
+        "name": "file signatures distinguish PDF DWG and DXF",
+        "passed": true
+      },
+      {
+        "name": "extension spoof and file-size violations rejected",
+        "passed": true
+      },
+      {
+        "name": "sales upload denied before storage is accessed",
+        "passed": true
+      },
+      {
+        "name": "cross-company plan upload denied",
+        "passed": true
+      },
+      {
+        "name": "PDF uploads to real isolated private Neon bucket",
+        "passed": true
+      },
+      {
+        "name": "same floor creates a new immutable file version",
+        "passed": true
+      },
+      {
+        "name": "download verifies real object size and SHA256",
+        "passed": true
+      },
+      {
+        "name": "tampered object fails integrity check",
+        "passed": true
+      },
+      {
+        "name": "unpublished plan originals hidden from sales",
+        "passed": true
+      },
+      {
+        "name": "failed uploads are never marked ready",
+        "passed": true
+      },
+      {
+        "name": "tenant RLS isolates imports and plan metadata",
+        "passed": true
+      },
+      {
+        "name": "import and file upload events carry audit evidence",
+        "passed": true
+      }
+    ],
+    "fixture_companies": [
+      "4ea67a2d-8db5-4ee5-9302-394dd8876392",
+      "63dfa0fd-5776-405c-bcc9-2d8c6f9cdd68"
+    ]
+  },
+  "large": {
+    "passed": 20,
+    "checks": [
+      {
+        "name": "Price List headers map to actual unit number, never cancelled",
+        "passed": true
+      },
+      {
+        "name": "unmapped optional column never uses the first workbook cell",
+        "passed": true
+      },
+      {
+        "name": "invalid workbook values include original value and row number",
+        "passed": true
+      },
+      {
+        "name": "opening sold unit retains status/history and cannot be edited",
+        "passed": true
+      },
+      {
+        "name": "100 MiB advertised limit; bigger files rejected before storage",
+        "passed": true
+      },
+      {
+        "name": "sales and wrong project cannot access upload sessions",
+        "passed": true
+      },
+      {
+        "name": "multipart begin reserves version and quota without publishing",
+        "passed": true
+      },
+      {
+        "name": "wrong project session access denied",
+        "passed": true
+      },
+      {
+        "name": "wrong chunk length rejected",
+        "passed": true
+      },
+      {
+        "name": "first chunk signature must match original type",
+        "passed": true
+      },
+      {
+        "name": "incomplete transfer cannot be published",
+        "passed": true
+      },
+      {
+        "name": "12 MiB original uploads as three real private S3 parts",
+        "passed": true
+      },
+      {
+        "name": "retrying the same part is safe",
+        "passed": true
+      },
+      {
+        "name": "complete verifies remote size and stores immutable ETag",
+        "passed": true
+      },
+      {
+        "name": "completion retry does not duplicate version or audit",
+        "passed": true
+      },
+      {
+        "name": "range download returns exact original first bytes",
+        "passed": true
+      },
+      {
+        "name": "suffix download preserves final bytes",
+        "passed": true
+      },
+      {
+        "name": "malformed or out-of-bounds ranges rejected",
+        "passed": true
+      },
+      {
+        "name": "changed remote ETag fails before streaming",
+        "passed": true
+      },
+      {
+        "name": "completed objects cannot be overwritten through part endpoint",
+        "passed": true
+      }
+    ],
+    "fixture_company": "adc169cf-81ba-45b2-b489-70dce9b3f6b6",
+    "uploaded_bytes": 12583049
+  }
+}

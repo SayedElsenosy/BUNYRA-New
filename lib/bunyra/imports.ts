@@ -3,19 +3,21 @@ import {access,ServiceError,uuid,type Sql,type Actor} from './service';
 import {unitSchema} from './inventory';
 import {minorUnits} from './projects';
 export const IMPORT_FIELDS=['code','building','floor','category','area','proposed_price','status','active'] as const;
+const importUnitSchema=unitSchema.extend({status:z.enum(['available','unavailable','pending','reserved','sold'])});
 export type ImportRow=Record<string,unknown>;
 export function normalizeCell(value:unknown){return String(value??'').trim().replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-1632)).replace(/[۰-۹]/g,c=>String(c.charCodeAt(0)-1776)).replace(/٫/g,'.');}
 function decimal(value:unknown){const s=normalizeCell(value);return /^\d{1,3}(?:[,٬]\d{3})+(?:\.\d{1,2})?$/.test(s)?s.replace(/[,٬]/g,''):s;}
 export function validateImportRows(company:string,project:string,rows:ImportRow[]){
- const errors:{row:number;field:string;code:string}[]=[],units:z.infer<typeof unitSchema>[]=[];
+ const errors:{row:number;field:string;code:string;value?:string}[]=[],units:z.infer<typeof importUnitSchema>[]=[];
  const seen=new Set<string>();
  rows.forEach((row,index)=>{
-  const statusValue=normalizeCell(row.status),activeValue=normalizeCell(row.active).toLowerCase();
-  const status=['','available','متاحة','متاح'].includes(statusValue)?'available':['unavailable','غير متاحة','غير متاح'].includes(statusValue)?'unavailable':statusValue;
+  const statusValue=normalizeCell(row.status).toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' '),activeValue=normalizeCell(row.active).toLowerCase();
+  const statuses:Record<string,string[]>={available:['','available','متاحة','متاح'],unavailable:['unavailable','not available','غير متاحة','غير متاح','cancelled','canceled','ملغاة','ملغي'],pending:['pending','pending reservation','قيد الحجز'],reserved:['reserved','booked','محجوزة','محجوز'],sold:['sold','sold out','مباعة','مباع']};
+  const status=Object.keys(statuses).find(k=>statuses[k].includes(statusValue))??statusValue;
   const active=['','true','1','نعم','مفعلة','active'].includes(activeValue)?true:['false','0','لا','موقوفة','inactive'].includes(activeValue)?false:activeValue;
   const input={company_id:company,project_id:project,version:0,code:normalizeCell(row.code),building:normalizeCell(row.building),floor:normalizeCell(row.floor),category:normalizeCell(row.category),area:decimal(row.area),proposed_price:decimal(row.proposed_price),status,active};
-  const result=unitSchema.safeParse(input);
-  if(!result.success){for(const issue of result.error.issues)errors.push({row:index+2,field:String(issue.path[0]),code:'INVALID_VALUE'});return;}
+  const result=importUnitSchema.safeParse(input);
+  if(!result.success){for(const issue of result.error.issues){const field=String(issue.path[0]);errors.push({row:index+2,field,code:'INVALID_VALUE',value:String(row[field]??'').slice(0,160)});}return;}
   const key=input.code.toLowerCase();if(seen.has(key))errors.push({row:index+2,field:'code',code:'DUPLICATE_CODE'});seen.add(key);units.push(result.data);
  });return {errors,units};
 }
