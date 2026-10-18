@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {layoutAccess} from './plan-layout';
 import {ServiceError,uuid,type Sql,type Actor} from './service';
 import {writeAccess,planMetadata,identifyPlan,MAX_PLAN_BYTES,PLAN_CHUNK_BYTES,COMPANY_PLAN_BYTES} from './plan-files';
 export type TransferStorage={
@@ -60,7 +61,7 @@ export function validRange(range:string|undefined,size:number){
  return `bytes=${start}-${Math.min(end,size-1)}`;
 }
 export async function streamPlan(sql:Sql,actor:Actor,company:string,project:string,id:string,range:string|undefined,storage:TransferStorage,platform=false){
- const row=await scoped(sql,actor,company,project,id,platform);if(row.status!=='ready')throw new ServiceError('NOT_FOUND',404);
+ await layoutAccess(sql,actor,company,project,id,platform);const rows=await sql`SELECT object_key,kind,original_name,byte_size,object_etag,status FROM project_plan_files WHERE company_id=${company} AND project_id=${project} AND id=${id} AND status='ready'`;const row=rows[0];if(!row)throw new ServiceError('NOT_FOUND',404);
  const head=await storage.head(row.object_key);
  if(head.size!==row.byte_size||(row.object_etag&&head.etag!==row.object_etag))throw new ServiceError('FILE_INTEGRITY',503);
  const normalized=validRange(range,row.byte_size),file=await storage.open(row.object_key,normalized);

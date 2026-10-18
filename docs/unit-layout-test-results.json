@@ -1,0 +1,102 @@
+{
+  "passed": 21,
+  "checks": [
+    {
+      "name": "exact cents round cached formula tails and preserve original values",
+      "passed": true
+    },
+    {
+      "name": "manual entry accepts actual slash and ampersand codes and all details",
+      "passed": true
+    },
+    {
+      "name": "import preserves Reservation as reserved and original source columns",
+      "passed": true
+    },
+    {
+      "name": "price details are removed for sales while geometry-independent fields stay visible",
+      "passed": true
+    },
+    {
+      "name": "invalid, empty and degenerate boundaries are rejected",
+      "passed": true
+    },
+    {
+      "name": "save creates an initial private mapping for multiple PDF pages",
+      "passed": true
+    },
+    {
+      "name": "sales cannot read drafts or edit layout geometry",
+      "passed": true
+    },
+    {
+      "name": "cross-company scope is rejected before layout access",
+      "passed": true
+    },
+    {
+      "name": "stale editor cannot erase or replace current shapes",
+      "passed": true
+    },
+    {
+      "name": "same file cannot map a unit twice",
+      "passed": true
+    },
+    {
+      "name": "foreign units cannot be linked to this project",
+      "passed": true
+    },
+    {
+      "name": "authorized publication updates existing mapping without duplicate shapes",
+      "passed": true
+    },
+    {
+      "name": "changing area preserves unit identity and mapped geometry with audit",
+      "passed": true
+    },
+    {
+      "name": "plan cards read live inventory status and never cache status in geometry",
+      "passed": true
+    },
+    {
+      "name": "reserved unit geometry cannot be removed or moved",
+      "passed": true
+    },
+    {
+      "name": "new plan version starts without inherited or misaligned geometry",
+      "passed": true
+    },
+    {
+      "name": "unpublishing removes reader access to the original and layout",
+      "passed": true
+    },
+    {
+      "name": "mapping updates have before and after audit evidence",
+      "passed": true
+    },
+    {
+      "name": "tenant RLS isolates both new mapping tables",
+      "passed": true
+    },
+    {
+      "name": "actual Price List parses all 153 rows; only conflicting duplicate remains",
+      "passed": true
+    },
+    {
+      "name": "actual visible rows exclude six historical hidden records and validate without errors",
+      "passed": true
+    }
+  ],
+  "source": {
+    "rows": 153,
+    "valid_fields": true,
+    "conflicting_duplicate_rows": [
+      40,
+      97
+    ],
+    "rounded_formula_prices": 8,
+    "visible_rows": 147,
+    "hidden_rows": 6,
+    "visible_errors": 0
+  },
+  "fixture_company": "f7897162-aca7-4fde-8d4d-011b9ae5d1d5"
+}

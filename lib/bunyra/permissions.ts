@@ -1,4 +1,4 @@
-export const ACTIONS = ['company.read','company.write','projects.read','projects.write','inventory.read','inventory.write','leads.read','leads.write','bookings.read','bookings.create','bookings.approve','bookings.cancel','finance.read','finance.write','finance.approve','members.manage','roles.manage','audit.read','offers.create','contracts.write','commissions.write'] as const;
+export const ACTIONS = ['company.read','company.write','projects.read','projects.write','plans.publish','inventory.read','inventory.write','leads.read','leads.write','bookings.read','bookings.create','bookings.approve','bookings.cancel','finance.read','finance.write','finance.approve','members.manage','roles.manage','audit.read','offers.create','contracts.write','commissions.write'] as const;
 export type Action = typeof ACTIONS[number];
 export const ROLES = ['company_admin','operations','sales','sales_manager','sales_admin','finance_manager','accountant'] as const;
 export type Role = typeof ROLES[number];
