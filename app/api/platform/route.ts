@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { platformIdentity, failure } from '../../../lib/bunyra/http';
-import { z } from 'zod';
+import { z } from 'zod'
+import { companyOverview, platformAudit } from '../../../lib/bunyra/platform';
 export const dynamic = 'force-dynamic';
 const companySchema = z.object({name:z.string().trim().min(2).max(160),name_en:z.string().trim().max(160).default(''),email:z.union([z.string().email(),z.literal('')]).default(''),phone:z.string().trim().max(40).default(''),address:z.string().trim().max(500).default('')});
 const updateSchema=companySchema.extend({id:z.string().uuid(),version:z.number().int().positive(),status:z.enum(['active','suspended'])});
@@ -11,17 +12,11 @@ async function authorize(){
 }
 export async function GET(request:Request){
  try{const auth=await authorize();if(auth.error)return auth.error;const {sql,user}=auth;
- const selected=new URL(request.url).searchParams.get('company');
- if(selected){if(!z.string().uuid().safeParse(selected).success)return reply({error:'INVALID_ID'},400);
- const found=await sql`SELECT * FROM companies WHERE id=${selected}`;if(!found.length)return reply({error:'NOT_FOUND'},404);
- const result=await sql.transaction([
- sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action) VALUES(${selected},${user.userId},${user.email},'company.view')`,
- sql`SELECT id,name,created_at FROM projects WHERE company_id=${selected} ORDER BY name`,
- sql`SELECT email,role,active FROM memberships WHERE company_id=${selected} ORDER BY email`
- ]);return reply({company:found[0],projects:result[1],members:result[2]});}
- const [companies,logs]=await Promise.all([sql`SELECT c.*, (SELECT count(*)::int FROM memberships m WHERE m.company_id=c.id AND m.active) AS users_count,(SELECT count(*)::int FROM projects p WHERE p.company_id=c.id) AS projects_count FROM companies c ORDER BY created_at DESC`,sql`SELECT a.id::text,a.company_id,a.actor_email,a.action,a.created_at,c.name AS company_name FROM audit_logs a LEFT JOIN companies c ON c.id=a.company_id ORDER BY a.id DESC LIMIT 100`]);
+ const params=new URL(request.url).searchParams;const selected=params.get('company');
+ if(selected)return reply(await companyOverview(sql,user,selected))
+ const [companies,logs]=await Promise.all([sql`SELECT c.*, (SELECT count(*)::int FROM memberships m WHERE m.company_id=c.id AND m.active) AS users_count,(SELECT count(*)::int FROM projects p WHERE p.company_id=c.id) AS projects_count FROM companies c ORDER BY created_at DESC`,platformAudit(sql,user,{company:params.get('audit_company')||undefined,changesOnly:params.get('changes')==='1'})]);
  return reply({companies,logs,user:{name:user.displayName,email:user.email}});
- }catch(error){console.error('platform read failed',error instanceof Error?error.message:'unknown');return reply({error:'SERVICE_UNAVAILABLE'},503);}
+ }catch(error){const known=failure(error);if(known.status!==503)return known;console.error('platform read failed',error instanceof Error?error.message:'unknown');return reply({error:'SERVICE_UNAVAILABLE'},503);}
 }
 export async function POST(request:Request){
  try{if(request.headers.get('origin')!==new URL(request.url).origin)return reply({error:'INVALID_ORIGIN'},403);
