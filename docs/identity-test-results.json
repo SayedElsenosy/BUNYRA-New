@@ -1,0 +1,169 @@
+{
+  "passed": 38,
+  "total": 38,
+  "checks": [
+    {
+      "name": "company admin can list its own members",
+      "passed": true
+    },
+    {
+      "name": "sales cannot manage memberships",
+      "passed": true
+    },
+    {
+      "name": "admin cannot read another company",
+      "passed": true
+    },
+    {
+      "name": "requesting platform mode does not grant owner access",
+      "passed": true
+    },
+    {
+      "name": "platform owner uses an explicit audited company context",
+      "passed": true
+    },
+    {
+      "name": "invitation stores a hash rather than its bearer token",
+      "passed": true
+    },
+    {
+      "name": "invitation rejects an email mismatch",
+      "passed": true
+    },
+    {
+      "name": "matching identity joins only the invited company",
+      "passed": true
+    },
+    {
+      "name": "accepted invitation cannot be replayed",
+      "passed": true
+    },
+    {
+      "name": "duplicate active membership cannot be reinvited",
+      "passed": true
+    },
+    {
+      "name": "concurrent acceptance produces one membership and one success",
+      "passed": true
+    },
+    {
+      "name": "expired invitation cannot be accepted",
+      "passed": true
+    },
+    {
+      "name": "revoked invitation cannot be accepted",
+      "passed": true
+    },
+    {
+      "name": "reissuing revokes the previous invitation token",
+      "passed": true
+    },
+    {
+      "name": "last active company admin cannot be disabled",
+      "passed": true
+    },
+    {
+      "name": "last active company admin cannot be demoted",
+      "passed": true
+    },
+    {
+      "name": "member cannot change its own administrative role",
+      "passed": true
+    },
+    {
+      "name": "disabled membership immediately loses access",
+      "passed": true
+    },
+    {
+      "name": "stale membership update is rejected",
+      "passed": true
+    },
+    {
+      "name": "reactivated membership regains permitted access",
+      "passed": true
+    },
+    {
+      "name": "custom role permits explicit read action",
+      "passed": true
+    },
+    {
+      "name": "custom role does not inherit legacy sales permissions",
+      "passed": true
+    },
+    {
+      "name": "custom role denies unspecified administration actions",
+      "passed": true
+    },
+    {
+      "name": "custom role from another company cannot be assigned",
+      "passed": true
+    },
+    {
+      "name": "project-specific write grant permits only its project",
+      "passed": true
+    },
+    {
+      "name": "foreign project cannot be used for a permission override",
+      "passed": true
+    },
+    {
+      "name": "explicit company deny overrides the built-in role grant",
+      "passed": true
+    },
+    {
+      "name": "stale custom-role edit is rejected",
+      "passed": true
+    },
+    {
+      "name": "RLS requires both tenant context and an active identity",
+      "passed": true
+    },
+    {
+      "name": "tenant database role cannot change memberships directly",
+      "passed": true
+    },
+    {
+      "name": "suspended company denies access to existing members",
+      "passed": true
+    },
+    {
+      "name": "suspended company blocks invitation acceptance",
+      "passed": true
+    },
+    {
+      "name": "RLS also rejects suspended-company context",
+      "passed": true
+    },
+    {
+      "name": "concurrent admin changes preserve at least one active admin",
+      "passed": true
+    },
+    {
+      "name": "audit log records before and after membership values without tokens",
+      "passed": true
+    },
+    {
+      "name": "permission precedence is deterministic",
+      "passed": true
+    },
+    {
+      "name": "replaced invitations audit the revocation without bearer tokens",
+      "passed": true
+    },
+    {
+      "name": "concurrent permission updates preserve an accurate audit chain",
+      "passed": true
+    }
+  ],
+  "fixtures": {
+    "company_a": "be7d0353-1959-48d1-ab2a-eee8e1814f61",
+    "company_b": "910fa6ea-b0b4-4798-950e-b4d3132cd30b"
+  },
+  "scope": "Dedicated development branch only",
+  "validation": {
+    "typescript": "passed",
+    "production_build": "passed",
+    "http_and_browser_auth": "not verified",
+    "transport": "Service code executed in Node with SQL and transactions sent through the Neon connector to the dedicated development branch."
+  }
+}
