@@ -16,7 +16,11 @@
     "test:organization": "node scripts/prepare-identity-tests.mjs && node scripts/run-organization-tests.mjs",
     "test:projects": "node scripts/prepare-identity-tests.mjs && node scripts/run-project-tests.mjs",
     "test:inventory": "node scripts/prepare-identity-tests.mjs && node scripts/run-inventory-tests.mjs",
-    "test:files": "node scripts/prepare-identity-tests.mjs && node scripts/run-file-tests.mjs"
+    "test:files": "node scripts/prepare-identity-tests.mjs && node scripts/run-file-tests.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:status": "node scripts/migrate.mjs --status",
+    "test:tenancy": "node scripts/prepare-identity-tests.mjs && node scripts/run-tenancy-tests.mjs",
+    "test:db": "npm run -s test:tenancy && npm run -s test:identity && npm run -s test:organization && npm run -s test:projects && npm run -s test:inventory"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

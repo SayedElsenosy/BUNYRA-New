@@ -7,7 +7,7 @@ CREATE TABLE projects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), company_id 
 CREATE TABLE audit_logs(id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, company_id uuid REFERENCES companies(id), actor_id text NOT NULL, actor_email text NOT NULL, action text NOT NULL, before_data jsonb, after_data jsonb, created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX audit_company_time ON audit_logs(company_id,created_at DESC);
 CREATE INDEX projects_company ON projects(company_id);
-CREATE ROLE bunyra_tenant NOLOGIN NOSUPERUSER NOBYPASSRLS;
+DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='bunyra_tenant') THEN CREATE ROLE bunyra_tenant NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$;
 GRANT USAGE ON SCHEMA public TO bunyra_tenant;
 GRANT SELECT ON companies,memberships,projects TO bunyra_tenant;
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;

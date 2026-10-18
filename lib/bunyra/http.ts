@@ -2,9 +2,10 @@ import { getCurrentUser } from '../auth/current-user';
 import { getDb } from '../../db';
 import { ServiceError,owner } from './service';
 import { ZodError } from 'zod';
+import { tenantSql } from './tenant';
 export function json(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store'}});}
 export function sameOrigin(request:Request){if(request.headers.get('origin')!==new URL(request.url).origin)throw new ServiceError('INVALID_ORIGIN',403);}
-export async function identity(){const user=await getCurrentUser();if(!user)throw new ServiceError('UNAUTHORIZED',401);return {sql:getDb(),actor:{userId:user.userId,email:user.email},user};}
+export async function identity(){const user=await getCurrentUser();if(!user)throw new ServiceError('UNAUTHORIZED',401);return {sql:tenantSql(getDb()),actor:{userId:user.userId,email:user.email},user};}
 export async function bootstrapOwner(sql:ReturnType<typeof getDb>,actor:{userId:string;email:string}){
  const expected=process.env.PLATFORM_OWNER_EMAIL?.trim().toLowerCase();
  if(process.env.ALLOW_OWNER_BOOTSTRAP!=='true'||!expected||actor.email.toLowerCase()!==expected)return;

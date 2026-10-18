@@ -1,3 +1,4 @@
+import {tenantSql} from '../.sites-runtime/tests/tenant.mjs';
 import assert from 'node:assert/strict';
 import * as p from '../.sites-runtime/tests/projects.mjs';
 export async function runProjectTests(sql){
@@ -17,15 +18,15 @@ export async function runProjectTests(sql){
  await sql`INSERT INTO companies(id,name) VALUES(${a},'Project fixture A'),(${b},'Project fixture B')`;
  await sql`INSERT INTO memberships(company_id,user_id,email,role) VALUES(${a},${admin.userId},${admin.email},'company_admin'),(${a},${sales.userId},${sales.email},'sales')`;
  const input={company_id:a,version:0,configuration:config};let created;
- await check('admin creates draft and setup atomically',async()=>{created=await p.saveProject(sql,admin,input);assert.equal(created.version,1);});
- await check('sales cannot change setup or draft prices',()=>assert.rejects(()=>p.saveProject(sql,sales,{...input,id:created.id,version:1}),e=>e.code==='FORBIDDEN'));
- await check('cross-company write denied',()=>assert.rejects(()=>p.saveProject(sql,admin,{...input,company_id:b}),e=>e.code==='FORBIDDEN'));
- await check('forged platform access denied',()=>assert.rejects(()=>p.projectList(sql,admin,b,true),e=>e.code==='FORBIDDEN'));
- await check('draft resumes with stored rows and version',async()=>{const r=await p.projectList(sql,admin,a);assert.equal(r.projects[0].configuration.units[0].price,'1000.01');assert.equal(r.projects[0].version,1);});
- await check('sales cannot see draft commercial configuration',async()=>{const r=await p.projectList(sql,sales,a);assert.equal(r.projects[0].configuration,null);assert.equal(r.can_create,false);});
- await check('draft update increments version',async()=>{const r=await p.saveProject(sql,admin,{...input,id:created.id,version:1,configuration:{...config,name:'Renamed test'}});assert.equal(r.version,2);});
- await check('stale draft update rejected',()=>assert.rejects(()=>p.saveProject(sql,admin,{...input,id:created.id,version:1}),e=>e.code==='VERSION_CONFLICT'));
- await check('duplicate project code rolls back project creation',async()=>{await assert.rejects(()=>p.saveProject(sql,admin,{...input,configuration:{...config,name:'Other name',code:'test'}}));const rows=await sql`SELECT id FROM projects WHERE company_id=${a}`;assert.equal(rows.length,1);});
+ await check('admin creates draft and setup atomically',async()=>{created=await p.saveProject(tenantSql(sql),admin,input);assert.equal(created.version,1);});
+ await check('sales cannot change setup or draft prices',()=>assert.rejects(()=>p.saveProject(tenantSql(sql),sales,{...input,id:created.id,version:1}),e=>e.code==='FORBIDDEN'));
+ await check('cross-company write denied',()=>assert.rejects(()=>p.saveProject(tenantSql(sql),admin,{...input,company_id:b}),e=>e.code==='FORBIDDEN'));
+ await check('forged platform access denied',()=>assert.rejects(()=>p.projectList(tenantSql(sql),admin,b,true),e=>e.code==='FORBIDDEN'));
+ await check('draft resumes with stored rows and version',async()=>{const r=await p.projectList(tenantSql(sql),admin,a);assert.equal(r.projects[0].configuration.units[0].price,'1000.01');assert.equal(r.projects[0].version,1);});
+ await check('sales cannot see draft commercial configuration',async()=>{const r=await p.projectList(tenantSql(sql),sales,a);assert.equal(r.projects[0].configuration,null);assert.equal(r.can_create,false);});
+ await check('draft update increments version',async()=>{const r=await p.saveProject(tenantSql(sql),admin,{...input,id:created.id,version:1,configuration:{...config,name:'Renamed test'}});assert.equal(r.version,2);});
+ await check('stale draft update rejected',()=>assert.rejects(()=>p.saveProject(tenantSql(sql),admin,{...input,id:created.id,version:1}),e=>e.code==='VERSION_CONFLICT'));
+ await check('duplicate project code rolls back project creation',async()=>{await assert.rejects(()=>p.saveProject(tenantSql(sql),admin,{...input,configuration:{...config,name:'Other name',code:'test'}}));const rows=await sql`SELECT id FROM projects WHERE company_id=${a}`;assert.equal(rows.length,1);});
  await check('RLS prevents other-company draft reads',async()=>{const r=await sql.transaction([sql`SET LOCAL ROLE bunyra_tenant`,sql`SELECT set_config('app.company_id',${b},true),set_config('app.user_id',${admin.userId},true)`,sql`SELECT project_id FROM project_setups`]);assert.equal(r[2].length,0);});
  await check('audit contains creation and update snapshots',async()=>{const rows=await sql`SELECT action,before_data,after_data FROM audit_logs WHERE company_id=${a} AND action IN ('project.draft_created','project.draft_updated') ORDER BY id`;assert.equal(rows.length,2);assert.equal(rows[1].before_data.version,1);assert.equal(rows[1].after_data.version,2);});
  return {passed:checks.length,checks,fixture_companies:[a,b]};

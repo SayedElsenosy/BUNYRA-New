@@ -1,5 +1,6 @@
 import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { z } from 'zod';
+import { bindTenant } from './tenant';
 import { ACTIONS, ROLES, hasPermission, type Role, type Action, type PermissionOverride } from './permissions';
 export type Sql=NeonQueryFunction<false,false>;
 export type Actor={userId:string;email:string};
@@ -11,14 +12,15 @@ export const roleSchema=z.object({company_id:uuid,id:uuid.optional(),version:z.n
 export const permissionSchema=z.object({company_id:uuid,user_id:z.string().min(1).max(200),project_id:uuid.nullable().default(null),action:z.enum(ACTIONS),allowed:z.boolean()});
 export async function owner(sql:Sql,actor:Actor){return (await sql`SELECT user_id FROM platform_owner WHERE user_id=${actor.userId}`).length>0;}
 export async function access(sql:Sql,actor:Actor,companyId:string,action:Action,asOwner=false,projectId?:string){
- uuid.parse(companyId);
+ uuid.parse(companyId);bindTenant(sql,null);
  if(projectId){uuid.parse(projectId);if(!(await sql`SELECT id FROM projects WHERE company_id=${companyId} AND id=${projectId}`).length)throw new ServiceError('INVALID_PROJECT');}
- if(asOwner){if(!await owner(sql,actor))throw new ServiceError('FORBIDDEN',403);if(!(await sql`SELECT id FROM companies WHERE id=${companyId}`).length)throw new ServiceError('NOT_FOUND',404);await sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${companyId},${actor.userId},${actor.email},'platform_owner.company_access',${JSON.stringify({requested_action:action})}::jsonb)`;return {owner:true,role:'company_admin' as Role,custom:null,overrides:[] as PermissionOverride[]};}
+ if(asOwner){if(!await owner(sql,actor))throw new ServiceError('FORBIDDEN',403);if(!(await sql`SELECT id FROM companies WHERE id=${companyId}`).length)throw new ServiceError('NOT_FOUND',404);await sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${companyId},${actor.userId},${actor.email},'platform_owner.company_access',${JSON.stringify({requested_action:action})}::jsonb)`;bindTenant(sql,companyId,actor.userId);return {owner:true,role:'company_admin' as Role,custom:null,overrides:[] as PermissionOverride[]};}
  const rows=await sql`SELECT m.role,m.custom_role_id,r.permissions FROM memberships m JOIN companies c ON c.id=m.company_id LEFT JOIN custom_roles r ON r.company_id=m.company_id AND r.id=m.custom_role_id WHERE m.company_id=${companyId} AND m.user_id=${actor.userId} AND m.active AND c.status='active'`;
  if(!rows.length)throw new ServiceError('FORBIDDEN',403);
  const m=rows[0]; const overrides=await sql`SELECT action,project_id,allowed FROM member_permissions WHERE company_id=${companyId} AND user_id=${actor.userId}` as PermissionOverride[];
  const ctx={owner:false,role:m.role as Role,custom:m.custom_role_id?(m.permissions||{} as Record<string,boolean>):null,overrides};
  if(!hasPermission(ctx.role,ctx.custom,overrides,action,projectId))throw new ServiceError('FORBIDDEN',403);
+ bindTenant(sql,companyId,actor.userId);
  return ctx;
 }
 export async function tokenHash(token:string){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token))),b=>b.toString(16).padStart(2,'0')).join('');}
