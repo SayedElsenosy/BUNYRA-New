@@ -1,0 +1,121 @@
+{
+  "passed": 28,
+  "checks": [
+    {
+      "name": "sales reads organization without staff directory",
+      "passed": true
+    },
+    {
+      "name": "cross-company reads denied",
+      "passed": true
+    },
+    {
+      "name": "forged platform mode denied",
+      "passed": true
+    },
+    {
+      "name": "sales cannot change company settings",
+      "passed": true
+    },
+    {
+      "name": "settings and company data save atomically",
+      "passed": true
+    },
+    {
+      "name": "stale settings version denied",
+      "passed": true
+    },
+    {
+      "name": "invalid time zone rejected",
+      "passed": true
+    },
+    {
+      "name": "unsafe logo URL rejected",
+      "passed": true
+    },
+    {
+      "name": "create branch",
+      "passed": true
+    },
+    {
+      "name": "create department under branch",
+      "passed": true
+    },
+    {
+      "name": "create team with active manager",
+      "passed": true
+    },
+    {
+      "name": "legal entity and cost center",
+      "passed": true
+    },
+    {
+      "name": "invalid parent kind denied by database",
+      "passed": true
+    },
+    {
+      "name": "duplicate organization code denied",
+      "passed": true
+    },
+    {
+      "name": "cross-company parent denied",
+      "passed": true
+    },
+    {
+      "name": "cross-company manager denied",
+      "passed": true
+    },
+    {
+      "name": "sales cannot create nodes",
+      "passed": true
+    },
+    {
+      "name": "parent with active children cannot be stopped",
+      "passed": true
+    },
+    {
+      "name": "assign member to team",
+      "passed": true
+    },
+    {
+      "name": "organization assignment does not grant permissions",
+      "passed": true
+    },
+    {
+      "name": "cannot stop node with active assignments",
+      "passed": true
+    },
+    {
+      "name": "cross-company member assignment denied",
+      "passed": true
+    },
+    {
+      "name": "assignment deactivation and stale version conflict",
+      "passed": true
+    },
+    {
+      "name": "node can be stopped after assignments stopped",
+      "passed": true
+    },
+    {
+      "name": "inactive node rejects new active assignment",
+      "passed": true
+    },
+    {
+      "name": "tenant SQL role cannot read other company organization",
+      "passed": true
+    },
+    {
+      "name": "tenant without membership sees no organization",
+      "passed": true
+    },
+    {
+      "name": "settings nodes and assignments have audit evidence",
+      "passed": true
+    }
+  ],
+  "fixture_company_ids": [
+    "8a343b31-bd6a-40e8-bdf2-7b77700a6c9a",
+    "d4ab63e0-e872-44d9-81b6-a13dac909202"
+  ]
+}

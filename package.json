@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test:identity": "node scripts/prepare-identity-tests.mjs && node scripts/run-identity-tests.mjs",
     "build:cloudflare": "opennextjs-cloudflare build",
-    "deploy:cloudflare": "opennextjs-cloudflare deploy"
+    "deploy:cloudflare": "opennextjs-cloudflare deploy",
+    "test:organization": "node scripts/prepare-identity-tests.mjs && node scripts/run-organization-tests.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
