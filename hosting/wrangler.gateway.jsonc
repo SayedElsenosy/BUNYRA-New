@@ -1,0 +1,9 @@
+{
+  "name": "bunyra-new",
+  "main": "./cloudflare-gateway.mjs",
+  "compatibility_date": "2026-10-18",
+  "workers_dev": true,
+  "observability": {
+    "enabled": false
+  }
+}
