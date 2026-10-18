@@ -1,15 +1,14 @@
-# Cloudflare access gateway
+# Direct Cloudflare deployment
 
-The application runs on Netlify with Neon. The fixed upstream gateway provides an alternate public address when the Netlify network cannot be reached locally.
+The active application is deployed to Cloudflare Workers using OpenNext. Neon provides PostgreSQL and authentication. The public address stays https://bunyra-new.sayedelsenosy65.workers.dev.
 
-- Worker: bunyra-new
-- Expected URL: https://bunyra-new.sayedelsenosy65.workers.dev
-- Source: hosting/cloudflare-gateway.mjs
-- Build command: empty
-- Deploy command: npx wrangler deploy --config hosting/wrangler.gateway.jsonc
-- Runtime database/auth secrets remain exclusively on Netlify. The gateway forwards HTTPS requests, including login requests and session cookies, to the fixed BUNYRA Netlify upstream and does not log request bodies.
-- Add the Worker origin to Neon Auth trusted domains.
-- This remains dependent on Netlify availability and both free-tier quotas. It is not a standalone application migration.
-- Never point arbitrary client-selected upstreams at this gateway.
+Cloudflare Builds:
+- Build: npm run build:cloudflare
+- Deploy: npm run deploy:cloudflare
+- Config: wrangler.jsonc
+- Required production secrets: DATABASE_URL, NEON_AUTH_BASE_URL, NEON_AUTH_COOKIE_SECRET, PLATFORM_OWNER_EMAIL.
+- ALLOW_OWNER_BOOTSTRAP is temporary and must be false after first verified owner initialization.
 
-Deployment and real HTTP/auth validation must be confirmed separately from source preparation.
+The old hosting/cloudflare-gateway.mjs and wrangler.gateway.jsonc are retained as historical rollback source, not the active deployment configuration. Netlify publication is paused by its free-tier deployment credit limit. Never commit secrets or use production fixtures for tests.
+
+TypeScript checks pass locally. OpenNext packaging runs in Cloudflare Linux Builds because the local Windows adapter failed to resolve its config path. Production /api/health now checks a real database query rather than only the presence of environment variables.

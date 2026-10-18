@@ -60,3 +60,6 @@ next-env.d.ts
 
 !.env.example
 /.netlify/
+
+/.open-next/
+.dev.vars*
