@@ -1,0 +1,89 @@
+{
+  "passed": 20,
+  "checks": [
+    {
+      "name": "admin creates inventory unit with exact minor amount",
+      "passed": true
+    },
+    {
+      "name": "duplicate codes rejected case insensitively within project",
+      "passed": true
+    },
+    {
+      "name": "sales cannot create or change price",
+      "passed": true
+    },
+    {
+      "name": "sales sees unit but not unapproved price",
+      "passed": true
+    },
+    {
+      "name": "cross-company read denied",
+      "passed": true
+    },
+    {
+      "name": "cross-company project write denied",
+      "passed": true
+    },
+    {
+      "name": "forged owner mode denied",
+      "passed": true
+    },
+    {
+      "name": "authorized operations may edit inventory",
+      "passed": true
+    },
+    {
+      "name": "stale unit version rejected",
+      "passed": true
+    },
+    {
+      "name": "status history records initial and changed states",
+      "passed": true
+    },
+    {
+      "name": "filter by building floor status and literal search",
+      "passed": true
+    },
+    {
+      "name": "negative or fractional minor prices and invalid area rejected",
+      "passed": true
+    },
+    {
+      "name": "booking and sold states cannot be set through inventory API",
+      "passed": true
+    },
+    {
+      "name": "unit deactivation preserves record and audit",
+      "passed": true
+    },
+    {
+      "name": "committed units reject administrative edits",
+      "passed": true
+    },
+    {
+      "name": "database protects reserved units from direct update",
+      "passed": true
+    },
+    {
+      "name": "database rejects cross-company project reference",
+      "passed": true
+    },
+    {
+      "name": "RLS hides other company units and status history",
+      "passed": true
+    },
+    {
+      "name": "explicit project deny overrides operations role",
+      "passed": true
+    },
+    {
+      "name": "audit snapshots retain changed area price status and version",
+      "passed": true
+    }
+  ],
+  "fixture_companies": [
+    "d2838fb1-aaeb-4569-9d24-78d12ebd4fb9",
+    "47f268ce-3671-4091-bee8-9ca50c686ca9"
+  ]
+}

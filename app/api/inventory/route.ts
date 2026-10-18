@@ -1,0 +1,5 @@
+import {identity,sameOrigin,json,failure} from '../../../lib/bunyra/http';
+import {inventory,saveUnit,unitHistory} from '../../../lib/bunyra/inventory';
+export const dynamic='force-dynamic';
+export async function GET(request:Request){try{const {sql,actor}=await identity();const u=new URL(request.url),company=u.searchParams.get('company')||'',project=u.searchParams.get('project')||'',mode=u.searchParams.get('mode')==='platform';if(u.searchParams.has('unit'))return json({history:await unitHistory(sql,actor,company,project,u.searchParams.get('unit')||'',mode)});return json(await inventory(sql,actor,company,project,{search:u.searchParams.get('search')||'',status:u.searchParams.get('status')||'',building:u.searchParams.get('building')||'',floor:u.searchParams.get('floor')||'',page:Number(u.searchParams.get('page')||0)},mode));}catch(e){return failure(e);}}
+export async function POST(request:Request){try{sameOrigin(request);const {sql,actor}=await identity();return json(await saveUnit(sql,actor,await request.json(),new URL(request.url).searchParams.get('mode')==='platform'));}catch(e){return failure(e);}}
