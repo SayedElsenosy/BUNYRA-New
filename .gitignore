@@ -63,3 +63,5 @@ next-env.d.ts
 
 /.open-next/
 .dev.vars*
+
+/public/pdf.worker.min.mjs

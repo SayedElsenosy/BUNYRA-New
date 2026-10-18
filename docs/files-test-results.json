@@ -1,0 +1,105 @@
+{
+  "passed": 24,
+  "checks": [
+    {
+      "name": "XLSX round-trip preserves text codes and exact raw decimal strings",
+      "passed": true
+    },
+    {
+      "name": "preview normalizes Arabic digits and grouped prices without writes",
+      "passed": true
+    },
+    {
+      "name": "duplicate codes within workbook return row-specific errors",
+      "passed": true
+    },
+    {
+      "name": "missing prices and invalid active flags are not silently defaulted",
+      "passed": true
+    },
+    {
+      "name": "reserved and sold statuses cannot be imported",
+      "passed": true
+    },
+    {
+      "name": "sales cannot preview or commit imports",
+      "passed": true
+    },
+    {
+      "name": "cross-company import denied",
+      "passed": true
+    },
+    {
+      "name": "commit imports whole batch and creates initial status history",
+      "passed": true
+    },
+    {
+      "name": "same payload is idempotent on retry",
+      "passed": true
+    },
+    {
+      "name": "existing-code conflict leaves valid new rows unimported",
+      "passed": true
+    },
+    {
+      "name": "row limit enforced server-side",
+      "passed": true
+    },
+    {
+      "name": "race collision rolls back batch receipt and every new unit",
+      "passed": true
+    },
+    {
+      "name": "file signatures distinguish PDF DWG and DXF",
+      "passed": true
+    },
+    {
+      "name": "extension spoof and file-size violations rejected",
+      "passed": true
+    },
+    {
+      "name": "sales upload denied before storage is accessed",
+      "passed": true
+    },
+    {
+      "name": "cross-company plan upload denied",
+      "passed": true
+    },
+    {
+      "name": "PDF uploads to real isolated private Neon bucket",
+      "passed": true
+    },
+    {
+      "name": "same floor creates a new immutable file version",
+      "passed": true
+    },
+    {
+      "name": "download verifies real object size and SHA256",
+      "passed": true
+    },
+    {
+      "name": "tampered object fails integrity check",
+      "passed": true
+    },
+    {
+      "name": "unpublished plan originals hidden from sales",
+      "passed": true
+    },
+    {
+      "name": "failed uploads are never marked ready",
+      "passed": true
+    },
+    {
+      "name": "tenant RLS isolates imports and plan metadata",
+      "passed": true
+    },
+    {
+      "name": "import and file upload events carry audit evidence",
+      "passed": true
+    }
+  ],
+  "fixture_companies": [
+    "277413ce-f952-4e8e-8dc4-aec4285bfeb7",
+    "31207bb1-8af1-476c-827a-29ee2d00e37e"
+  ]
+}
