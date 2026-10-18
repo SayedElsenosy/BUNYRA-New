@@ -1,5 +1,6 @@
 import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { z } from 'zod';
+import { bindTenant } from './tenant';
 import { ServiceError, owner } from './service';
 
 type Sql = NeonQueryFunction<false, false>;
@@ -8,6 +9,7 @@ type Actor = { userId: string; email: string };
 const NOISE = ['company.view', 'platform_owner.company_access'];
 
 async function requireOwner(sql: Sql, actor: Actor) {
+  bindTenant(sql, null);
   if (!(await owner(sql, actor))) throw new ServiceError('FORBIDDEN', 403);
 }
 
