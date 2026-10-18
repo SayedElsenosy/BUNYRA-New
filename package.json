@@ -13,7 +13,8 @@
     "test:identity": "node scripts/prepare-identity-tests.mjs && node scripts/run-identity-tests.mjs",
     "build:cloudflare": "opennextjs-cloudflare build",
     "deploy:cloudflare": "opennextjs-cloudflare deploy",
-    "test:organization": "node scripts/prepare-identity-tests.mjs && node scripts/run-organization-tests.mjs"
+    "test:organization": "node scripts/prepare-identity-tests.mjs && node scripts/run-organization-tests.mjs",
+    "test:projects": "node scripts/prepare-identity-tests.mjs && node scripts/run-project-tests.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

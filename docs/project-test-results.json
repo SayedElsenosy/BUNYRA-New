@@ -1,0 +1,93 @@
+{
+  "passed": 21,
+  "checks": [
+    {
+      "name": "complete draft schema accepts valid hierarchy",
+      "passed": true
+    },
+    {
+      "name": "duplicate unit codes rejected case insensitively",
+      "passed": true
+    },
+    {
+      "name": "cross-structure floor reference rejected",
+      "passed": true
+    },
+    {
+      "name": "unsafe floor-plan URL rejected",
+      "passed": true
+    },
+    {
+      "name": "negative area and sub-cent prices rejected",
+      "passed": true
+    },
+    {
+      "name": "unknown published flag rejected",
+      "passed": true
+    },
+    {
+      "name": "draft never implies sales publication",
+      "passed": true
+    },
+    {
+      "name": "exact cents avoid floating point rounding",
+      "passed": true
+    },
+    {
+      "name": "installment allocation preserves total across boundaries",
+      "passed": true
+    },
+    {
+      "name": "invalid payment bounds rejected",
+      "passed": true
+    },
+    {
+      "name": "admin creates draft and setup atomically",
+      "passed": true
+    },
+    {
+      "name": "sales cannot change setup or draft prices",
+      "passed": true
+    },
+    {
+      "name": "cross-company write denied",
+      "passed": true
+    },
+    {
+      "name": "forged platform access denied",
+      "passed": true
+    },
+    {
+      "name": "draft resumes with stored rows and version",
+      "passed": true
+    },
+    {
+      "name": "sales cannot see draft commercial configuration",
+      "passed": true
+    },
+    {
+      "name": "draft update increments version",
+      "passed": true
+    },
+    {
+      "name": "stale draft update rejected",
+      "passed": true
+    },
+    {
+      "name": "duplicate project code rolls back project creation",
+      "passed": true
+    },
+    {
+      "name": "RLS prevents other-company draft reads",
+      "passed": true
+    },
+    {
+      "name": "audit contains creation and update snapshots",
+      "passed": true
+    }
+  ],
+  "fixture_companies": [
+    "f45b4592-dda9-400c-bae6-0de0599a60ca",
+    "1481b283-4178-4a4f-8fbc-c450651e04c2"
+  ]
+}
