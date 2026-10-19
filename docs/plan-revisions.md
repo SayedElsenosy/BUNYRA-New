@@ -1,0 +1,13 @@
+# Plan revisions and review
+
+The interactive PDF viewer now keeps draft edits separate from the currently published geometry. Every save requires a reason and creates a new immutable geometry snapshot; it never publishes automatically. Company admins or Operations with projects.write may save drafts. Publication additionally requires plans.publish, and is restricted to the authorized administrative roles. Sales action overrides do not grant editing or publication.
+
+Reviewers can select a historical revision, compare it with the current published boundaries using a blue dashed overlay, and inspect added/changed/removed counts. To reuse a historical revision, save it as a new draft with a reason and approve that current draft. Previously approved snapshots remain immutable. Readers see approved history only. Inventory statuses and prices always remain current, even when viewing historical geometry. The selector lists the latest 100 revisions; specific revision identifiers remain readable through the scoped API.
+
+Approval locks the project and inventory rows, verifies the current workspace version and latest draft pointer, rechecks unit source versions and boundary integrity, and prevents moving/removing/adding a boundary for a committed unit. Pending, reserved and sold units are protected. Existing approved boundaries for committed units can remain unchanged. Conflicting editors and concurrent approvals accept only one current version.
+
+Validation rejects self intersections, repeated points, zero area, duplicate unit mappings and positive-area overlap on the same PDF page. Shared edges and corner contacts are allowed. Existing drawings are preserved exactly during migration rather than automatically corrected. A new PDF file version starts independently, without copying old geometry.
+
+Migration 016 captures legacy layouts as baseline revisions without modifying their geometry, publication state, inventory or prices. New draft saves and approvals are audited separately, including reasons and the previous publication pointer. Revision RLS hides drafts from Sales, and database guards prevent snapshot rewrites. Company purge follows the existing retention policy and removes revisions and their pointers together while retaining the audit trail.
+
+Apply db/016-plan-revisions.sql before deploying. Run npm run test:plan-revisions only on the isolated fixture branch. The legacy scripts/test-unit-layout.mjs publication assertions describe the superseded combined save/publish behavior; the current workflow is covered by scripts/test-plan-revisions.mjs. Split/merge inventory workflows, offers and booking remain separate stages.

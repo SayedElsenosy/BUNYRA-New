@@ -1,0 +1,317 @@
+{
+  "checks": 74,
+  "environment": "isolated development branch",
+  "reports": [
+    {
+      "suite": "plan-revisions",
+      "checks": [
+        {
+          "name": "simple polygons reject repeated, crossed, touching-self and zero-area boundaries",
+          "passed": true
+        },
+        {
+          "name": "overlap detection rejects crossing, containment, identical and aligned overlaps",
+          "passed": true
+        },
+        {
+          "name": "adjacent boundaries, corner contacts and independent PDF pages remain valid",
+          "passed": true
+        },
+        {
+          "name": "operations needs project write permission to prepare a revision",
+          "passed": true
+        },
+        {
+          "name": "draft save preserves immutable contents and never publishes or populates the public cache",
+          "passed": true
+        },
+        {
+          "name": "sales cannot open private layout or read draft revisions with the tenant role",
+          "passed": true
+        },
+        {
+          "name": "write-only editors cannot approve a draft",
+          "passed": true
+        },
+        {
+          "name": "legacy combined publication cannot bypass explicit approval",
+          "passed": true
+        },
+        {
+          "name": "duplicate units, crossed boundaries, overlap and missing reasons are rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign project and unit scopes are rejected",
+          "passed": true
+        },
+        {
+          "name": "initial authorized approval atomically publishes the reviewed shapes",
+          "passed": true
+        },
+        {
+          "name": "published and draft revisions cannot be rewritten or deleted through direct SQL",
+          "passed": true
+        },
+        {
+          "name": "editing a published plan creates a private draft while sales keeps the published geometry",
+          "passed": true
+        },
+        {
+          "name": "sales cannot gain plan publication through an action override outside authorized roles",
+          "passed": true
+        },
+        {
+          "name": "concurrent saves accept one workspace version and never lose another editor revision",
+          "passed": true
+        },
+        {
+          "name": "an older draft cannot be approved after a newer draft is saved",
+          "passed": true
+        },
+        {
+          "name": "unit data changes block approval and preserve the currently published version",
+          "passed": true
+        },
+        {
+          "name": "reserved unit boundaries cannot be moved or removed during approval",
+          "passed": true
+        },
+        {
+          "name": "pending and sold units receive the same boundary protection",
+          "passed": true
+        },
+        {
+          "name": "an unchanged committed unit can remain in a reviewed revision",
+          "passed": true
+        },
+        {
+          "name": "historical approved shapes stay unchanged and readable without showing drafts",
+          "passed": true
+        },
+        {
+          "name": "new PDF file versions start without inherited geometry",
+          "passed": true
+        },
+        {
+          "name": "empty drafts may be saved but cannot erase the published map",
+          "passed": true
+        },
+        {
+          "name": "competing approvals publish exactly once",
+          "passed": true
+        },
+        {
+          "name": "approval leaves inventory identity, status and prices intact",
+          "passed": true
+        },
+        {
+          "name": "tenant RLS hides revisions from another company",
+          "passed": true
+        },
+        {
+          "name": "audit history retains reasons, actors and publication pointer transitions",
+          "passed": true
+        },
+        {
+          "name": "company purge removes circular revision references while retaining audit evidence",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "approved-pricing",
+      "checks": [
+        {
+          "name": "exact arithmetic preserves cents across approved plan terms",
+          "passed": true
+        },
+        {
+          "name": "cash has no zero-value installment schedule",
+          "passed": true
+        },
+        {
+          "name": "calendar installments preserve month-end anchors and leap years",
+          "passed": true
+        },
+        {
+          "name": "invalid dates, sub-cent prices and invalid terms are rejected",
+          "passed": true
+        },
+        {
+          "name": "operations saves a scoped draft with allowed plans per unit",
+          "passed": true
+        },
+        {
+          "name": "sales cannot edit prices even with a write override outside authorized roles",
+          "passed": true
+        },
+        {
+          "name": "draft prices, terms and proposed sources remain hidden from sales including RLS",
+          "passed": true
+        },
+        {
+          "name": "drafts never provide a sales price or payment quote",
+          "passed": true
+        },
+        {
+          "name": "duplicate units, duplicate plans and unknown plan mappings are rejected",
+          "passed": true
+        },
+        {
+          "name": "foreign-company units and projects cannot be attached or published",
+          "passed": true
+        },
+        {
+          "name": "concurrent draft edits accept one version and preserve complete rows",
+          "passed": true
+        },
+        {
+          "name": "operations cannot approve without independent approval permission",
+          "passed": true
+        },
+        {
+          "name": "unit changes invalidate a draft approval atomically",
+          "passed": true
+        },
+        {
+          "name": "reviewed prices become an approved snapshot without changing unit status",
+          "passed": true
+        },
+        {
+          "name": "authorized sales users see approved prices and terms",
+          "passed": true
+        },
+        {
+          "name": "server quotes apply approved adjustments and preserve exact totals",
+          "passed": true
+        },
+        {
+          "name": "a plan allowed for another unit is rejected for this unit",
+          "passed": true
+        },
+        {
+          "name": "caller-supplied discounts or totals are rejected",
+          "passed": true
+        },
+        {
+          "name": "approved book, entry and plan records are immutable at the database",
+          "passed": true
+        },
+        {
+          "name": "inventory exposes approved prices and redacts source draft prices for sales",
+          "passed": true
+        },
+        {
+          "name": "project-specific denial also redacts approved prices from inventory",
+          "passed": true
+        },
+        {
+          "name": "competing approvals accept one revision and leave the loser a draft",
+          "passed": true
+        },
+        {
+          "name": "historical approved snapshots stay available and unchanged",
+          "passed": true
+        },
+        {
+          "name": "later inventory changes require price review without falling back to a proposed price",
+          "passed": true
+        },
+        {
+          "name": "committed units cannot enter a new draft price list",
+          "passed": true
+        },
+        {
+          "name": "audits preserve actors and the approval revision chain",
+          "passed": true
+        },
+        {
+          "name": "tenant RLS prevents reads from another company",
+          "passed": true
+        },
+        {
+          "name": "company purge removes approved pricing while retaining the audit history",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "suite": "company-lifecycle",
+      "checks": [
+        {
+          "name": "only the platform owner can create companies",
+          "passed": true
+        },
+        {
+          "name": "creating a company creates settings without external invitations",
+          "passed": true
+        },
+        {
+          "name": "existing legacy membership keeps company admin authorization",
+          "passed": true
+        },
+        {
+          "name": "company without owner email creates no invitation",
+          "passed": true
+        },
+        {
+          "name": "public registration requests are stored once per pending email",
+          "passed": true
+        },
+        {
+          "name": "registration requests reject bots and invalid data",
+          "passed": true
+        },
+        {
+          "name": "only the platform owner can list and review requests",
+          "passed": true
+        },
+        {
+          "name": "approving a request creates the company exactly once without an invitation",
+          "passed": true
+        },
+        {
+          "name": "rejected requests keep the review note and create nothing",
+          "passed": true
+        },
+        {
+          "name": "deletion impact reports the real affected records",
+          "passed": true
+        },
+        {
+          "name": "deletion requires the platform owner and the exact company name",
+          "passed": true
+        },
+        {
+          "name": "scheduled deletion closes the company for members and the owner workspace and revokes invitations",
+          "passed": true
+        },
+        {
+          "name": "purge is blocked during the retention period",
+          "passed": true
+        },
+        {
+          "name": "restore returns the company and its data to its previous state",
+          "passed": true
+        },
+        {
+          "name": "purge after retention removes business data but keeps the audit trail",
+          "passed": true
+        },
+        {
+          "name": "a purged company cannot be restored or purged again",
+          "passed": true
+        },
+        {
+          "name": "lifecycle actions are audited",
+          "passed": true
+        },
+        {
+          "name": "storage cleanup survives failure and retries without restoring business records",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}
