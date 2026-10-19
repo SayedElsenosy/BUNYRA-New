@@ -111,7 +111,7 @@ export async function createLead(sql: Sql, actor: Actor, input: unknown, asOwner
   await ensureOwner(sql, c.company_id, ownerId);
   if (c.project_id && !(await sql`SELECT 1 FROM projects WHERE company_id=${c.company_id} AND id=${c.project_id}`).length) throw new ServiceError('INVALID_PROJECT');
   const rows = await sql.transaction([
-    sql`INSERT INTO crm_leads(company_id,customer_id,source,status,owner_user_id,project_id,interest,lost_reason,created_by) VALUES(${c.company_id},${c.customer_id},${c.source},${c.status},${ownerId},${c.project_id},${c.interest},${c.lost_reason},${actor.userId}) RETURNING *`,
+    sql`INSERT INTO crm_leads(company_id,customer_id,source,status,owner_user_id,project_id,interest,lost_reason,created_by,stage_id) VALUES(${c.company_id},${c.customer_id},${c.source},${c.status},${ownerId},${c.project_id},${c.interest},${c.lost_reason},${actor.userId},(SELECT id FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND active ORDER BY position LIMIT 1)) RETURNING *`,
     sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_created',jsonb_build_object('customer_id',${c.customer_id},'owner_user_id',${ownerId},'status',${c.status})) RETURNING id`,
   ]);
   return rows[0][0];
