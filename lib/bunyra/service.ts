@@ -28,8 +28,9 @@ export async function newToken(){const bytes=crypto.getRandomValues(new Uint8Arr
 export async function listMembers(sql:Sql,actor:Actor,companyId:string,asOwner=false){
  const ctx=await access(sql,actor,companyId,'company.read',asOwner);
  const canManageMembers=ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage');
+ const canManageAccounts=ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'accounts.manage');
  const canManageRoles=ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'roles.manage');
- if(!canManageMembers&&!canManageRoles)throw new ServiceError('FORBIDDEN',403);
+ if(!canManageMembers&&!canManageRoles&&!canManageAccounts)throw new ServiceError('FORBIDDEN',403);
  const [members,invites,roles,projects,permissions]=await Promise.all([
  sql`SELECT m.user_id,m.email,m.role,m.custom_role_id,m.active,m.version,r.name AS custom_role_name FROM memberships m LEFT JOIN custom_roles r ON r.company_id=m.company_id AND r.id=m.custom_role_id WHERE m.company_id=${companyId} ORDER BY m.email`,
  sql`SELECT id,email,role,custom_role_id,status,expires_at,created_at FROM invitations WHERE company_id=${companyId} ORDER BY created_at DESC LIMIT 100`,
@@ -38,8 +39,8 @@ export async function listMembers(sql:Sql,actor:Actor,companyId:string,asOwner=f
  sql`SELECT user_id,project_id,action,allowed FROM member_permissions WHERE company_id=${companyId}`]);
  const quota=(await sql`SELECT account_limit,version,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used FROM companies WHERE id=${companyId}`)[0];
  // Expose account labels only after company management authorization; hashes never leave this module.
- bindTenant(sql,null);const accounts=await sql`SELECT user_id,username,display_name FROM app_accounts WHERE company_id=${companyId}`;
- return {members:members.map(m=>({...m,...accounts.find(a=>a.user_id===m.user_id)})),invites:canManageMembers?invites:[],roles,projects,permissions,quota,capabilities:{members:canManageMembers,roles:canManageRoles},actor_id:actor.userId};
+ bindTenant(sql,null);const accounts=await sql`SELECT user_id,username,display_name,email AS contact_email FROM app_accounts WHERE company_id=${companyId}`;
+ return {members:members.map(m=>({...m,...accounts.find(a=>a.user_id===m.user_id)})),invites:canManageMembers?invites:[],roles,projects,permissions,quota,capabilities:{members:canManageMembers,accounts:canManageAccounts,roles:canManageRoles},actor_id:actor.userId};
 }
 export async function issueInvite(sql:Sql,actor:Actor,input:unknown,asOwner=false){
  const c=inviteSchema.parse(input);await access(sql,actor,c.company_id,'members.manage',asOwner);

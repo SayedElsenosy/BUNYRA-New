@@ -19,5 +19,5 @@ export async function POST(request:Request){try{
   await saveOwnAccount(sql,{userId:u.id,email:u.email},{username:c.username,display_name:u.name||u.email,email:u.email,password:c.password});
  }}
  const user=await authenticateAccount(sql,c.username,c.password,c.portal);await sessionCookie(await createSession(sql,user.userId,user.passwordVersion));
- return json({redirect:user.mustChangePassword?'/account':c.portal==='owner'?'/owner':'/company'});
+ return json({redirect:c.portal==='owner'?'/owner':'/company'});
 }catch(e){return failure(e);}}

@@ -9,5 +9,5 @@ export async function GET(request:Request){try{
  const [companies,rows]=await sql.transaction([sql`SELECT id,name,name_en,email,phone,address FROM companies`,sql`SELECT id,name FROM projects ORDER BY name`]);
  if(!companies.length)return json({error:'FORBIDDEN'},403);
  const projects=rows.filter(p=>hasPermission(ctx.role,ctx.custom,ctx.overrides,'projects.read',p.id));
- return json({company:companies[0],projects,can_manage_members:hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage')||hasPermission(ctx.role,ctx.custom,ctx.overrides,'roles.manage')});
+ return json({company:companies[0],projects,can_manage_members:hasPermission(ctx.role,ctx.custom,ctx.overrides,'accounts.manage')||hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage')||hasPermission(ctx.role,ctx.custom,ctx.overrides,'roles.manage')});
  }catch(e){return failure(e);}}
