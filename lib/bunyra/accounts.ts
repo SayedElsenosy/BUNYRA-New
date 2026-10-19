@@ -8,7 +8,7 @@ const createSchema=accountFields.extend({company_id:uuid,role:z.enum(ROLES),cust
 async function manage(sql:Sql,actor:Actor,companyId:string,asOwner:boolean){await access(sql,actor,companyId,'members.manage',asOwner);bindTenant(sql,null);if(!(await sql`SELECT id FROM companies WHERE id=${companyId} AND status='active'`).length)throw new ServiceError('COMPANY_INACTIVE',409);}
 export async function accountSummary(sql:Sql,actor:Actor,companyId:string,asOwner=false){await access(sql,actor,companyId,'company.read',asOwner);const r=await sql`SELECT account_limit,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used FROM companies WHERE id=${companyId}`;return r[0];}
 export async function createAccount(sql:Sql,actor:Actor,input:unknown,asOwner=false){
- const c=createSchema.parse(input);await manage(sql,actor,c.company_id,asOwner);
+ const c=createSchema.parse(input);await manage(sql,actor,c.company_id,asOwner);try {
  if(c.custom_role_id&&!(await sql`SELECT id FROM custom_roles WHERE company_id=${c.company_id} AND id=${c.custom_role_id}`).length)throw new ServiceError('INVALID_ROLE');
  const userId=crypto.randomUUID(),hash=await hashPassword(c.password),email=c.email||c.username;
  const r=await sql.transaction([
@@ -17,10 +17,12 @@ export async function createAccount(sql:Sql,actor:Actor,input:unknown,asOwner=fa
   sql`INSERT INTO app_accounts(user_id,company_id,username,display_name,email,password_hash,created_by) VALUES(${userId},${c.company_id},${c.username},${c.display_name},${c.email},${hash},${actor.userId}) RETURNING user_id,username`,
   sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'account.created',${JSON.stringify({user_id:userId,username:c.username,role:c.role,custom_role_id:c.custom_role_id})}::jsonb)`
  ]);return r[2][0];
+} finally { bindTenant(sql,c.company_id,actor.userId); }
 }
+
 export async function resetAccount(sql:Sql,actor:Actor,input:unknown,asOwner=false){
  const c=accountFields.omit({password:true}).extend({company_id:uuid,user_id:z.string().min(1).max(200),password:z.union([passwordSchema,z.literal('')]).optional()}).parse(input);
- const ctx=await access(sql,actor,c.company_id,'accounts.manage',asOwner);bindTenant(sql,null);
+ const ctx=await access(sql,actor,c.company_id,'accounts.manage',asOwner);bindTenant(sql,null);try {
  if(await owner(sql,{userId:c.user_id,email:''}))throw new ServiceError('SELF_CHANGE_FORBIDDEN',409);
  const target=(await sql`SELECT m.role,a.password_hash FROM memberships m LEFT JOIN app_accounts a ON a.user_id=m.user_id AND a.company_id=m.company_id WHERE m.company_id=${c.company_id} AND m.user_id=${c.user_id}`)[0];if(!target)throw new ServiceError('NOT_FOUND',404);
  // Operations can edit basic details, but resetting an administrator's password
@@ -34,7 +36,9 @@ export async function resetAccount(sql:Sql,actor:Actor,input:unknown,asOwner=fal
   sql`DELETE FROM app_sessions WHERE user_id=${c.user_id} AND EXISTS(SELECT 1 FROM app_accounts WHERE user_id=${c.user_id} AND company_id=${c.company_id})`,
   sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT ${c.company_id},${actor.userId},${actor.email},${c.password?'account.credentials_reset':'account.profile_updated'},${JSON.stringify({user_id:c.user_id,username:c.username,display_name:c.display_name,email:c.email})}::jsonb WHERE EXISTS(SELECT 1 FROM app_accounts WHERE user_id=${c.user_id} AND company_id=${c.company_id})`
  ]);if(!r[1].length)throw new ServiceError('NOT_FOUND',404);return {ok:true};
+} finally { bindTenant(sql,c.company_id,actor.userId); }
 }
+
 export async function setAccountLimit(sql:Sql,actor:Actor,input:unknown){
  bindTenant(sql,null);if(!await owner(sql,actor))throw new ServiceError('FORBIDDEN',403);
  const c=z.object({company_id:uuid,account_limit:z.number().int().min(0).max(10000),version:z.number().int().positive()}).parse(input);

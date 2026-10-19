@@ -1,26 +1,28 @@
-type Offer = {
-  company: { name: string; name_en?: string; phone?: string; email?: string; address?: string };
-  project: { name: string };
-  unit: { code: string; building: string; floor: string; category: string; area: string };
-  customer?: { full_name: string; phone: string; email?: string; address?: string } | null;
-  quote: { plan: { name: string; code: string; down_payment_bps: number; installments: number; interval_months: number }; calculation: { total_minor: string; down_payment_minor: string; installments: Array<{ number: number; due_date: string; amount_minor: string }> } };
-  salesperson: { name: string; email: string };
+import {offerLogo} from './offer-logo';
+import {jsPDF} from 'jspdf';
+import {amiriBase64} from './offer-font';
+import {majorAmount} from './pricing-calculator';
+type Offer={
+ company:{name:string;name_en?:string;phone?:string;email?:string;address?:string};
+ project:{name:string};unit:{code:string;building:string;floor:string;category:string;area:string};
+ customer?:{full_name:string;phone:string;email?:string;address?:string}|null;
+ quote:{book?:{currency?:string}|null;plan:{name:string;code:string;down_payment_bps:number;installments:number;interval_months:number};calculation:{total_minor:string;down_payment_minor:string;installments:Array<{number:number;due_date:string;amount_minor:string}>}};
+ salesperson:{name:string;email:string;phone?:string};language?:'ar'|'en';
 };
-function esc(value: unknown) { return String(value ?? '').replaceAll('\\','\\\\').replaceAll('(','\\(').replaceAll(')','\\)').replaceAll(/[^\x20-\x7E]/g,'?'); }
-function money(minor: string) { const n=BigInt(minor),zero=BigInt(0),hundred=BigInt(100),abs=n<zero?-n:n; return `${n<zero?'-':''}${abs/hundred}.${String(abs%hundred).padStart(2,'0')}`; }
-export function renderOfferPdf(data: Offer) {
-  const lines = [
-    'BUNYRA ERP & CRM', 'PROPERTY OFFER / عرض سعر', '',
-    `Company: ${data.company.name_en || data.company.name}`, `Project: ${data.project.name}`,
-    `Customer: ${data.customer?.full_name || '—'}`, `Customer phone: ${data.customer?.phone || '—'}`,
-    '', 'UNIT DETAILS', `Unit code: ${data.unit.code}`, `Category: ${data.unit.category}`, `Building / Floor: ${data.unit.building} / ${data.unit.floor}`, `Area: ${data.unit.area} sqm`,
-    '', 'APPROVED PRICE & PAYMENT PLAN', `Payment plan: ${data.quote.plan.name} (${data.quote.plan.code})`, `Total price: ${money(data.quote.calculation.total_minor)} EGP`, `Down payment: ${money(data.quote.calculation.down_payment_minor)} EGP`,
-    ...data.quote.calculation.installments.map(i => `Installment ${i.number}: ${i.due_date} — ${money(i.amount_minor)} EGP`),
-    '', `Sales representative: ${data.salesperson.name}`, `Contact: ${data.salesperson.email}`, '', 'This offer is informational and is not a booking, sale, or contract.',
-  ];
-  const stream = `BT\n/F1 11 Tf\n50 760 Td\n${lines.map((line,i)=>`(${esc(line)}) Tj${i<lines.length-1?' 0 -18 Td':''}`).join('\n')}\nET`;
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>', `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-  ];
-  let pdf='%PDF-1.4\n', offsets=[0]; objects.forEach((object,i)=>{ offsets.push(pdf.length); pdf+=`${i+1} 0 obj\n${object}\nendobj\n`; }); const xref=pdf.length; pdf+=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n`; for(let i=1;i<offsets.length;i++)pdf+=`${String(offsets[i]).padStart(10,'0')} 00000 n \n`; pdf+=`trailer\n<< /Size ${objects.length+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`; return new TextEncoder().encode(pdf);
+export function renderOfferPdf(data:Offer){
+ const doc=new jsPDF({unit:'pt',format:'a4',compress:true}),ar=data.language!=='en',currency=data.quote.book?.currency||'EGP',width=595.28,margin=42,bottom=782;
+ doc.addFileToVFS('Amiri-Regular.ttf',amiriBase64);doc.addFont('Amiri-Regular.ttf','Amiri','normal');doc.setFont('Amiri');
+ doc.setProperties({title:ar?'عرض سعر':'Property offer',author:data.company.name,subject:data.unit.code});
+ const t=(a:string,e:string)=>ar?a:e;let y=0,page=0;
+ function header(){page++;doc.setFillColor(16,34,58);doc.rect(0,0,width,78,'F');doc.setTextColor(226,185,121);doc.setFontSize(20);doc.addImage(offerLogo,'PNG',margin,16,170,46);doc.setTextColor(255,255,255);doc.setFontSize(18);doc.text(t('عرض سعر','PROPERTY OFFER'),width-margin,42,{align:'right',isInputVisual:false,isOutputVisual:true,isInputRtl:ar,isOutputRtl:false});doc.setTextColor(22,38,59);y=105;}
+ function footer(){doc.setDrawColor(229,233,239);doc.line(margin,805,width-margin,805);doc.setFontSize(9);doc.setTextColor(116,129,148);doc.text(String(page),width/2,823,{align:'center'});}
+ function newPage(){footer();doc.addPage();header();}
+ function text(value:string,size=12,bold=false){doc.setFontSize(size);doc.setTextColor(bold?155:22,bold?114:38,bold?62:59);const lines=doc.splitTextToSize(value,width-margin*2) as string[];for(const line of lines){if(y+22>bottom)newPage();doc.text(line,ar?width-margin:margin,y,{align:ar?'right':'left',isInputVisual:false,isOutputVisual:true,isInputRtl:ar,isOutputRtl:false});y+=21;} }
+ function field(a:string,e:string,value:unknown){text(t(a,e)+': '+String(value||'—'));}
+ header();text(ar?data.company.name:(data.company.name_en||data.company.name),19,true);field('المشروع','Project',data.project.name);field('العميل','Customer',data.customer?.full_name);field('الهاتف','Phone',data.customer?.phone);y+=8;text(t('بيانات الوحدة','UNIT DETAILS'),15,true);
+ field('كود الوحدة','Unit code',data.unit.code);field('المبنى / الدور','Building / floor',data.unit.building+' / '+data.unit.floor);field('التصنيف','Category',data.unit.category);field('المساحة م²','Area sqm',data.unit.area);y+=8;text(t('السعر المعتمد ونظام السداد','APPROVED PRICE & PAYMENT PLAN'),15,true);
+ field('نظام السداد','Payment plan',data.quote.plan.name+' · '+data.quote.plan.code);field('السعر الإجمالي','Total price',majorAmount(data.quote.calculation.total_minor)+' '+currency);field('المقدم','Down payment',majorAmount(data.quote.calculation.down_payment_minor)+' '+currency);y+=9;
+ for(const i of data.quote.calculation.installments){if(y+32>bottom)newPage();doc.setFillColor(i.number%2?248:255,i.number%2?250:255,i.number%2?252:255);doc.rect(margin,y-15,width-margin*2,25,'F');doc.setFontSize(11);doc.setTextColor(22,38,59);doc.text(t('القسط','Installment')+' '+i.number,width-margin-8,y,{align:'right',isInputVisual:false,isOutputVisual:true,isInputRtl:ar,isOutputRtl:false});doc.text(i.due_date,width/2,y,{align:'center',isInputVisual:false,isOutputVisual:true,isInputRtl:false,isOutputRtl:false});doc.text(majorAmount(i.amount_minor)+' '+currency,margin+8,y,{isInputVisual:false,isOutputVisual:true,isInputRtl:false,isOutputRtl:false});y+=25;}
+ y+=15;text(t('بيانات التواصل','CONTACT DETAILS'),15,true);field('المندوب','Representative',data.salesperson.name);field('هاتف المندوب','Representative phone',data.salesperson.phone||data.company.phone);field('البريد','Email',data.salesperson.email||data.company.email);
+ text(t('هذا عرض استرشادي ولا يُعد حجزًا أو بيعًا أو عقدًا.','This offer is informational and is not a booking, sale or contract.'),10);footer();return new Uint8Array(doc.output('arraybuffer'));
 }
