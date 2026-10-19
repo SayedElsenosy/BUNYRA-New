@@ -94,9 +94,9 @@ export async function reviewCompanyRequest(sql: Sql, actor: Actor, input: unknow
   return { request: res[1][0], company: res[0][0], invite:null };
 }
 
-const IMPACT = ['memberships', 'invitations', 'custom_roles', 'organization_nodes', 'projects', 'inventory_units', 'unit_status_history', 'inventory_imports', 'project_plan_files', 'plan_layouts', 'audit_logs'] as const;
+const IMPACT = ['price_books','memberships', 'invitations', 'custom_roles', 'organization_nodes', 'projects', 'inventory_units', 'unit_status_history', 'inventory_imports', 'project_plan_files', 'plan_layouts', 'audit_logs'] as const;
 // Child-first order so foreign keys never block the purge. audit_logs and the company row are retained.
-const PURGE = ['plan_unit_shapes', 'unit_status_history', 'plan_layouts', 'inventory_units', 'inventory_imports', 'project_plan_files', 'project_setups', 'member_placements', 'member_permissions', 'organization_nodes', 'invitations', 'app_accounts','memberships', 'custom_roles', 'projects', 'company_settings'] as const;
+const PURGE = ['price_book_entry_plans','price_book_entries','price_book_plans','project_pricing','price_books','plan_unit_shapes', 'unit_status_history', 'plan_layouts', 'inventory_units', 'inventory_imports', 'project_plan_files', 'project_setups', 'member_placements', 'member_permissions', 'organization_nodes', 'invitations', 'app_accounts','memberships', 'custom_roles', 'projects', 'company_settings'] as const;
 
 export async function deletionImpact(sql: Sql, actor: Actor, id: string) {
   await requireOwner(sql, actor);
