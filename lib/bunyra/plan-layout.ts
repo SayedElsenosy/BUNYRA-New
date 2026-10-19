@@ -16,13 +16,15 @@ export async function getPlanLayout(sql:Sql,actor:Actor,company:string,project:s
  const ctx=await layoutAccess(sql,actor,company,project,file,platform),reviewer=ctx.canWrite||ctx.canPublish;
  const id=view==='published'?ctx.file.published_revision_id:view==='draft'?(reviewer?ctx.file.draft_revision_id:null):view?uuid.parse(view):(reviewer?ctx.file.draft_revision_id||ctx.file.published_revision_id:ctx.file.published_revision_id);
  if(view==='draft'&&!reviewer)throw new ServiceError('NOT_FOUND',404);
- const revision=id?(await sql`SELECT id,version,state,reason,shapes,created_by,created_at,approved_by,approved_at FROM plan_layout_revisions WHERE company_id=${company} AND project_id=${project} AND file_id=${file} AND id=${id}`)[0]:null;
+ const revision=id?(await sql`SELECT id,version,state,reason,shapes,inventory_change,created_by,created_at,approved_by,approved_at FROM plan_layout_revisions WHERE company_id=${company} AND project_id=${project} AND file_id=${file} AND id=${id}`)[0]:null;
  if(id&&!revision)throw new ServiceError('NOT_FOUND',404);
  const history=await sql`SELECT id,version,state,reason,created_by,created_at,approved_by,approved_at,jsonb_array_length(shapes) AS units_count FROM plan_layout_revisions WHERE company_id=${company} AND project_id=${project} AND file_id=${file} AND (${reviewer} OR state='approved') ORDER BY version DESC LIMIT 100`;
  const baseline=reviewer&&ctx.file.published_revision_id?(await sql`SELECT shapes FROM plan_layout_revisions WHERE company_id=${company} AND project_id=${project} AND file_id=${file} AND id=${ctx.file.published_revision_id}`)[0]?.shapes||[]:[];
  // Geometry revisions never overwrite live inventory values or approved price snapshots.
  const units=await sql`SELECT u.id,u.code,u.building,u.floor,u.category,u.area::text,u.status,u.active,CASE WHEN ${ctx.canPrice} THEN u.proposed_price_minor::text ELSE NULL END AS proposed_price_minor,CASE WHEN ${ctx.canPrice} THEN u.details ELSE u.details-'price_per_sqm'-'out_price_per_sqm'-'source_div80'-'source_total_price' END AS details FROM inventory_units u WHERE u.company_id=${company} AND u.project_id=${project} ORDER BY u.code LIMIT 5000`;
- const safeFile=reviewer?ctx.file:{...ctx.file,draft_revision_id:null};return {file:safeFile,version:ctx.file.layout_version,can_write:ctx.canWrite,can_publish:ctx.canPublish,revision,history,baseline,shapes:revision?.shapes||[],units};
+ const safeFile=reviewer?ctx.file:{...ctx.file,draft_revision_id:null};const draftUnits=revision?.state==='draft'?revision.inventory_change?.outputs||[]:[];const previewUnits=[...units.filter(u=>!draftUnits.some((n:{id:string})=>n.id===u.id)).map(u=>revision?.state==='draft'&&revision.inventory_change?.source_ids.includes(u.id)?{...u,active:false,status:'unavailable'}:u),...draftUnits.map((u:Record<string,unknown>)=>({...u,is_preview:true,status:'available',active:true,proposed_price_minor:null}))];
+ const lineage=await sql`SELECT parent_unit_id,child_unit_id,operation,revision_id,created_at FROM unit_lineage WHERE company_id=${company} AND project_id=${project} ORDER BY created_at DESC LIMIT 1000`;
+ return {file:safeFile,version:ctx.file.layout_version,can_write:ctx.canWrite,can_publish:ctx.canPublish,revision,history,baseline,shapes:revision?.shapes||[],units:previewUnits,lineage};
 }
 const saveSchema=z.object({company_id:uuid,project_id:uuid,file_id:uuid,version:z.number().int().min(0),published:z.literal(false).optional(),reason:z.string().trim().min(3).max(500),shapes:z.array(shapeSchema).max(1000)}).strict().refine(c=>new Set(c.shapes.map(s=>s.unit_id)).size===c.shapes.length,'DUPLICATE_UNIT_MAPPING');
 function checkGeometry(shapes:Shape[]){const issue=geometryIssue(shapes);if(issue)throw new ServiceError(issue.code,400);}
@@ -45,12 +47,22 @@ export async function savePlanLayout(sql:Sql,actor:Actor,input:unknown,platform=
 const approvalSchema=z.object({company_id:uuid,project_id:uuid,file_id:uuid,version:z.number().int().positive(),revision_id:uuid}).strict();
 export async function approvePlanLayout(sql:Sql,actor:Actor,input:unknown,platform=false){
  const c=approvalSchema.parse(input),ctx=await layoutAccess(sql,actor,c.company_id,c.project_id,c.file_id,platform);await access(sql,actor,c.company_id,'plans.publish',platform,c.project_id);if(!ctx.canPublish)throw new ServiceError('FORBIDDEN',403);
- const revision=(await sql`SELECT shapes,unit_versions FROM plan_layout_revisions WHERE company_id=${c.company_id} AND project_id=${c.project_id} AND file_id=${c.file_id} AND id=${c.revision_id} AND state='draft'`)[0];if(!revision)throw new ServiceError('LAYOUT_CONFLICT',409);
+ const revision=(await sql`SELECT shapes,unit_versions,inventory_change FROM plan_layout_revisions WHERE company_id=${c.company_id} AND project_id=${c.project_id} AND file_id=${c.file_id} AND id=${c.revision_id} AND state='draft'`)[0];if(!revision)throw new ServiceError('LAYOUT_CONFLICT',409);
  const shapes=z.array(shapeSchema).parse(revision.shapes);if(!shapes.length)throw new ServiceError('EMPTY_LAYOUT',400);checkGeometry(shapes);
  const payload=JSON.stringify(shapes),versions=JSON.stringify(revision.unit_versions);
+ const change=revision.inventory_change;
+ if(change)await access(sql,actor,c.company_id,'inventory.write',platform,c.project_id);
+ const extra=change?[
+ sql`SELECT bunyra_pricing_assert((SELECT count(*) FROM jsonb_each_text(${JSON.stringify(change.source_versions)}::jsonb) v JOIN inventory_units u ON u.id=v.key::uuid AND u.company_id=${c.company_id} AND u.project_id=${c.project_id} AND u.version=v.value::int AND u.active AND u.status='available')=${change.source_ids.length} AND NOT EXISTS(SELECT 1 FROM bookings WHERE company_id=${c.company_id} AND unit_id=ANY(${change.source_ids}::uuid[]) AND status IN('submitted','approved','accounts_pending','accounts_confirmed')),'UNIT_TRANSFORMATION_CONFLICT')`,
+ sql`INSERT INTO inventory_units(id,company_id,project_id,code,building,floor,category,area,proposed_price_minor,status,active,details) SELECT r.id,${c.company_id}::uuid,${c.project_id}::uuid,r.code,r.building,r.floor,r.category,r.area,0,'available',true,r.details FROM jsonb_to_recordset(${JSON.stringify(change.outputs)}::jsonb) r(id uuid,code text,building text,floor text,category text,area numeric,details jsonb)`,
+ sql`UPDATE inventory_units SET active=false,status='unavailable',version=version+1,updated_at=now() WHERE company_id=${c.company_id} AND project_id=${c.project_id} AND id=ANY(${change.source_ids}::uuid[])`,
+ sql`INSERT INTO unit_lineage(company_id,project_id,revision_id,parent_unit_id,child_unit_id,operation) SELECT ${c.company_id}::uuid,${c.project_id}::uuid,${c.revision_id}::uuid,p::uuid,(n->>'id')::uuid,${change.operation}::text FROM jsonb_array_elements_text(${JSON.stringify(change.source_ids)}::jsonb) p CROSS JOIN jsonb_array_elements(${JSON.stringify(change.outputs)}::jsonb) n`,
+ sql`INSERT INTO unit_status_history(company_id,project_id,unit_id,previous_status,next_status,actor_id) SELECT ${c.company_id}::uuid,${c.project_id}::uuid,p::uuid,'available','unavailable',${actor.userId}::text FROM jsonb_array_elements_text(${JSON.stringify(change.source_ids)}::jsonb) p`
+ ]:[];
  const r=await sql.transaction([
  sql`SELECT id FROM projects WHERE id=${c.project_id} AND company_id=${c.company_id} FOR UPDATE`,
  sql`SELECT id FROM inventory_units WHERE company_id=${c.company_id} AND project_id=${c.project_id} ORDER BY id FOR UPDATE`,
+ ...extra,
  sql`SELECT bunyra_pricing_assert(EXISTS(SELECT 1 FROM plan_layouts WHERE file_id=${c.file_id} AND company_id=${c.company_id} AND project_id=${c.project_id} AND version=${c.version} AND draft_revision_id=${c.revision_id}),'LAYOUT_CONFLICT')`,
  sql`SELECT bunyra_pricing_assert((SELECT count(*) FROM jsonb_each_text(${versions}::jsonb) v JOIN inventory_units u ON u.id=v.key::uuid AND u.company_id=${c.company_id} AND u.project_id=${c.project_id} AND u.version=v.value::int)=${shapes.length},'LAYOUT_SOURCE_CHANGED')`,
  sql`SELECT bunyra_pricing_assert(NOT EXISTS(SELECT 1 FROM inventory_units u LEFT JOIN plan_unit_shapes old ON old.unit_id=u.id AND old.company_id=u.company_id AND old.project_id=u.project_id AND old.file_id=${c.file_id} LEFT JOIN jsonb_to_recordset(${payload}::jsonb) n(unit_id uuid,page integer,points jsonb) ON n.unit_id=u.id WHERE u.company_id=${c.company_id} AND u.project_id=${c.project_id} AND u.status IN('pending','reserved','sold') AND (old.unit_id IS NOT NULL OR n.unit_id IS NOT NULL) AND (old.page IS DISTINCT FROM n.page OR old.points IS DISTINCT FROM n.points)),'UNIT_GEOMETRY_LOCKED')`,
@@ -58,5 +70,15 @@ export async function approvePlanLayout(sql:Sql,actor:Actor,input:unknown,platfo
  sql`DELETE FROM plan_unit_shapes WHERE company_id=${c.company_id} AND project_id=${c.project_id} AND file_id=${c.file_id}`,
  sql`INSERT INTO plan_unit_shapes(company_id,project_id,file_id,unit_id,page,points) SELECT ${c.company_id},${c.project_id},${c.file_id},r.unit_id,r.page,r.points FROM jsonb_to_recordset(${payload}::jsonb) r(unit_id uuid,page integer,points jsonb)`,
  sql`WITH previous AS MATERIALIZED(SELECT published_revision_id,version FROM plan_layouts WHERE company_id=${c.company_id} AND project_id=${c.project_id} AND file_id=${c.file_id}),changed AS(UPDATE plan_layouts SET published=true,published_revision_id=${c.revision_id},draft_revision_id=NULL,version=version+1,updated_by=${actor.userId},updated_at=now() WHERE company_id=${c.company_id} AND project_id=${c.project_id} AND file_id=${c.file_id} RETURNING version),logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,before_data,after_data) SELECT ${c.company_id},${actor.userId},${actor.email},'project.layout_approved',(SELECT to_jsonb(previous) FROM previous),jsonb_build_object('file_id',${c.file_id}::uuid,'revision_id',${c.revision_id}::uuid,'version',changed.version) FROM changed RETURNING id) SELECT version FROM changed`
- ]);return {ok:true,version:r[8][0].version,revision_id:c.revision_id};
+ ]);return {ok:true,version:r[8+extra.length][0].version,revision_id:c.revision_id};
+}
+
+export async function discardPlanDraft(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=approvalSchema.parse(input),ctx=await layoutAccess(sql,actor,c.company_id,c.project_id,c.file_id,platform);
+ if(!ctx.canWrite)throw new ServiceError('FORBIDDEN',403);
+ await access(sql,actor,c.company_id,'projects.write',platform,c.project_id);
+ const r=await sql.transaction([
+ sql`SELECT id FROM projects WHERE company_id=${c.company_id} AND id=${c.project_id} FOR UPDATE`,
+ sql`WITH changed AS(UPDATE plan_layouts SET draft_revision_id=NULL,version=version+1,updated_by=${actor.userId},updated_at=now() WHERE company_id=${c.company_id} AND project_id=${c.project_id} AND file_id=${c.file_id} AND version=${c.version} AND draft_revision_id=${c.revision_id} RETURNING version),logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT ${c.company_id}::uuid,${actor.userId}::text,${actor.email}::text,'project.layout_draft_discarded',jsonb_build_object('revision_id',${c.revision_id}::uuid) FROM changed) SELECT version FROM changed`
+ ]);if(!r[1].length)throw new ServiceError('LAYOUT_CONFLICT',409);return {version:r[1][0].version};
 }

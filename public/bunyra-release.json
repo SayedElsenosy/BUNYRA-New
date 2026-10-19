@@ -1,0 +1,11 @@
+{
+  "release": "2026-10-20-integrated-bunyra",
+  "design": "SayedElsenosy/BUNYRA",
+  "features": [
+    "scoped-crm",
+    "immutable-booking-terms",
+    "atomic-refunds",
+    "arabic-offers",
+    "split-merge-lineage"
+  ]
+}

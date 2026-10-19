@@ -94,9 +94,9 @@ export async function reviewCompanyRequest(sql: Sql, actor: Actor, input: unknow
   return { request: res[1][0], company: res[0][0], invite:null };
 }
 
-const IMPACT = ['plan_layout_revisions','price_books','memberships', 'invitations', 'custom_roles', 'organization_nodes', 'projects', 'inventory_units', 'unit_status_history', 'inventory_imports', 'project_plan_files', 'plan_layouts', 'audit_logs'] as const;
+const IMPACT = ['unit_lineage','crm_customers','crm_leads','buyer_requests','bookings','contracts','contract_installments','collections','financial_adjustments','booking_documents','customer_notifications','crm_sales_teams','plan_layout_revisions','price_books','memberships', 'invitations', 'custom_roles', 'organization_nodes', 'projects', 'inventory_units', 'unit_status_history', 'inventory_imports', 'project_plan_files', 'plan_layouts', 'audit_logs'] as const;
 // Child-first order so foreign keys never block the purge. audit_logs and the company row are retained.
-const PURGE = ['price_book_entry_plans','price_book_entries','price_book_plans','project_pricing','price_books','plan_unit_shapes', 'unit_status_history','plan_layout_revisions', 'plan_layouts', 'inventory_units', 'inventory_imports', 'project_plan_files', 'project_setups', 'member_placements', 'member_permissions', 'organization_nodes', 'invitations', 'app_accounts','memberships', 'custom_roles', 'projects', 'company_settings'] as const;
+const PURGE = ['unit_lineage','customer_notifications','financial_adjustments','booking_documents','collections','contract_installments','contracts','bookings','buyer_requests','crm_lead_transfers','crm_interactions','crm_follow_ups','crm_leads','crm_sales_team_members','crm_sales_teams','crm_pipeline_stages','crm_customers','price_book_entry_plans','price_book_entries','price_book_plans','project_pricing','price_books','plan_unit_shapes', 'unit_status_history','plan_layout_revisions', 'plan_layouts', 'inventory_units', 'inventory_imports', 'project_plan_files', 'project_setups', 'member_placements', 'member_permissions', 'organization_nodes', 'invitations', 'app_accounts','memberships', 'custom_roles', 'projects', 'company_settings'] as const;
 
 export async function deletionImpact(sql: Sql, actor: Actor, id: string) {
   await requireOwner(sql, actor);
@@ -141,13 +141,14 @@ export async function purgeCompany(sql: Sql, actor: Actor, input: unknown, stora
   if (company.status !== 'deleted' || company.purged_at) throw new ServiceError('NOT_SCHEDULED', 409);
   if (new Date(company.purge_after) > new Date()) throw new ServiceError('RETENTION_ACTIVE', 409);
   if (c.confirm !== company.name) throw new ServiceError('CONFIRMATION_MISMATCH');
-  const keys = (await sql`SELECT object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL`).map(r => r.object_key as string);
+  const keys = (await sql`SELECT object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL UNION SELECT object_key FROM booking_documents WHERE company_id=${c.id}`).map(r => r.object_key as string);
   if (keys.length && !storage) throw new ServiceError('STORAGE_NOT_CONFIGURED', 503);
   const { counts } = await deletionImpact(sql, actor, c.id);
   const purged = `EXISTS(SELECT 1 FROM companies WHERE id=$1 AND purged_at IS NOT NULL AND version=${c.version + 1})`;
   const res = await sql.transaction([
     sql`UPDATE companies SET purged_at=now(),email='',phone='',address='',version=version+1,updated_at=now() WHERE id=${c.id} AND version=${c.version} AND status='deleted' AND purged_at IS NULL AND purge_after<=now() RETURNING id`,
     sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version + 1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
+    sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM booking_documents WHERE company_id=${c.id} AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version+1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
     ...PURGE.map(t => sql.query(`DELETE FROM ${t} WHERE company_id=$1 AND ${purged}`, [c.id])),
     sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT ${c.id},${actor.userId},${actor.email},'company.purged',${JSON.stringify({ deleted: counts, files: keys.length })}::jsonb WHERE EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version + 1})`,
   ]);

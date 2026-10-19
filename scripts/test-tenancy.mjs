@@ -18,11 +18,12 @@ export async function runTenancyTests(sql){
  await sql.transaction([
   sql`INSERT INTO platform_owner(singleton,user_id,email) VALUES(true,${platform.userId},${platform.email}) ON CONFLICT DO NOTHING`,
   sql`INSERT INTO companies(id,name) VALUES(${a},${'Tenancy A '+tag}),(${b},${'Tenancy B '+tag})`,
-  sql`INSERT INTO companies(id,name,status) VALUES(${s},${'Tenancy Suspended '+tag},'suspended')`,
+  sql`INSERT INTO companies(id,name,status) VALUES(${s},${'Tenancy Suspended '+tag},'active')`,
   sql`INSERT INTO projects(id,company_id,name) VALUES(${pa},${a},'A project'),(${pb},${b},'B project'),(${ps},${s},'S project')`,
   sql`INSERT INTO memberships(company_id,user_id,email,role,active) VALUES(${a},${adminA.userId},${adminA.email},'company_admin',true),(${a},${salesA.userId},${salesA.email},'sales',true),(${a},${formerA.userId},${formerA.email},'sales',false),(${b},${adminB.userId},${adminB.email},'company_admin',true),(${s},${memberS.userId},${memberS.email},'company_admin',true)`,
   sql`INSERT INTO inventory_units(company_id,project_id,code,building,floor,category,area,proposed_price_minor) VALUES(${a},${pa},'A-1','B1','1','Office',100,1000),(${a},${pa},'A-2','B1','1','Office',100,1000),(${b},${pb},'B-1','B1','1','Office',100,1000),(${s},${ps},'S-1','B1','1','Office',100,1000)`,
   sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action) VALUES(${a},'fixture','fixture@example.com','fixture.a'),(${b},'fixture','fixture@example.com','fixture.b')`]);
+ await sql`UPDATE companies SET status='suspended' WHERE id=${s}`;
  const scoped=(company,actor)=>{const t=tenantSql(sql);bindTenant(t,company,actor.userId);return t;};
  const ids=rows=>rows.map(r=>r.company_id??r.id);
 
@@ -47,7 +48,8 @@ export async function runTenancyTests(sql){
   assert.equal((await scoped(s,memberS)`SELECT count(*)::int AS n FROM inventory_units`)[0].n,0);});
  await check('tenant role cannot read the platform owner or migrations tables',async()=>{
   await reject(()=>scoped(a,adminA)`SELECT * FROM platform_owner`,'42501');
-  await reject(()=>scoped(a,adminA)`SELECT * FROM schema_migrations`,'42501');});
+  await reject(()=>scoped(a,adminA)`SELECT * FROM schema_migrations`,'42501');
+  await reject(()=>scoped(a,adminA)`SELECT * FROM app_accounts`,'42501');});
  await check('tenant role cannot change company status',()=>reject(()=>scoped(a,adminA)`UPDATE companies SET status='suspended' WHERE id=${a}`,'42501'));
  await check('platform owner context is limited to the selected company',async()=>{
   const t=scoped(s,platform);assert.deepEqual(ids(await t`SELECT company_id FROM inventory_units`),[s]);assert.deepEqual(ids(await t`SELECT id FROM companies`),[s]);});
@@ -66,7 +68,7 @@ export async function runTenancyTests(sql){
  await check('forged platform mode is rejected for company users',()=>reject(()=>proj.projectList(tenantSql(sql),adminA,b,true),'FORBIDDEN'));
  await check('every table with company_id has forced RLS and a tenant policy',async()=>{
   const rows=await sql`SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity,(SELECT count(*)::int FROM pg_policies p WHERE p.schemaname='public' AND p.tablename=c.relname AND 'bunyra_tenant'=ANY(p.roles)) AS policies FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND (EXISTS(SELECT 1 FROM information_schema.columns k WHERE k.table_schema='public' AND k.table_name=c.relname AND k.column_name='company_id') OR c.relname='companies')`;
-  assert.ok(rows.length>=17);for(const r of rows)assert.ok(r.relrowsecurity&&r.relforcerowsecurity&&(r.relname==='storage_cleanup_jobs'?r.policies===0:r.policies>0),r.relname);});
+  assert.ok(rows.length>=17);for(const r of rows)assert.ok(r.relrowsecurity&&r.relforcerowsecurity&&(['storage_cleanup_jobs','app_accounts'].includes(r.relname)?r.policies===0:r.policies>0),r.relname);});
  await check('tenant role does not bypass RLS',async()=>{const r=await sql`SELECT rolbypassrls,rolsuper FROM pg_roles WHERE rolname='bunyra_tenant'`;assert.equal(r[0].rolbypassrls,false);assert.equal(r[0].rolsuper,false);});
  return {passed:checks.length,checks,fixtures:{company_a:a,company_b:b,company_suspended:s}};
 }
