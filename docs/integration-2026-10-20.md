@@ -6,8 +6,9 @@ The current native accounts, permissions, imports, private plan storage, pricing
 ## Database deployment
 Run the migration runner on an isolated fixture branch, then the existing production branch:
 - 025-commercial-integrity: nullable immutable booking quote snapshot, NULL-safe committed-unit protection, serialized cumulative adjustments.
+- 027-retired-unit-protection: rejects reactivation or rewriting of retired parent identities.
 - 026-unit-lineage: private inventory-change drafts and immutable parent/child records.
-Existing units and published geometry are unchanged by both migrations.
+Existing units and published geometry are unchanged by these migrations.
 Legacy bookings without a quote snapshot cannot be silently repriced; resolve their terms explicitly before creating a contract.
 
 ## Split and merge
