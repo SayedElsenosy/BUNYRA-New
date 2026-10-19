@@ -1,11 +1,11 @@
 {
-  "release": "2026-10-20-integrated-bunyra",
+  "release": "2026-10-20-section-navigation",
   "design": "SayedElsenosy/BUNYRA",
+  "navigation": "grouped-sidebar-single-section",
   "features": [
-    "scoped-crm",
-    "immutable-booking-terms",
-    "atomic-refunds",
-    "arabic-offers",
-    "split-merge-lineage"
+    "separate-settings",
+    "project-modules",
+    "sales-modules",
+    "finance-modules"
   ]
 }
