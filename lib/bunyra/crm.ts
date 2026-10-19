@@ -97,8 +97,8 @@ export async function createCustomer(sql: Sql, actor: Actor, input: unknown, asO
   if (!normalizedPhone) throw new ServiceError('INVALID_PHONE');
   const normalizedEmail = normalizeEmail(c.email);
   const rows = await sql.transaction([
-    sql`INSERT INTO crm_customers(company_id,full_name,phone,email,address,notes,normalized_phone,normalized_email,created_by) VALUES(${c.company_id},${c.full_name},${c.phone},${c.email},${c.address},${c.notes},${normalizedPhone},${normalizedEmail},${actor.userId}) RETURNING id,full_name,phone,email,address,notes,version,created_at,updated_at`,
-    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.customer_created',jsonb_build_object('full_name',${c.full_name},'phone',${c.phone},'email',${c.email})) RETURNING id`,
+    sql`INSERT INTO crm_customers(company_id,full_name,phone,email,address,notes,normalized_phone,normalized_email,created_by) VALUES(${c.company_id},${c.full_name}::text,${c.phone}::text,${c.email}::text,${c.address}::text,${c.notes}::text,${normalizedPhone}::text,${normalizedEmail}::text,${actor.userId}::text) RETURNING id,full_name,phone,email,address,notes,version,created_at,updated_at`,
+    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.customer_created',jsonb_build_object('full_name',${c.full_name}::text,'phone',${c.phone}::text,'email',${c.email}::text)) RETURNING id`,
   ]);
   return rows[0][0];
 }
@@ -111,8 +111,8 @@ export async function createLead(sql: Sql, actor: Actor, input: unknown, asOwner
   await ensureOwner(sql, c.company_id, ownerId);
   if (c.project_id && !(await sql`SELECT 1 FROM projects WHERE company_id=${c.company_id} AND id=${c.project_id}`).length) throw new ServiceError('INVALID_PROJECT');
   const rows = await sql.transaction([
-    sql`INSERT INTO crm_leads(company_id,customer_id,source,status,owner_user_id,project_id,interest,lost_reason,created_by,stage_id) VALUES(${c.company_id},${c.customer_id},${c.source},${c.status},${ownerId},${c.project_id},${c.interest},${c.lost_reason},${actor.userId},(SELECT id FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND active ORDER BY position LIMIT 1)) RETURNING *`,
-    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_created',jsonb_build_object('customer_id',${c.customer_id},'owner_user_id',${ownerId},'status',${c.status})) RETURNING id`,
+    sql`INSERT INTO crm_leads(company_id,customer_id,source,status,owner_user_id,project_id,interest,lost_reason,created_by,stage_id) VALUES(${c.company_id},${c.customer_id},${c.source}::text,${c.status}::text,${ownerId}::text,${c.project_id}::uuid,${c.interest}::text,${c.lost_reason}::text,${actor.userId}::text,(SELECT id FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND active ORDER BY position LIMIT 1)) RETURNING *`,
+    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_created',jsonb_build_object('customer_id',${c.customer_id}::text,'owner_user_id',${ownerId}::text,'status',${c.status}::text)) RETURNING id`,
   ]);
   return rows[0][0];
 }
@@ -133,8 +133,8 @@ export async function addInteraction(sql: Sql, actor: Actor, input: unknown, asO
   await ensureCustomer(sql, c.company_id, c.customer_id);
   if (c.lead_id && !(await sql`SELECT 1 FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.lead_id} AND customer_id=${c.customer_id}`).length) throw new ServiceError('INVALID_LEAD');
   const rows = await sql.transaction([
-    sql`INSERT INTO crm_interactions(company_id,customer_id,lead_id,kind,body,created_by) VALUES(${c.company_id},${c.customer_id},${c.lead_id},${c.kind},${c.body},${actor.userId}) RETURNING *`,
-    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.interaction_added',jsonb_build_object('customer_id',${c.customer_id},'kind',${c.kind})) RETURNING id`,
+    sql`INSERT INTO crm_interactions(company_id,customer_id,lead_id,kind,body,created_by) VALUES(${c.company_id},${c.customer_id},${c.lead_id}::uuid,${c.kind}::text,${c.body}::text,${actor.userId}::text) RETURNING *`,
+    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.interaction_added',jsonb_build_object('customer_id',${c.customer_id}::text,'kind',${c.kind}::text)) RETURNING id`,
   ]);
   return rows[0][0];
 }
@@ -147,8 +147,8 @@ export async function addFollowUp(sql: Sql, actor: Actor, input: unknown, asOwne
   await ensureOwner(sql, c.company_id, assignedTo);
   if (c.lead_id && !(await sql`SELECT 1 FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.lead_id} AND customer_id=${c.customer_id}`).length) throw new ServiceError('INVALID_LEAD');
   const rows = await sql.transaction([
-    sql`INSERT INTO crm_follow_ups(company_id,customer_id,lead_id,due_at,title,assigned_to,created_by) VALUES(${c.company_id},${c.customer_id},${c.lead_id},${c.due_at},${c.title},${assignedTo},${actor.userId}) RETURNING *`,
-    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.follow_up_created',jsonb_build_object('customer_id',${c.customer_id},'due_at',${c.due_at})) RETURNING id`,
+    sql`INSERT INTO crm_follow_ups(company_id,customer_id,lead_id,due_at,title,assigned_to,created_by) VALUES(${c.company_id},${c.customer_id},${c.lead_id}::uuid,${c.due_at}::timestamptz,${c.title}::text,${assignedTo}::text,${actor.userId}::text) RETURNING *`,
+    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.follow_up_created',jsonb_build_object('customer_id',${c.customer_id}::text,'due_at',${c.due_at}::text)) RETURNING id`,
   ]);
   return rows[0][0];
 }

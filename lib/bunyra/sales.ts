@@ -84,8 +84,8 @@ export async function transferLead(sql: Sql, actor: Actor, input: unknown, asOwn
   ]);
   if (!rows[1].length) throw new ServiceError('NOT_FOUND', 404);
   await sql.transaction([
-    sql`INSERT INTO crm_lead_transfers(company_id,lead_id,from_user_id,to_user_id,reason,created_by) VALUES(${c.company_id},${c.lead_id},${rows[0][0]?.owner_user_id || null},${c.to_user_id},${c.reason},${actor.userId})`,
-    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_transferred',jsonb_build_object('lead_id',${c.lead_id},'to_user_id',${c.to_user_id},'reason',${c.reason}))`,
+    sql`INSERT INTO crm_lead_transfers(company_id,lead_id,from_user_id,to_user_id,reason,created_by) VALUES(${c.company_id},${c.lead_id},${rows[0][0]?.owner_user_id || null}::text,${c.to_user_id}::text,${c.reason}::text,${actor.userId}::text)`,
+    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_transferred',jsonb_build_object('lead_id',${c.lead_id}::text,'to_user_id',${c.to_user_id}::text,'reason',${c.reason}::text))`,
   ]);
   return rows[1][0];
 }
@@ -94,9 +94,9 @@ export async function moveLeadStage(sql: Sql, actor: Actor, input: unknown, asOw
   const c = stageMoveInput.parse(input);
   const ctx = await access(sql, actor, c.company_id, 'leads.write', asOwner);
   if (!(await sql`SELECT 1 FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND id=${c.stage_id} AND active`).length) throw new ServiceError('INVALID_STAGE', 400);
-  const rows = await sql`UPDATE crm_leads SET stage_id=${c.stage_id},version=version+1,updated_at=now() WHERE company_id=${c.company_id} AND id=${c.lead_id} AND version=${c.version} AND (owner_user_id=${actor.userId} OR ${canManage(ctx.role, ctx.owner)}) RETURNING *`;
+  const rows = await sql`UPDATE crm_leads SET stage_id=${c.stage_id},version=version+1,updated_at=now() WHERE company_id=${c.company_id} AND id=${c.lead_id} AND version=${c.version} AND (owner_user_id=${actor.userId} OR ${canManage(ctx.role, ctx.owner)}::boolean) RETURNING *`;
   if (!rows.length) throw new ServiceError('VERSION_CONFLICT', 409);
-  await sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_stage_changed',jsonb_build_object('lead_id',${c.lead_id},'stage_id',${c.stage_id}))`;
+  await sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_stage_changed',jsonb_build_object('lead_id',${c.lead_id}::text,'stage_id',${c.stage_id}::text))`;
   return rows[0];
 }
 
