@@ -152,14 +152,33 @@ export async function purgeCompany(sql: Sql, actor: Actor, input: unknown, stora
   const purged = `EXISTS(SELECT 1 FROM companies WHERE id=$1 AND purged_at IS NOT NULL AND version=${c.version + 1})`;
   const res = await sql.transaction([
     sql`UPDATE companies SET purged_at=now(),email='',phone='',address='',version=version+1,updated_at=now() WHERE id=${c.id} AND version=${c.version} AND status='deleted' AND purged_at IS NULL AND purge_after<=now() RETURNING id`,
+    sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version + 1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
     ...PURGE.map(t => sql.query(`DELETE FROM ${t} WHERE company_id=$1 AND ${purged}`, [c.id])),
     sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT ${c.id},${actor.userId},${actor.email},'company.purged',${JSON.stringify({ deleted: counts, files: keys.length })}::jsonb WHERE EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version + 1})`,
   ]);
   if (!res[0].length) throw new ServiceError('VERSION_CONFLICT', 409);
-  const failed: string[] = [];
-  for (const key of keys) {
-    try { await storage!.remove(key); } catch { failed.push(key); }
+  const cleanup = await retryCompanyStorage(sql, actor, {...c, version: c.version + 1}, storage);
+  return { purged: counts, ...cleanup };
+}
+
+// The outbox survives removal of project_plan_files. S3 DELETE is idempotent;
+// a crash between DELETE and acknowledgement safely repeats the same key.
+export async function retryCompanyStorage(sql: Sql, actor: Actor, input: unknown, storage?: ObjectRemover) {
+  const { c, company } = await loadForLifecycle(sql, actor, input);
+  if (!company.purged_at) throw new ServiceError('NOT_SCHEDULED', 409);
+  if (c.confirm !== company.name) throw new ServiceError('CONFIRMATION_MISMATCH');
+  if (c.version !== company.version) throw new ServiceError('VERSION_CONFLICT', 409);
+  const jobs = await sql`SELECT id,object_key FROM storage_cleanup_jobs WHERE company_id=${c.id} AND completed_at IS NULL ORDER BY id LIMIT 5`;
+  if (jobs.length && !storage) throw new ServiceError('STORAGE_NOT_CONFIGURED', 503);
+  let removed = 0;
+  for (const job of jobs) {
+    await sql`UPDATE storage_cleanup_jobs SET attempts=attempts+1 WHERE id=${job.id} AND completed_at IS NULL`;
+    try { await storage!.remove(job.object_key as string); }
+    catch { continue; }
+    await sql`UPDATE storage_cleanup_jobs SET completed_at=now() WHERE id=${job.id} AND completed_at IS NULL`;
+    removed++;
   }
-  if (failed.length) await sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.id},${actor.userId},${actor.email},'company.purge_storage_failed',${JSON.stringify({ keys: failed })}::jsonb)`;
-  return { purged: counts, files_removed: keys.length - failed.length, files_failed: failed.length };
+  const pending = (await sql`SELECT count(*)::int n FROM storage_cleanup_jobs WHERE company_id=${c.id} AND completed_at IS NULL`)[0].n as number;
+  await sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.id},${actor.userId},${actor.email},'company.storage_cleanup',${JSON.stringify({removed,pending})}::jsonb)`;
+  return { files_removed: removed, files_failed: pending };
 }

@@ -28,3 +28,6 @@ created with passwords by the platform; the invitation binds the account to the 
    append-only. Storage failures are recorded as `company.purge_storage_failed`.
 
 Neon point-in-time restore covers accidental purges within the project's history window.
+
+Storage deletion uses a durable, owner-only cleanup queue (migration 011). Failed keys survive business-data purge. Use Retry file cleanup on a purged company to retry; completed keys are skipped, and each run records an audit event.
+Cleanup processes up to five files per call to stay within the free Worker subrequest budget; pending counts remain visible for later retries.

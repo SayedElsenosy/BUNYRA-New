@@ -20,7 +20,7 @@ try {
     if (applied.has(version)) { if (statusOnly) console.log(`applied  ${version}`); continue; }
     if (statusOnly) { console.log(`pending  ${version}`); continue; }
     const body = fs.readFileSync(new URL(file, dir), 'utf8');
-    const script = /^\s*BEGIN\s*;/i.test(body) ? body : `BEGIN;\n${body}\nCOMMIT;`;
+    const script = /^\s*BEGIN\s*;/i.test(body.replace(/--[^\n]*(?:\n|$)/g, '')) ? body : `BEGIN;\n${body}\nCOMMIT;`;
     try { await client.query(script); }
     catch (error) { await client.query('ROLLBACK').catch(() => {}); throw new Error(`${version} failed: ${error.message}`); }
     if (!(await client.query('SELECT 1 FROM schema_migrations WHERE version=$1', [version])).rowCount)

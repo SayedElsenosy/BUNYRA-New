@@ -66,7 +66,7 @@ export async function runTenancyTests(sql){
  await check('forged platform mode is rejected for company users',()=>reject(()=>proj.projectList(tenantSql(sql),adminA,b,true),'FORBIDDEN'));
  await check('every table with company_id has forced RLS and a tenant policy',async()=>{
   const rows=await sql`SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity,(SELECT count(*)::int FROM pg_policies p WHERE p.schemaname='public' AND p.tablename=c.relname AND 'bunyra_tenant'=ANY(p.roles)) AS policies FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND (EXISTS(SELECT 1 FROM information_schema.columns k WHERE k.table_schema='public' AND k.table_name=c.relname AND k.column_name='company_id') OR c.relname='companies')`;
-  assert.ok(rows.length>=17);for(const r of rows)assert.ok(r.relrowsecurity&&r.relforcerowsecurity&&r.policies>0,r.relname);});
+  assert.ok(rows.length>=17);for(const r of rows)assert.ok(r.relrowsecurity&&r.relforcerowsecurity&&(r.relname==='storage_cleanup_jobs'?r.policies===0:r.policies>0),r.relname);});
  await check('tenant role does not bypass RLS',async()=>{const r=await sql`SELECT rolbypassrls,rolsuper FROM pg_roles WHERE rolname='bunyra_tenant'`;assert.equal(r[0].rolbypassrls,false);assert.equal(r[0].rolsuper,false);});
  return {passed:checks.length,checks,fixtures:{company_a:a,company_b:b,company_suspended:s}};
 }

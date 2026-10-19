@@ -56,13 +56,27 @@ export async function runCompanyTests(raw){
  await check('purge after retention removes business data but keeps the audit trail',async()=>{
   await co.scheduleCompanyDeletion(sql,ownerActor,{id:company.id,version:await v(),confirm:company.name});
   await raw`UPDATE companies SET purge_after=now()-interval '1 minute' WHERE id=${company.id}`;
+  await raw`INSERT INTO project_plan_files(company_id,project_id,title,building,floor,kind,original_name,object_key,byte_size,sha256,version,status,created_by) VALUES(${company.id},${pid},'Purge fixture','B1','1','pdf','test.pdf',${company.id+'/test.pdf'},100,'test',1,'ready',${boss.userId})`;
   const auditBefore=(await raw`SELECT count(*)::int n FROM audit_logs WHERE company_id=${company.id}`)[0].n;
-  const r=await co.purgeCompany(sql,ownerActor,{id:company.id,version:await v(),confirm:company.name},{remove:async()=>{}});
+  const r=await co.purgeCompany(sql,ownerActor,{id:company.id,version:await v(),confirm:company.name},{remove:async()=>{throw Error('temporary storage failure')}});
+  assert.equal(r.files_failed,1);
   assert.equal(r.purged.projects,1);
   for(const t of ['projects','inventory_units','memberships','invitations','organization_nodes','company_settings'])assert.equal((await raw.query(`SELECT count(*)::int n FROM ${t} WHERE company_id=$1`,[company.id]))[0].n,0,t);
-  assert.equal((await raw`SELECT count(*)::int n FROM audit_logs WHERE company_id=${company.id}`)[0].n,auditBefore+1);
+  assert.equal((await raw`SELECT count(*)::int n FROM audit_logs WHERE company_id=${company.id}`)[0].n,auditBefore+2);
   const row=(await raw`SELECT status,purged_at,email FROM companies WHERE id=${company.id}`)[0];assert.equal(row.status,'deleted');assert.ok(row.purged_at);assert.equal(row.email,'');});
  await check('a purged company cannot be restored or purged again',async()=>{await assert.rejects(async()=>co.restoreCompany(sql,ownerActor,{id:company.id,version:await v()}),code('VERSION_CONFLICT'));await assert.rejects(async()=>co.purgeCompany(sql,ownerActor,{id:company.id,version:await v(),confirm:company.name}),code('NOT_SCHEDULED'));});
  await check('lifecycle actions are audited',async()=>{const acts=(await raw`SELECT action FROM audit_logs WHERE company_id=${company.id} ORDER BY id`).map(r=>r.action);for(const a of ['company.created','invitation.created','invitation.accepted','company.deletion_scheduled','company.restored','company.purged'])assert.ok(acts.includes(a),a);});
+ await check('storage cleanup survives failure and retries without restoring business records',async()=>{
+  const input={id:company.id,version:await v(),confirm:company.name};
+  await assert.rejects(()=>co.retryCompanyStorage(sql,stranger,input,{remove:async()=>{}}),code('FORBIDDEN'));
+  await assert.rejects(()=>co.retryCompanyStorage(sql,ownerActor,{...input,confirm:'wrong'},{remove:async()=>{}}),code('CONFIRMATION_MISMATCH'));
+  const failed=await co.retryCompanyStorage(sql,ownerActor,input,{remove:async()=>{throw Error('temporary storage outage')}});
+  assert.equal(failed.files_failed,1);
+  assert.equal((await raw`SELECT attempts FROM storage_cleanup_jobs WHERE company_id=${company.id}`)[0].attempts,2);
+  const removed=[];const retried=await co.retryCompanyStorage(sql,ownerActor,input,{remove:async key=>removed.push(key)});
+  assert.equal(retried.files_failed,0);assert.equal(removed.length,1);
+  await co.retryCompanyStorage(sql,ownerActor,input,{remove:async()=>{throw Error('must not run')}});
+  assert.equal((await co.deletionImpact(sql,ownerActor,company.id)).counts.projects,0);
+ });
  return {suite:'company-lifecycle',checks};
 }
