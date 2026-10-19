@@ -35,6 +35,12 @@ export async function commercialOverview(sql: Sql, actor: Actor, company: string
   return { ...ctx, bookings, contracts, due, customers, projects, units, adjustments, can_create: ctx.owner || ['sales','sales_manager','sales_admin','company_admin'].includes(ctx.role), can_approve: ctx.owner || ['operations','company_admin'].includes(ctx.role), can_finance: ctx.owner || ['accountant','finance_manager','company_admin'].includes(ctx.role), can_contract: ctx.owner || ['operations','company_admin'].includes(ctx.role) };
 }
 
+export async function bookingDocumentsReport(sql: Sql, actor: Actor, company: string, platform = false) {
+  await roleAccess(sql, actor, company, 'bookings.read', platform);
+  const rows = await sql`SELECT b.id AS booking_id,b.status,b.customer_name,b.customer_phone,b.customer_email,b.project_id,b.unit_id,u.code AS unit_code,p.name AS project_name,b.created_at,COUNT(d.id)::int AS document_count,COALESCE(json_agg(json_build_object('id',d.id,'kind',d.kind,'original_name',d.original_name,'mime_type',d.mime_type,'file_size',d.file_size,'sha256',d.sha256,'status',d.status,'created_at',d.created_at) ORDER BY d.kind) FILTER (WHERE d.id IS NOT NULL),'[]'::json) AS documents FROM bookings b JOIN projects p ON p.company_id=b.company_id AND p.id=b.project_id JOIN inventory_units u ON u.company_id=b.company_id AND u.project_id=b.project_id AND u.id=b.unit_id LEFT JOIN booking_documents d ON d.company_id=b.company_id AND d.booking_id=b.id WHERE b.company_id=${company} AND b.status IN('submitted','approved','accounts_pending','accounts_confirmed') GROUP BY b.id,b.status,b.customer_name,b.customer_phone,b.customer_email,b.project_id,b.unit_id,u.code,p.name,b.created_at ORDER BY b.created_at DESC`;
+  return { generated_at: new Date().toISOString(), company_id: company, total_bookings: rows.length, total_documents: rows.reduce((sum, row) => sum + Number(row.document_count), 0), bookings: rows };
+}
+
 export async function createOffer(sql: Sql, actor: Actor, input: unknown, platform = false) {
   const c = offerInput.parse(input); await roleAccess(sql, actor, c.company_id, 'offers.create', platform).catch(async () => { await access(sql, actor, c.company_id, 'bookings.create', platform); });
   const quote = await approvedQuote(sql, actor, c);

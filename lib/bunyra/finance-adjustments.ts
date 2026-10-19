@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { access, ServiceError, uuid, type Actor, type Sql } from './service';
 import type { PlanStorage } from './plan-files';
+import { queueAdjustmentNotification } from './notifications';
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const documentKinds = z.enum(['id_card','payment_proof']);
@@ -20,9 +21,10 @@ export async function uploadBookingDocument(sql: Sql, actor: Actor, company: str
   await storage.put(key, bytes, file.type);
   try {
     await sql.transaction([
-      sql`INSERT INTO booking_documents(id,company_id,booking_id,kind,original_name,mime_type,file_size,sha256,object_key,created_by) VALUES(${id},${company},${booking},${documentKind},${file.name},${file.type},${file.size},${digest},${key},${actor.userId}) ON CONFLICT(company_id,booking_id,kind) DO UPDATE SET id=excluded.id,original_name=excluded.original_name,mime_type=excluded.mime_type,file_size=excluded.file_size,sha256=excluded.sha256,object_key=excluded.object_key,status='ready',created_by=excluded.created_by,created_at=now()`,
+      sql`DELETE FROM booking_documents WHERE company_id=${company}::uuid AND booking_id=${booking}::uuid AND kind=${documentKind}::text`,
+      sql`INSERT INTO booking_documents(id,company_id,booking_id,kind,original_name,mime_type,file_size,sha256,object_key,created_by) VALUES(${id}::uuid,${company}::uuid,${booking}::uuid,${documentKind}::text,${file.name}::text,${file.type}::text,${file.size}::integer,${digest}::text,${key}::text,${actor.userId}::text)`,
       documentKind === 'id_card' ? sql`UPDATE bookings SET id_document_key=${key},updated_at=now() WHERE company_id=${company} AND id=${booking}` : sql`UPDATE bookings SET payment_proof_key=${key},updated_at=now() WHERE company_id=${company} AND id=${booking}`,
-      sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${company},${actor.userId},${actor.email},'booking.document_uploaded',jsonb_build_object('booking_id',${booking}::text,'kind',${documentKind},'sha256',${digest},'file_size',${file.size}))`,
+      sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${company}::uuid,${actor.userId}::text,${actor.email}::text,'booking.document_uploaded',jsonb_build_object('booking_id',${booking}::text,'kind',${documentKind}::text,'sha256',${digest}::text,'file_size',${file.size}::integer))`,
     ]);
   } catch (error) { await storage.remove?.(key); throw error; }
   if (previous?.object_key && previous.object_key !== key) await storage.remove?.(previous.object_key);
@@ -45,12 +47,12 @@ export async function createAdjustment(sql: Sql, actor: Actor, input: unknown, p
 }
 
 export async function approveAdjustment(sql: Sql, actor: Actor, input: unknown, platform = false) {
-  const c=adjustmentAction.parse(input),ctx=await access(sql,actor,c.company_id,'finance.approve',platform);if(!ctx.owner&&!['finance_manager','company_admin'].includes(ctx.role))throw new ServiceError('FORBIDDEN',403);const row=(await sql`UPDATE financial_adjustments SET status='approved',approved_by=${actor.userId},approved_at=now(),updated_at=now() WHERE company_id=${c.company_id} AND id=${c.adjustment_id} AND status='requested' RETURNING id,status`)[0];if(!row)throw new ServiceError('INVALID_STATUS',409);return row;
+  const c=adjustmentAction.parse(input),ctx=await access(sql,actor,c.company_id,'finance.approve',platform);if(!ctx.owner&&!['finance_manager','company_admin'].includes(ctx.role))throw new ServiceError('FORBIDDEN',403);const row=(await sql`UPDATE financial_adjustments SET status='approved',approved_by=${actor.userId},approved_at=now(),updated_at=now() WHERE company_id=${c.company_id} AND id=${c.adjustment_id} AND status='requested' RETURNING id,status`)[0];if(!row)throw new ServiceError('INVALID_STATUS',409);await queueAdjustmentNotification(sql,c.company_id,c.adjustment_id,'approved');return row;
 }
 
 export async function executeAdjustment(sql: Sql, actor: Actor, input: unknown, platform = false) {
   const c=adjustmentAction.parse(input),ctx=await access(sql,actor,c.company_id,'finance.write',platform);if(!ctx.owner&&!['accountant','finance_manager','company_admin'].includes(ctx.role))throw new ServiceError('FORBIDDEN',403);const a=(await sql`SELECT * FROM financial_adjustments WHERE company_id=${c.company_id} AND id=${c.adjustment_id} FOR UPDATE`)[0];if(!a||a.status!=='approved')throw new ServiceError('INVALID_STATUS',409);
   const amount=BigInt(a.amount_minor); const statements=[sql`SELECT set_config('app.booking_transition','1',true)`];
   if(a.installment_id){const i=(await sql`SELECT * FROM contract_installments WHERE company_id=${c.company_id} AND id=${a.installment_id} FOR UPDATE`)[0];if(!i)throw new ServiceError('NOT_FOUND',404);if(a.kind==='settlement')statements.push(sql`UPDATE contract_installments SET paid_minor=paid_minor+${amount.toString()}::bigint,status=CASE WHEN paid_minor+${amount.toString()}::bigint>=amount_minor THEN 'paid' ELSE 'partial' END WHERE company_id=${c.company_id} AND id=${a.installment_id}`);else statements.push(sql`UPDATE contract_installments SET paid_minor=GREATEST(0,paid_minor-${amount.toString()}::bigint),status=CASE WHEN paid_minor-${amount.toString()}::bigint<=0 THEN 'due' ELSE 'partial' END WHERE company_id=${c.company_id} AND id=${a.installment_id}`);}
-  statements.push(sql`UPDATE financial_adjustments SET status='executed',executed_by=${actor.userId},executed_at=now(),updated_at=now() WHERE company_id=${c.company_id} AND id=${c.adjustment_id}`); statements.push(sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'finance.adjustment_executed',jsonb_build_object('adjustment_id',${c.adjustment_id}::text,'kind',${a.kind},'amount_minor',${a.amount_minor}))`); const r=await sql.transaction(statements);return {id:c.adjustment_id,status:'executed',kind:a.kind,amount_minor:a.amount_minor};
+  statements.push(sql`UPDATE financial_adjustments SET status='executed',executed_by=${actor.userId}::text,executed_at=now(),updated_at=now() WHERE company_id=${c.company_id}::uuid AND id=${c.adjustment_id}::uuid`); statements.push(sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id}::uuid,${actor.userId}::text,${actor.email}::text,'finance.adjustment_executed',jsonb_build_object('adjustment_id',${c.adjustment_id}::text,'kind',${a.kind}::text,'amount_minor',${a.amount_minor}::bigint))`); const r=await sql.transaction(statements);await queueAdjustmentNotification(sql,c.company_id,c.adjustment_id,'executed');return {id:c.adjustment_id,status:'executed',kind:a.kind,amount_minor:a.amount_minor};
 }
