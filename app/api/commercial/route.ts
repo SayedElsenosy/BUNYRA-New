@@ -1,0 +1,7 @@
+import { z } from 'zod';
+import { identity, sameOrigin, json, failure } from '../../../lib/bunyra/http';
+import { commercialOverview, createBooking, createContract, createOffer, recordCollection, updateBooking } from '../../../lib/bunyra/commercial';
+export const dynamic='force-dynamic';
+
+export async function GET(request: Request) { try { const {sql,actor}=await identity(); const u=new URL(request.url),company=u.searchParams.get('company')||'',platform=u.searchParams.get('mode')==='platform'; return json(await commercialOverview(sql,actor,company,platform)); } catch(e){return failure(e);} }
+export async function POST(request: Request) { try { sameOrigin(request); const {sql,actor}=await identity(); const data=await request.json() as Record<string,unknown>; const operation=z.string().parse(data.operation), platform=new URL(request.url).searchParams.get('mode')==='platform'; if(operation==='offer')return json(await createOffer(sql,actor,data,platform)); if(operation==='booking')return json(await createBooking(sql,actor,data,platform),201); if(['approve','reject','cancel','confirm_receipt'].includes(operation))return json(await updateBooking(sql,actor,data,operation as 'approve'|'reject'|'cancel'|'confirm_receipt',platform)); if(operation==='contract')return json(await createContract(sql,actor,data,platform),201); if(operation==='collection')return json(await recordCollection(sql,actor,data,platform),201); return json({error:'INVALID_OPERATION'},400); } catch(e){return failure(e);} }
