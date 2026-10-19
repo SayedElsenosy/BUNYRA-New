@@ -3,7 +3,7 @@ import {salesScope,projectAllowed} from './record-scope';
 import type {Action} from './permissions';
 export async function crmScope(sql:Sql,actor:Actor,company:string,action:Action='leads.read',platform=false){
  const ctx=await access(sql,actor,company,action,platform),users=await salesScope(sql,actor,company,ctx);
- const all=await sql`SELECT id,customer_id,owner_user_id,project_id,status,source,stage_id,created_at,updated_at FROM crm_leads WHERE company_id=${company}`;
+ const all=await sql`SELECT id,version,customer_id,owner_user_id,project_id,status,source,stage_id,created_at,updated_at FROM crm_leads WHERE company_id=${company}`;
  const leads=all.filter(l=>(!users||users.includes(l.owner_user_id))&&projectAllowed(ctx,action,l.project_id));
  const ids=leads.map(l=>l.id as string);
  const customers=await sql`SELECT id FROM crm_customers WHERE company_id=${company} `;

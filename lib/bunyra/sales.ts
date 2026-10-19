@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {hasPermission} from './permissions';
 import {crmScope,requireLead} from './crm-scope';
 import { access, type Actor, type Sql, ServiceError, uuid } from './service';
 
@@ -28,7 +29,7 @@ export async function salesOverview(sql: Sql, actor: Actor, companyId: string, a
     sql`SELECT source,COUNT(*)::int AS total,COUNT(*) FILTER(WHERE status='won')::int AS won,COALESCE(ROUND(100.0*COUNT(*) FILTER(WHERE status='won')/NULLIF(COUNT(*),0),1),0) AS conversion_pct FROM crm_leads WHERE company_id=${companyId} AND id=ANY(${ids}::uuid[]) GROUP BY source ORDER BY total DESC,source`,
     sql`SELECT bucket,COUNT(*)::int AS total FROM (SELECT CASE WHEN now()-created_at<interval '3 days' THEN '0-2 days' WHEN now()-created_at<interval '7 days' THEN '3-6 days' WHEN now()-created_at<interval '30 days' THEN '7-29 days' ELSE '30+ days' END AS bucket FROM crm_leads WHERE company_id=${companyId} AND id=ANY(${ids}::uuid[]) AND status NOT IN('won','lost')) x GROUP BY bucket ORDER BY CASE bucket WHEN '0-2 days' THEN 1 WHEN '3-6 days' THEN 2 WHEN '7-29 days' THEN 3 ELSE 4 END`,
   ]);
-  return { ...ctx, stages, teams, leads, followUps, transfers, reports: { stage: stageReport, representatives: repReport, sources: sourceReport, aging: agingReport }, can_manage_sales: canManage(ctx.role, ctx.owner) };
+  return { ...ctx,members:repReport.map(m=>({user_id:m.user_id,email:m.email,role:m.role})), stages, teams, leads, followUps, transfers, reports: { stage: stageReport, representatives: repReport, sources: sourceReport, aging: agingReport }, can_assign_team_members:ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage'),can_manage_sales: canManage(ctx.role, ctx.owner) };
 }
 
 export async function saveStage(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
@@ -73,11 +74,11 @@ export async function saveSalesTeam(sql: Sql, actor: Actor, input: unknown, asOw
 
 export async function addTeamMember(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
   const c = memberInput.parse(input); const ctx = await access(sql, actor, c.company_id, 'leads.write', asOwner);
-  if (!canManage(ctx.role, ctx.owner)) throw new ServiceError('FORBIDDEN', 403);
+  if (!(ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage'))) throw new ServiceError('FORBIDDEN', 403);
   if(ctx.role==='sales_manager'&&!ctx.owner&&!(await sql`SELECT id FROM crm_sales_teams WHERE company_id=${c.company_id} AND id=${c.team_id} AND manager_user_id=${actor.userId}`).length)throw new ServiceError('FORBIDDEN',403);
   await ensureMember(sql, c.company_id, c.user_id);
   if (!(await sql`SELECT 1 FROM crm_sales_teams WHERE company_id=${c.company_id} AND id=${c.team_id}`).length) throw new ServiceError('NOT_FOUND', 404);
-  await sql`INSERT INTO crm_sales_team_members(company_id,team_id,user_id) VALUES(${c.company_id},${c.team_id},${c.user_id}) ON CONFLICT DO NOTHING`;
+  await sql`WITH assigned AS(INSERT INTO crm_sales_team_members(company_id,team_id,user_id) VALUES(${c.company_id},${c.team_id},${c.user_id}) ON CONFLICT DO NOTHING RETURNING user_id),logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT ${c.company_id}::uuid,${actor.userId}::text,${actor.email}::text,'crm.team_member_assigned',jsonb_build_object('team_id',${c.team_id}::uuid,'user_id',assigned.user_id) FROM assigned) SELECT user_id FROM assigned`;
   return { ok: true };
 }
 
@@ -86,16 +87,9 @@ export async function transferLead(sql: Sql, actor: Actor, input: unknown, asOwn
   if (!canManage(ctx.role, ctx.owner)) throw new ServiceError('FORBIDDEN', 403);
   const scope=await requireLead(sql,actor,c.company_id,c.lead_id,asOwner);if(scope.users&&!scope.users.includes(c.to_user_id))throw new ServiceError('FORBIDDEN',403);
   await ensureMember(sql, c.company_id, c.to_user_id);
-  const rows = await sql.transaction([
-    sql`SELECT owner_user_id FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.lead_id} FOR UPDATE`,
-    sql`UPDATE crm_leads SET owner_user_id=${c.to_user_id},version=version+1,updated_at=now() WHERE company_id=${c.company_id} AND id=${c.lead_id} RETURNING *`,
-  ]);
-  if (!rows[1].length) throw new ServiceError('NOT_FOUND', 404);
-  await sql.transaction([
-    sql`INSERT INTO crm_lead_transfers(company_id,lead_id,from_user_id,to_user_id,reason,created_by) VALUES(${c.company_id},${c.lead_id},${rows[0][0]?.owner_user_id || null}::text,${c.to_user_id}::text,${c.reason}::text,${actor.userId}::text)`,
-    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_transferred',jsonb_build_object('lead_id',${c.lead_id}::text,'to_user_id',${c.to_user_id}::text,'reason',${c.reason}::text))`,
-  ]);
-  return rows[1][0];
+  const rows=await sql`WITH previous AS MATERIALIZED(SELECT * FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.lead_id} AND owner_user_id=${scope.row.owner_user_id} AND version=${scope.row.version} FOR UPDATE),changed AS(UPDATE crm_leads SET owner_user_id=${c.to_user_id},version=version+1,updated_at=now() WHERE company_id=${c.company_id} AND id IN(SELECT id FROM previous) RETURNING *),transferred AS(INSERT INTO crm_lead_transfers(company_id,lead_id,from_user_id,to_user_id,reason,created_by) SELECT ${c.company_id}::uuid,previous.id,previous.owner_user_id,${c.to_user_id}::text,${c.reason}::text,${actor.userId}::text FROM previous JOIN changed USING(id)),logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,before_data,after_data) SELECT ${c.company_id}::uuid,${actor.userId}::text,${actor.email}::text,'crm.lead_transferred',to_jsonb(previous),to_jsonb(changed)||jsonb_build_object('reason',${c.reason}::text) FROM previous JOIN changed USING(id)) SELECT * FROM changed`;
+  if(!rows.length)throw new ServiceError('VERSION_CONFLICT',409);
+  return rows[0];
 }
 
 export async function moveLeadStage(sql: Sql, actor: Actor, input: unknown, asOwner = false) {

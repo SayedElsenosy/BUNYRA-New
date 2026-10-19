@@ -31,3 +31,5 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,te
 .company-module-workspace>.tabs{margin-block:24px;overflow:auto;position:sticky;top:0;z-index:15;background:var(--surface);box-shadow:var(--shadow)}.company-module-workspace>.tabs button{white-space:nowrap;min-height:42px}
 
 .bunyra-brand-picture{display:block;max-width:100%}@media(min-width:601px) and (max-width:950px){.sidebar .bunyra-brand{object-fit:contain;object-position:center}}
+
+.team-member-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.team-member-form select{min-width:180px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}.team-row>div>small{display:block;margin-block:4px}
