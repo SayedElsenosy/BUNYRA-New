@@ -16,7 +16,7 @@ export async function runIdentityTests(sql){
  if(owners.length&&owners[0].user_id!==platform.userId)throw Error('Refusing to run test fixtures in a database with a real platform owner. Use a test branch.');
  await sql.transaction([
  sql`INSERT INTO platform_owner(singleton,user_id,email) VALUES(true,${platform.userId},${platform.email}) ON CONFLICT DO NOTHING`,
- sql`INSERT INTO companies(id,name) VALUES(${a},${'Identity Test A '+suffix}),(${b},${'Identity Test B '+suffix})`,
+ sql`INSERT INTO companies(id,name,account_limit) VALUES(${a},${'Identity Test A '+suffix},100),(${b},${'Identity Test B '+suffix},100)`,
  sql`INSERT INTO projects(id,company_id,name) VALUES(${p1},${a},'Cairo Plaza test'),(${p2},${a},'Kawn test'),(${pb},${b},'Other company test')`,
  sql`INSERT INTO memberships(company_id,user_id,email,role) VALUES(${a},${admin.userId},${admin.email},'company_admin'),(${a},${sales.userId},${sales.email},'sales'),(${b},${adminB.userId},${adminB.email},'company_admin')`]);
  await check('company admin can list its own members',async()=>assert.equal((await svc.listMembers(tenantSql(sql),admin,a)).members.length,2));

@@ -4,7 +4,7 @@ import { Check, Inbox, RefreshCw, X } from 'lucide-react';
 
 type Request = { id: string; company_name: string; company_name_en: string; contact_name: string; email: string; phone: string; message: string; status: 'pending' | 'approved' | 'rejected'; review_note: string; version: number; created_at: string };
 
-export default function RequestsPanel({ en, onChanged, onInvite }: { en: boolean; onChanged: () => void; onInvite: (link: string) => void }) {
+export default function RequestsPanel({ en, onChanged }: { en: boolean; onChanged: () => void }) {
   const t = (ar: string, eng: string) => (en ? eng : ar);
   const [rows, setRows] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,14 +29,13 @@ export default function RequestsPanel({ en, onChanged, onInvite }: { en: boolean
   async function review(row: Request, decision: 'approve' | 'reject') {
     const note = decision === 'reject' ? prompt(t('سبب الرفض (اختياري)', 'Reason for rejection (optional)')) : '';
     if (note === null) return;
-    if (decision === 'approve' && !confirm(t('سيتم إنشاء الشركة ودعوة مقدم الطلب كمدير لها. متابعة؟', 'This creates the company and invites the requester as its admin. Continue?'))) return;
+    if (decision === 'approve' && !confirm(t('سيتم إنشاء الشركة. يمكنك إنشاء حساب مديرها من داخل إدارة الشركة. متابعة؟', 'This creates the company. Create its admin account from company management. Continue?'))) return;
     setBusy(row.id);
     setError('');
     try {
       const r = await fetch('/api/company-requests', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: row.id, version: row.version, decision, note }) });
       if (!r.ok) throw new Error(r.status === 409 ? 'conflict' : 'save');
       const d = await r.json();
-      if (d.invite) onInvite(location.origin + '/join#token=' + d.invite.token);
       await load();
       onChanged();
     } catch (e) {

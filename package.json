@@ -22,8 +22,9 @@
     "test:tenancy": "node scripts/prepare-identity-tests.mjs && node scripts/run-tenancy-tests.mjs",
     "test:platform": "node scripts/prepare-identity-tests.mjs && node scripts/run-platform-tests.mjs",
     "test:companies": "node scripts/prepare-identity-tests.mjs && node scripts/run-company-tests.mjs",
-    "test:db": "npm run -s test:tenancy && npm run -s test:platform && npm run -s test:companies && npm run -s test:identity && npm run -s test:organization && npm run -s test:projects && npm run -s test:inventory && npm run -s test:inventory-sync",
-    "test:inventory-sync": "node scripts/prepare-identity-tests.mjs && node scripts/test-inventory-sync.mjs"
+    "test:db": "npm run -s test:tenancy && npm run -s test:platform && npm run -s test:companies && npm run -s test:identity && npm run -s test:organization && npm run -s test:projects && npm run -s test:inventory && npm run -s test:inventory-sync && npm run -s test:accounts",
+    "test:inventory-sync": "node scripts/prepare-identity-tests.mjs && node scripts/test-inventory-sync.mjs",
+    "test:accounts": "node scripts/prepare-identity-tests.mjs && node scripts/run-account-tests.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

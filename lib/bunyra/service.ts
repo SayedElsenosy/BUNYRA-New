@@ -36,7 +36,10 @@ export async function listMembers(sql:Sql,actor:Actor,companyId:string,asOwner=f
  sql`SELECT id,name,permissions,version FROM custom_roles WHERE company_id=${companyId} ORDER BY name`,
  sql`SELECT id,name FROM projects WHERE company_id=${companyId} ORDER BY name`,
  sql`SELECT user_id,project_id,action,allowed FROM member_permissions WHERE company_id=${companyId}`]);
- return {members,invites:canManageMembers?invites:[],roles,projects,permissions,capabilities:{members:canManageMembers,roles:canManageRoles},actor_id:actor.userId};
+ const quota=(await sql`SELECT account_limit,version,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used FROM companies WHERE id=${companyId}`)[0];
+ // Expose account labels only after company management authorization; hashes never leave this module.
+ bindTenant(sql,null);const accounts=await sql`SELECT user_id,username,display_name FROM app_accounts WHERE company_id=${companyId}`;
+ return {members:members.map(m=>({...m,...accounts.find(a=>a.user_id===m.user_id)})),invites:canManageMembers?invites:[],roles,projects,permissions,quota,capabilities:{members:canManageMembers,roles:canManageRoles},actor_id:actor.userId};
 }
 export async function issueInvite(sql:Sql,actor:Actor,input:unknown,asOwner=false){
  const c=inviteSchema.parse(input);await access(sql,actor,c.company_id,'members.manage',asOwner);

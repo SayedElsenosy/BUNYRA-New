@@ -1,7 +1,9 @@
 import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { z } from 'zod';
 import { bindTenant } from './tenant';
-import { ServiceError, owner, newToken } from './service';
+import { ServiceError, owner } from './service';
+import { accountFields } from './accounts';
+import { hashPassword } from './passwords';
 
 type Sql = NeonQueryFunction<false, false>;
 type Actor = { userId: string; email: string };
@@ -18,7 +20,7 @@ export const companySchema = z.object({
   phone: z.string().trim().max(40).default(''),
   address: z.string().trim().max(500).default(''),
 });
-const createSchema = companySchema.extend({ owner_email: optionalEmail });
+const createSchema = companySchema.extend({ account_limit:z.number().int().min(0).max(10000).default(5),admin:accountFields.optional() });
 const requestSchema = z.object({
   company_name: z.string().trim().min(2).max(160),
   company_name_en: z.string().trim().max(160).default(''),
@@ -41,25 +43,21 @@ async function requireOwner(sql: Sql, actor: Actor) {
   if (!(await owner(sql, actor))) throw new ServiceError('FORBIDDEN', 403);
 }
 
-function ownerInvite(sql: Sql, actor: Actor, companyId: string, to: string, hash: string, guard: string) {
-  const id = crypto.randomUUID();
-  return [
-    sql`INSERT INTO invitations(id,company_id,email,role,token_hash,created_by) SELECT ${id},${companyId},${to},'company_admin',${hash},${actor.userId} WHERE EXISTS(SELECT 1 FROM companies WHERE id=${guard})`,
-    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT ${companyId},${actor.userId},${actor.email},'invitation.created',${JSON.stringify({ id, email: to, role: 'company_admin', owner: true })}::jsonb WHERE EXISTS(SELECT 1 FROM companies WHERE id=${guard})`,
-  ];
-}
-
 export async function createCompany(sql: Sql, actor: Actor, input: unknown) {
   await requireOwner(sql, actor);
   const c = createSchema.parse(input);
   const id = crypto.randomUUID();
-  const secret = c.owner_email ? await newToken() : null;
+  const adminId=crypto.randomUUID();const passwordHash=c.admin?await hashPassword(c.admin.password):null;
   const res = await sql.transaction([
-    sql`WITH created AS(INSERT INTO companies(id,name,name_en,email,phone,address) VALUES(${id},${c.name},${c.name_en},${c.email},${c.phone},${c.address}) RETURNING *), logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT id,${actor.userId},${actor.email},'company.created',to_jsonb(created) FROM created) SELECT * FROM created`,
+    sql`WITH created AS(INSERT INTO companies(id,name,name_en,email,phone,address,account_limit) VALUES(${id},${c.name},${c.name_en},${c.email},${c.phone},${c.address},${c.account_limit}) RETURNING *), logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT id,${actor.userId},${actor.email},'company.created',to_jsonb(created) FROM created) SELECT * FROM created`,
     sql`INSERT INTO company_settings(company_id) VALUES(${id})`,
-    ...(secret ? ownerInvite(sql, actor, id, c.owner_email, secret.hash, id) : []),
+    ...(c.admin?[
+      sql`INSERT INTO memberships(company_id,user_id,email,role) VALUES(${id},${adminId},${c.admin.email||c.admin.username},'company_admin')`,
+      sql`INSERT INTO app_accounts(user_id,company_id,username,display_name,email,password_hash,created_by) VALUES(${adminId},${id},${c.admin.username},${c.admin.display_name},${c.admin.email},${passwordHash!},${actor.userId})`,
+      sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${id},${actor.userId},${actor.email},'account.created',${JSON.stringify({user_id:adminId,username:c.admin.username,role:'company_admin'})}::jsonb)`
+    ]:[]),
   ]);
-  return { company: res[0][0], invite: secret ? { email: c.owner_email, token: secret.token } : null };
+  return { company: res[0][0],invite:null,admin:c.admin?{user_id:adminId,username:c.admin.username}:null };
 }
 
 export async function submitCompanyRequest(sql: Sql, input: unknown) {
@@ -85,23 +83,20 @@ export async function reviewCompanyRequest(sql: Sql, actor: Actor, input: unknow
     return { request: rows[0], company: null, invite: null };
   }
   const cid = crypto.randomUUID();
-  const secret = await newToken();
   const pending = await sql`SELECT email FROM company_requests WHERE id=${r.id} AND version=${r.version} AND status='pending'`;
   if (!pending.length) throw new ServiceError('VERSION_CONFLICT', 409);
-  const to = pending[0].email as string;
   const res = await sql.transaction([
     sql`WITH created AS(INSERT INTO companies(id,name,name_en,email,phone) SELECT ${cid},company_name,company_name_en,email,phone FROM company_requests WHERE id=${r.id} AND version=${r.version} AND status='pending' FOR UPDATE RETURNING *), logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT id,${actor.userId},${actor.email},'company.created',to_jsonb(created)||jsonb_build_object('request_id',${r.id}::uuid) FROM created) SELECT * FROM created`,
     sql`UPDATE company_requests SET status='approved',review_note=${r.note},reviewed_by=${actor.userId},reviewed_at=now(),created_company_id=${cid},version=version+1 WHERE id=${r.id} AND EXISTS(SELECT 1 FROM companies WHERE id=${cid}) RETURNING *`,
     sql`INSERT INTO company_settings(company_id) SELECT ${cid} WHERE EXISTS(SELECT 1 FROM companies WHERE id=${cid})`,
-    ...ownerInvite(sql, actor, cid, to, secret.hash, cid),
   ]);
   if (!res[0].length) throw new ServiceError('VERSION_CONFLICT', 409);
-  return { request: res[1][0], company: res[0][0], invite: { email: to, token: secret.token } };
+  return { request: res[1][0], company: res[0][0], invite:null };
 }
 
 const IMPACT = ['memberships', 'invitations', 'custom_roles', 'organization_nodes', 'projects', 'inventory_units', 'unit_status_history', 'inventory_imports', 'project_plan_files', 'plan_layouts', 'audit_logs'] as const;
 // Child-first order so foreign keys never block the purge. audit_logs and the company row are retained.
-const PURGE = ['plan_unit_shapes', 'unit_status_history', 'plan_layouts', 'inventory_units', 'inventory_imports', 'project_plan_files', 'project_setups', 'member_placements', 'member_permissions', 'organization_nodes', 'invitations', 'memberships', 'custom_roles', 'projects', 'company_settings'] as const;
+const PURGE = ['plan_unit_shapes', 'unit_status_history', 'plan_layouts', 'inventory_units', 'inventory_imports', 'project_plan_files', 'project_setups', 'member_placements', 'member_permissions', 'organization_nodes', 'invitations', 'app_accounts','memberships', 'custom_roles', 'projects', 'company_settings'] as const;
 
 export async function deletionImpact(sql: Sql, actor: Actor, id: string) {
   await requireOwner(sql, actor);

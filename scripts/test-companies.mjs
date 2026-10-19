@@ -17,13 +17,13 @@ export async function runCompanyTests(raw){
  const stranger={userId:`lifecycle-${tag}-x`,email:`x-${tag}@example.com`};
  let created,company;
  await check('only the platform owner can create companies',()=>assert.rejects(()=>co.createCompany(sql,stranger,{name:'Nope '+tag}),code('FORBIDDEN')));
- await check('creating a company creates settings and a company-admin invitation for its owner',async()=>{
+ await check('creating a company creates settings without external invitations',async()=>{
   created=await co.createCompany(sql,ownerActor,{name:'Lifecycle '+tag,owner_email:boss.email.toUpperCase()});company=created.company;
-  assert.equal(created.invite.email,boss.email);assert.match(created.invite.token,/^[a-f0-9]{64}$/);
+  assert.equal(created.invite,null);
   assert.equal((await raw`SELECT count(*)::int n FROM company_settings WHERE company_id=${company.id}`)[0].n,1);
-  assert.deepEqual((await raw`SELECT role,status FROM invitations WHERE company_id=${company.id}`).map(r=>[r.role,r.status]),[['company_admin','pending']]);});
- await check('the owner invitation links the account as company admin',async()=>{
-  await svc.acceptInvite(sql,boss,created.invite.token);
+  assert.deepEqual((await raw`SELECT role,status FROM invitations WHERE company_id=${company.id}`).map(r=>[r.role,r.status]),[]);});
+ await check('existing legacy membership keeps company admin authorization',async()=>{
+  await raw`INSERT INTO memberships(company_id,user_id,email,role) VALUES(${company.id},${boss.userId},${boss.email},'company_admin')`;
   assert.deepEqual((await raw`SELECT role,active FROM memberships WHERE company_id=${company.id} AND user_id=${boss.userId}`)[0],{role:'company_admin',active:true});
   await svc.access(sql,boss,company.id,'members.manage');});
  await check('company without owner email creates no invitation',async()=>{const r=await co.createCompany(sql,ownerActor,{name:'Solo '+tag});assert.equal(r.invite,null);assert.equal((await raw`SELECT count(*)::int n FROM invitations WHERE company_id=${r.company.id}`)[0].n,0);});
@@ -32,12 +32,12 @@ export async function runCompanyTests(raw){
  await check('public registration requests are stored once per pending email',async()=>{req=await co.submitCompanyRequest(raw,form);await assert.rejects(()=>co.submitCompanyRequest(raw,{...form,email:form.email.toUpperCase()}),code('REQUEST_PENDING'));});
  await check('registration requests reject bots and invalid data',async()=>{await assert.rejects(()=>co.submitCompanyRequest(raw,{...form,email:`bot-${tag}@example.com`,website:'spam'}));await assert.rejects(()=>co.submitCompanyRequest(raw,{...form,email:'bad'}));});
  await check('only the platform owner can list and review requests',async()=>{await assert.rejects(()=>co.listCompanyRequests(sql,boss),code('FORBIDDEN'));await assert.rejects(()=>co.reviewCompanyRequest(sql,boss,{id:req.id,version:1,decision:'approve'}),code('FORBIDDEN'));assert.ok((await co.listCompanyRequests(sql,ownerActor)).some(r=>r.id===req.id));});
- await check('approving a request creates the company and owner invitation exactly once',async()=>{
+ await check('approving a request creates the company exactly once without an invitation',async()=>{
   const [a,b]=await Promise.allSettled([co.reviewCompanyRequest(sql,ownerActor,{id:req.id,version:1,decision:'approve'}),co.reviewCompanyRequest(tenantSql(raw),ownerActor,{id:req.id,version:1,decision:'approve'})]);
   const ok=[a,b].filter(x=>x.status==='fulfilled');assert.equal(ok.length,1);
-  const r=ok[0].value;assert.equal(r.request.status,'approved');assert.equal(r.request.created_company_id,r.company.id);assert.equal(r.invite.email,form.email);
+  const r=ok[0].value;assert.equal(r.request.status,'approved');assert.equal(r.request.created_company_id,r.company.id);assert.equal(r.invite,null);
   assert.equal((await raw`SELECT count(*)::int n FROM companies WHERE name=${form.company_name}`)[0].n,1);
-  assert.equal((await raw`SELECT count(*)::int n FROM invitations WHERE company_id=${r.company.id} AND role='company_admin' AND status='pending'`)[0].n,1);});
+  assert.equal((await raw`SELECT count(*)::int n FROM invitations WHERE company_id=${r.company.id} AND role='company_admin' AND status='pending'`)[0].n,0);});
  await check('rejected requests keep the review note and create nothing',async()=>{const r2=await co.submitCompanyRequest(raw,{...form,email:`rej-${tag}@example.com`,company_name:'Rejected '+tag});const out=await co.reviewCompanyRequest(sql,ownerActor,{id:r2.id,version:1,decision:'reject',note:'incomplete'});assert.equal(out.request.status,'rejected');assert.equal(out.request.review_note,'incomplete');assert.equal((await raw`SELECT count(*)::int n FROM companies WHERE name=${'Rejected '+tag}`)[0].n,0);});
  const pid=crypto.randomUUID();
  await raw.transaction([raw`INSERT INTO projects(id,company_id,name) VALUES(${pid},${company.id},'Doomed project')`,raw`INSERT INTO inventory_units(company_id,project_id,code,building,floor,category,area,proposed_price_minor) VALUES(${company.id},${pid},'D-1','B1','1','Office',100,1000)`,raw`INSERT INTO invitations(company_id,email,role,token_hash,created_by) VALUES(${company.id},${'late-'+tag+'@example.com'},'sales',${crypto.randomUUID().replaceAll('-','').padEnd(64,'0')},${boss.userId})`,raw`INSERT INTO organization_nodes(company_id,kind,code,name,manager_user_id) VALUES(${company.id},'branch','HQ','Head office',${boss.userId})`]);
@@ -65,7 +65,7 @@ export async function runCompanyTests(raw){
   assert.equal((await raw`SELECT count(*)::int n FROM audit_logs WHERE company_id=${company.id}`)[0].n,auditBefore+2);
   const row=(await raw`SELECT status,purged_at,email FROM companies WHERE id=${company.id}`)[0];assert.equal(row.status,'deleted');assert.ok(row.purged_at);assert.equal(row.email,'');});
  await check('a purged company cannot be restored or purged again',async()=>{await assert.rejects(async()=>co.restoreCompany(sql,ownerActor,{id:company.id,version:await v()}),code('VERSION_CONFLICT'));await assert.rejects(async()=>co.purgeCompany(sql,ownerActor,{id:company.id,version:await v(),confirm:company.name}),code('NOT_SCHEDULED'));});
- await check('lifecycle actions are audited',async()=>{const acts=(await raw`SELECT action FROM audit_logs WHERE company_id=${company.id} ORDER BY id`).map(r=>r.action);for(const a of ['company.created','invitation.created','invitation.accepted','company.deletion_scheduled','company.restored','company.purged'])assert.ok(acts.includes(a),a);});
+ await check('lifecycle actions are audited',async()=>{const acts=(await raw`SELECT action FROM audit_logs WHERE company_id=${company.id} ORDER BY id`).map(r=>r.action);for(const a of ['company.created','company.deletion_scheduled','company.restored','company.purged'])assert.ok(acts.includes(a),a);});
  await check('storage cleanup survives failure and retries without restoring business records',async()=>{
   const input={id:company.id,version:await v(),confirm:company.name};
   await assert.rejects(()=>co.retryCompanyStorage(sql,stranger,input,{remove:async()=>{}}),code('FORBIDDEN'));
