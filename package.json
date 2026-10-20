@@ -31,7 +31,8 @@
     "test:sales": "node scripts/prepare-identity-tests.mjs && node scripts/run-sales-tests.mjs",
     "test:finance": "node scripts/prepare-identity-tests.mjs && node scripts/run-finance-tests.mjs",
     "test:commercial-integrity": "node scripts/prepare-identity-tests.mjs && node scripts/run-commercial-integrity-tests.mjs",
-    "test:commissions-reports": "node scripts/prepare-identity-tests.mjs && node scripts/run-commissions-reports-tests.mjs"
+    "test:commissions-reports": "node scripts/prepare-identity-tests.mjs && node scripts/run-commissions-reports-tests.mjs",
+    "test:navigation": "node scripts/test-workspace-navigation.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
