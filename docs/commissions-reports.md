@@ -1,0 +1,14 @@
+# Contract commissions and sales reports
+- Operations or the company admin captures a commission rate and collection threshold at signing, using 0.01 percentage-point precision. A zero rate explicitly means no commission. Contracts created without commission input remain unconfigured until an authorized user sets the rate once.
+- The original booking salesperson, currency, rate and calculated amount are frozen on the contract. Later lead transfers do not redirect commission ownership.
+- Calculated commission is the final contract value multiplied by the rate, rounded once to the currency minor unit. Eligibility compares net confirmed cash collections to the full contract value without rounding the threshold down. A zero threshold intentionally grants immediate eligibility.
+- Net collections subtract executed refunds and reversals; non-cash settlements are excluded. Cancellation removes entitlement. Net paid is the immutable payment ledger less actual recoveries.
+- Entitlement changes use optimistic versions and an audited reason. The rate cannot be changed after being captured. Payment and recovery posting lock the contract, use idempotency keys, and cannot exceed the current balance. These records document transfers performed outside BUNYRA; they do not initiate bank transfers.
+- A fall below the collection threshold or a cancelled contract can create a recovery balance; no historical payment is erased or automatically treated as recovered.
+- Read, configure and record-payment permissions are separate. Company/project permissions and salesperson/team scope apply server-side, including filter options and aggregated totals.
+- Reports group by local company time zone and day/week/month. Calls use recorded time and actual caller, follow-ups use due time and assignee, bookings use creation time and original seller, contracts use signing time and original seller. Offers do not count as sales.
+- Calculated/current-earned amounts belong to contracts signed in the period; payment/recovery flows use ledger posting time. Contract-status filters also apply to their payment flows. Sales count excludes cancelled contracts. Historical as-of entitlement is not inferred from current balances.
+- Each currency has its own totals. Reports allow up to 366 days and return 100 rows per page; summary totals cover every matched row, not just the displayed page. Unlinked CRM activities are company-level and excluded when a specific project is selected.
+- Migration: 028-commissions-reports. Test commands: npm run test:commissions-reports with an isolated DEV database and BUNYRA_ALLOW_TEST_FIXTURES=1.
+
+Sales Admin lead-management visibility does not grant company-wide commission/report scope; these financial reports remain scoped to their own activity unless a separate administrative/finance role is used.

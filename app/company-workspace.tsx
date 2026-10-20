@@ -1,5 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
+import CommissionPanel from './commission-panel';
+import SalesReportsPanel from './sales-reports-panel';
 import ProjectWizard from './project-wizard';
 import InventoryPanel from './inventory-panel';
 import OrganizationPanel from './organization-panel';
@@ -9,9 +11,10 @@ import CommercialPanel from './commercial-panel';
 import SalesPipelinePanel from './sales-pipeline-panel';
 import BuyerRequestPanel from './buyer-request-panel';
 import {moduleLabel,type CompanyView} from './company-navigation';
-function ModuleScreen({companyId,en,onChanged,view='projects',asOwner=false}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean}){
+function ModuleScreen({companyId,en,onChanged,view='projects',asOwner=false,active=true}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean;active?:boolean}){
  const props={companyId,en,asOwner};
  return <section className="company-module-workspace" aria-label={moduleLabel(view,en)}><h2 className="module-title">{moduleLabel(view,en)}</h2>{
+ view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
  view==='projects'?<ProjectWizard {...props} onChanged={onChanged}/>:
  ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
  view==='customers'?<CrmPanel {...props}/>:
@@ -27,5 +30,5 @@ export default function CompanyWorkspace(props:Parameters<typeof ModuleScreen>[0
  const view=props.view||'projects';
  const [visited,setVisited]=useState<CompanyView[]>([view]);
  useEffect(()=>{setVisited(previous=>previous.includes(view)?previous:[...previous,view]);},[view]);
- return <div className="company-screens">{visited.map(screen=><div key={screen} style={{display:screen===view?'block':'none'}} aria-hidden={screen!==view}><ModuleScreen {...props} view={screen}/></div>)}</div>;
+ return <div className="company-screens">{visited.map(screen=><div key={screen} style={{display:screen===view?'block':'none'}} aria-hidden={screen!==view}><ModuleScreen {...props} view={screen} active={screen===view}/></div>)}</div>;
 }
