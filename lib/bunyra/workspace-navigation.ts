@@ -1,6 +1,7 @@
 import {hasPermission,type Action,type Role,type PermissionOverride} from './permissions';
 // Screen visibility is derived from effective server permissions. APIs remain authoritative.
 export const VIEW_RULES = {
+ home:{all:['company.read']},work:{all:['company.read']},search:{all:['company.read']},
  projects:{all:['projects.read']}, inventory:{all:['projects.read','inventory.read'],project:true},
  pricing:{all:['projects.read','inventory.read','pricing.read'],project:true},
  import:{all:['projects.read','inventory.read','inventory.write'],project:true},

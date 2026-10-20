@@ -9,6 +9,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const company = url.searchParams.get('company') || '';
     return json(await crmOverview(sql, actor, company, {
+      customer:url.searchParams.get('customer')||undefined,
       q: url.searchParams.get('q') || '',
       status: url.searchParams.get('status') || '',
       owner: url.searchParams.get('owner') || '',

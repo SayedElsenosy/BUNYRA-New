@@ -1,5 +1,5 @@
 {
-  "release": "2026-10-20-requirements-navigation",
+  "release": "2026-10-20-workspace-hub",
   "design": "SayedElsenosy/BUNYRA",
   "navigation": "grouped-sidebar-single-section",
   "features": [
@@ -9,6 +9,11 @@
     "scoped-sales-reports",
     "server-report-pagination",
     "permission-aware-company-navigation",
-    "company-section-deep-links"
+    "company-section-deep-links",
+    "role-scoped-dashboards",
+    "scoped-global-search",
+    "unified-my-work",
+    "audited-follow-up-completion",
+    "customer-and-contract-deep-links"
   ]
 }
