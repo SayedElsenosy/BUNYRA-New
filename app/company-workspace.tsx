@@ -1,5 +1,8 @@
 'use client';
 import {useEffect,useState} from 'react';
+import WorkspaceHubPanel from './workspace-hub-panel';
+import {useWorkspaceLocation} from './workspace-location';
+import {Search} from 'lucide-react';
 import CommissionPanel from './commission-panel';
 import SalesReportsPanel from './sales-reports-panel';
 import ProjectWizard from './project-wizard';
@@ -11,10 +14,10 @@ import CommercialPanel from './commercial-panel';
 import SalesPipelinePanel from './sales-pipeline-panel';
 import BuyerRequestPanel from './buyer-request-panel';
 import {moduleLabel,type CompanyView} from './company-navigation';
-function ModuleScreen({companyId,en,onChanged,view='projects',asOwner=false,active=true}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean;active?:boolean;allowedViews?:readonly CompanyView[]}){
+function ModuleScreen({companyId,en,onChanged,view='home',asOwner=false,active=true}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean;active?:boolean;allowedViews?:readonly CompanyView[]}){
  const props={companyId,en,asOwner};
- return <section className="company-module-workspace" aria-label={moduleLabel(view,en)}><h2 className="module-title">{moduleLabel(view,en)}</h2>{
- view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
+ return <section className="company-module-workspace" aria-label={moduleLabel(view,en)}>{!['home','work','search'].includes(view)&&<h2 className="module-title">{moduleLabel(view,en)}</h2>}{
+ ['home','work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
  view==='projects'?<ProjectWizard {...props} onChanged={onChanged}/>:
  ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
  view==='customers'?<CrmPanel {...props}/>:
@@ -27,8 +30,11 @@ function ModuleScreen({companyId,en,onChanged,view='projects',asOwner=false,acti
 }
 
 export default function CompanyWorkspace(props:Parameters<typeof ModuleScreen>[0]){
- const view=props.view||'projects';
+ const view=props.view||'home';
+ const [route,navigate]=useWorkspaceLocation();
+ const launch=()=>navigate({company:props.companyId,view:'search',record:'',action:'',page:''});
+ useEffect(()=>{const onKey=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();launch();}};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);},[props.companyId]);
  const [visited,setVisited]=useState<CompanyView[]>([view]);
  useEffect(()=>{setVisited(previous=>previous.includes(view)?previous:[...previous,view]);},[view]);
- return <div className="company-screens">{visited.filter(screen=>!props.allowedViews||props.allowedViews.includes(screen)).map(screen=><div key={screen} style={{display:screen===view?'block':'none'}} aria-hidden={screen!==view}><ModuleScreen {...props} view={screen} active={screen===view}/></div>)}</div>;
+ return <div className="company-screens">{!['home','work','search'].includes(view)&&<div className="hub-launcher"><button className="secondary" onClick={launch}><Search size={17}/>{props.en?'Search records':'بحث في السجلات'} <kbd>Ctrl K</kbd></button></div>}{visited.filter(screen=>!props.allowedViews||props.allowedViews.includes(screen)).map(screen=><div key={screen} style={{display:screen===view?'block':'none'}} aria-hidden={screen!==view}><ModuleScreen {...props} view={screen} active={screen===view}/></div>)}</div>;
 }

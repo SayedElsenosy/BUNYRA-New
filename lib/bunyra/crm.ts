@@ -67,8 +67,9 @@ async function ensureCustomer(sql: Sql, companyId: string, customerId: string) {
   }
 }
 
-export async function crmOverview(sql: Sql, actor: Actor, companyId: string, options: { q?: string; status?: string; owner?: string; asOwner?: boolean } = {}) {
+export async function crmOverview(sql: Sql, actor: Actor, companyId: string, options: { customer?:string; q?: string; status?: string; owner?: string; asOwner?: boolean } = {}) {
   const {ctx,ids,customerIds,users}=await crmScope(sql,actor,companyId,'leads.read',options.asOwner===true);
+  const customer=options.customer?uuid.parse(options.customer):null;
   const q = (options.q || '').trim().slice(0, 120);
   const status = options.status || '';
   const owner = options.owner || '';
@@ -76,7 +77,7 @@ export async function crmOverview(sql: Sql, actor: Actor, companyId: string, opt
     sql`SELECT c.id,c.full_name,c.phone,c.email,c.address,c.notes,c.version,c.created_at,c.updated_at,
       COALESCE(json_agg(json_build_object('id',l.id,'status',l.status,'source',l.source,'owner_user_id',l.owner_user_id,'project_id',l.project_id,'project_name',p.name,'version',l.version,'updated_at',l.updated_at) ORDER BY l.updated_at DESC) FILTER (WHERE l.id IS NOT NULL),'[]') AS leads
       FROM crm_customers c LEFT JOIN crm_leads l ON l.company_id=c.company_id AND l.customer_id=c.id AND l.id=ANY(${ids}::uuid[]) LEFT JOIN projects p ON p.company_id=l.company_id AND p.id=l.project_id
-      WHERE c.company_id=${companyId} AND c.id=ANY(${customerIds}::uuid[]) AND (${q}='' OR c.full_name ILIKE ${'%' + q + '%'} OR c.phone ILIKE ${'%' + q + '%'} OR c.email ILIKE ${'%' + q + '%'})
+      WHERE c.company_id=${companyId} AND (${customer}::uuid IS NULL OR c.id=${customer}::uuid) AND c.id=ANY(${customerIds}::uuid[]) AND (${q}='' OR c.full_name ILIKE ${'%' + q + '%'} OR c.phone ILIKE ${'%' + q + '%'} OR c.email ILIKE ${'%' + q + '%'})
       GROUP BY c.id ORDER BY c.updated_at DESC LIMIT 200`,
     sql`SELECT count(*)::int AS customers,
       (SELECT count(*)::int FROM crm_leads WHERE company_id=${companyId} AND id=ANY(${ids}::uuid[]) AND status NOT IN('won','lost')) AS open_leads,
@@ -85,8 +86,8 @@ export async function crmOverview(sql: Sql, actor: Actor, companyId: string, opt
       FROM crm_customers WHERE company_id=${companyId} AND id=ANY(${customerIds}::uuid[])`,
     sql`SELECT id,name FROM projects WHERE company_id=${companyId} ORDER BY name`,
     sql`SELECT user_id,email,role FROM memberships WHERE company_id=${companyId} AND active ORDER BY email`,
-    sql`SELECT i.id,i.customer_id,i.lead_id,i.kind,i.body,i.created_by,i.created_at,c.full_name FROM crm_interactions i JOIN crm_customers c ON c.company_id=i.company_id AND c.id=i.customer_id WHERE i.company_id=${companyId} AND i.customer_id=ANY(${customerIds}::uuid[]) AND (i.lead_id IS NULL OR i.lead_id=ANY(${ids}::uuid[])) ORDER BY i.created_at DESC LIMIT 40`,
-    sql`SELECT f.id,f.customer_id,f.lead_id,f.due_at,f.title,f.status,f.assigned_to,f.created_at,c.full_name FROM crm_follow_ups f JOIN crm_customers c ON c.company_id=f.company_id AND c.id=f.customer_id WHERE f.company_id=${companyId} AND f.customer_id=ANY(${customerIds}::uuid[]) AND (${users===null} OR f.assigned_to=ANY(${users||[]}::text[])) AND (f.lead_id IS NULL OR f.lead_id=ANY(${ids}::uuid[])) AND (${owner}='' OR f.assigned_to=${owner}) ORDER BY f.status='open' DESC,f.due_at ASC LIMIT 100`,
+    sql`SELECT i.id,i.customer_id,i.lead_id,i.kind,i.body,i.created_by,i.created_at,c.full_name FROM crm_interactions i JOIN crm_customers c ON c.company_id=i.company_id AND c.id=i.customer_id WHERE i.company_id=${companyId} AND (${customer}::uuid IS NULL OR i.customer_id=${customer}::uuid) AND i.customer_id=ANY(${customerIds}::uuid[]) AND (i.lead_id IS NULL OR i.lead_id=ANY(${ids}::uuid[])) ORDER BY i.created_at DESC LIMIT 40`,
+    sql`SELECT f.id,f.customer_id,f.lead_id,f.due_at,f.title,f.status,f.assigned_to,f.created_at,c.full_name FROM crm_follow_ups f JOIN crm_customers c ON c.company_id=f.company_id AND c.id=f.customer_id WHERE f.company_id=${companyId} AND (${customer}::uuid IS NULL OR f.customer_id=${customer}::uuid) AND f.customer_id=ANY(${customerIds}::uuid[]) AND (${users===null} OR f.assigned_to=ANY(${users||[]}::text[])) AND (f.lead_id IS NULL OR f.lead_id=ANY(${ids}::uuid[])) AND (${owner}='' OR f.assigned_to=${owner}) ORDER BY f.status='open' DESC,f.due_at ASC LIMIT 100`,
   ]);
   const filtered = customers.map(row => ({ ...row, leads: (row.leads || []).filter((lead: {status: string; owner_user_id: string}) => (!status || lead.status === status) && (!owner || lead.owner_user_id === owner)) }));
   return { ...ctx, customers: filtered, stats: stats[0], projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), members:members.filter(m=>!users||users.includes(m.user_id)), interactions, followUps };

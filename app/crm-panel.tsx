@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, CheckCircle2, MessageSquareText, Phone, Plus, Search, Target, Users, X } from 'lucide-react';
 
+import {useWorkspaceLocation} from './workspace-location';
+
 type Lead = { id: string; status: string; source: string; owner_user_id: string; project_id: string | null; project_name?: string; version: number; updated_at: string };
 type Customer = { id: string; full_name: string; phone: string; email: string; address: string; notes: string; version: number; leads: Lead[]; updated_at: string };
 type Overview = { customers: Customer[]; stats: { customers: number; open_leads: number; overdue_follow_ups: number; won_leads: number }; projects: { id: string; name: string }[]; members: { user_id: string; email: string; role: string }[]; interactions: { id: string; customer_id: string; kind: string; body: string; created_at: string }[]; followUps: { id: string; customer_id: string; due_at: string; title: string; status: string }[] };
@@ -11,6 +13,7 @@ const statuses = ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost', 'p
 const statusColor: Record<string, string> = { new: 'crm-status-new', contacted: 'crm-status-contacted', qualified: 'crm-status-qualified', proposal: 'crm-status-proposal', won: 'crm-status-won', lost: 'crm-status-lost', paused: 'crm-status-paused' };
 
 export default function CrmPanel({ companyId, en = false, asOwner = false }: { companyId: string; en?: boolean; asOwner?: boolean }) {
+  const [route,navigate]=useWorkspaceLocation();
   const t = (ar: string, eng: string) => en ? eng : ar;
   const [data, setData] = useState<Overview | null>(null);
   const [q, setQ] = useState('');
@@ -25,14 +28,17 @@ export default function CrmPanel({ companyId, en = false, asOwner = false }: { c
   const [followForm, setFollowForm] = useState({ title: '', due_at: '', assigned_to: '' });
   const endpoint = `/api/crm?company=${encodeURIComponent(companyId)}${asOwner ? '&mode=platform' : ''}`;
 
-  async function load() {
-    const r = await fetch(`${endpoint}&q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}`);
+  async function load(signal?:AbortSignal) {
+    const r = await fetch(`${endpoint}&q=${encodeURIComponent(route.record?'':q)}&status=${encodeURIComponent(status)}${route.record?'&customer='+encodeURIComponent(route.record):''}`,{signal});
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'load');
+    if(signal?.aborted)return;
     setData(d);
-    if (selected) setSelected((d.customers as Customer[]).find(c => c.id === selected.id) || null);
+    if(route.record){const customer=(d.customers as Customer[]).find(c=>c.id===route.record)||null;setSelected(customer);if(!customer)setMessage(t('السجل غير متاح لحسابك.','This record is unavailable.'));}
+    if (!route.record&&selected) setSelected((d.customers as Customer[]).find(c => c.id === selected.id) || null);
   }
-  useEffect(() => { void load().catch(() => setMessage(t('تعذر تحميل CRM.', 'Could not load CRM.'))); }, [companyId, status]);
+  useEffect(()=>{if(route.view!=='customers')return;const controller=new AbortController();void load(controller.signal).catch(()=>{if(!controller.signal.aborted)setMessage(t('تعذر تحميل CRM.','Could not load CRM.'));});return()=>controller.abort();},[companyId,status,route.record,route.view]);
+  useEffect(()=>{if(route.view!=='customers')return;if(route.action==='new_customer'){openCustomer();navigate({action:''},true);}else if(route.action==='new_follow_up'&&selected?.id===route.record){setFollowForm({title:'',due_at:'',assigned_to:''});setModal('follow_up');navigate({action:''},true);}},[route.view,route.action,route.record,selected?.id]);
 
   const selectedLeads = useMemo(() => selected?.leads || [], [selected]);
   const labelStatus = (value: string) => ({ new: t('جديد', 'New'), contacted: t('تم التواصل', 'Contacted'), qualified: t('مؤهل', 'Qualified'), proposal: t('عرض', 'Proposal'), won: t('ناجح', 'Won'), lost: t('خاسر', 'Lost'), paused: t('متوقف', 'Paused') }[value] || value);
@@ -51,7 +57,7 @@ export default function CrmPanel({ companyId, en = false, asOwner = false }: { c
   function openCustomer() { setCustomerForm({ full_name: '', phone: '', email: '', address: '', notes: '' }); setModal('customer'); }
   function openLead(customer: Customer) { setSelected(customer); setLeadForm({ source: 'website', status: 'new', owner_user_id: data?.members[0]?.user_id || '', project_id: '', interest: '' }); setModal('lead'); }
 
-  return <section className="crm-shell">
+  return <section className="crm-shell">{route.record&&<div className="context-banner">{t('ملف العميل المحدد','Selected customer profile')}<button onClick={()=>navigate({record:'',action:''})}>{t('كل العملاء','All customers')}</button></div>}
     <div className="page-heading"><div><div className="eyebrow">BUNYRA · CRM</div><h2>{t('العملاء والفرص', 'Customers & Leads')}</h2><p>{t('مساحة موحدة للعميل من أول تواصل حتى التحويل.', 'One customer workspace from first contact to conversion.')}</p></div><button className="primary" onClick={openCustomer}><Plus size={17} />{t('عميل جديد', 'New customer')}</button></div>
     {message && <div className="crm-message" role="status">{message}<button onClick={() => setMessage('')} aria-label={t('إغلاق', 'Close')}><X size={15} /></button></div>}
     <div className="crm-stats">
