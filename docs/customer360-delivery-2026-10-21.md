@@ -12,11 +12,11 @@
 
 ## Validation
 - 30 existing workspace integration checks on a fresh synthetic DEV fixture.
-- 28 customer journey checks: own/team/company/project boundaries, financial denial, frozen contract value/currency, full counts/paging, existing CRM scope, exact customer/request lookup, explicit activity audit, read-only fetching and tenant binding.
+- 29 customer journey checks: own/team/company/project boundaries, financial denial, frozen contract value/currency, full counts/paging, existing CRM scope, exact customer/request lookup, explicit activity audit, read-only fetching and tenant binding.
 - 8 existing CRM regression checks.
 - 20 navigation permission checks.
 - 2 HTTP checks: unauthenticated GET 401 and write method 405 on the read-only profile endpoint.
-- Browser: Sales test account, direct profile URL, call logging, preselected customer/new request/save/matches/return, keyboard tabs. Additional mobile and deployed checks recorded after verification.
+- Browser: Sales test account, direct profile URL, call logging, preselected customer/new request/save/matches/return, keyboard tabs. Mobile: 390px viewport, no horizontal overflow. Browser also verified that a customer outside the first 500 remains selected after directory refresh (500 directory contacts plus the exact pinned customer). Deployed checks recorded after verification.
 - No production schema migration, financial test transaction, account change, secret change or plan mapping.
 
 ## Remaining PDF work
