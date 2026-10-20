@@ -1,13 +1,31 @@
 'use client';
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import ProjectWizard from './project-wizard';
 import InventoryPanel from './inventory-panel';
 import OrganizationPanel from './organization-panel';
 import TeamPanel from './team-panel';
 import CrmPanel from './crm-panel';
 import CommercialPanel from './commercial-panel';
-export default function CompanyWorkspace({companyId,en,onChanged}:{companyId:string;en:boolean;onChanged:()=>void}){
- const [view,setView]=useState('projects'),[revision,setRevision]=useState(0),t=(a:string,e:string)=>en?e:a;
- const items=[['projects',t('المشروعات والمخططات','Projects & plans')],['crm',t('العملاء والمبيعات','Customers & sales')],['commercial',t('الحجوزات والعقود','Bookings & contracts')],['organization',t('الهيكل الإداري','Organization')],['team',t('الحسابات والصلاحيات','Accounts & permissions')]];
- return <section className="company-module-workspace"><nav className="tabs" aria-label={t('وحدات الشركة','Company modules')}>{items.map(([id,label])=><button key={id} className={view===id?'current':''} onClick={()=>setView(id)}>{label}</button>)}</nav>{view==='projects'?<><ProjectWizard companyId={companyId} en={en} asOwner onChanged={()=>{setRevision(r=>r+1);onChanged()}}/><InventoryPanel key={revision} companyId={companyId} en={en} asOwner/></>:view==='crm'?<CrmPanel companyId={companyId} en={en} asOwner/>:view==='commercial'?<CommercialPanel companyId={companyId} en={en} asOwner/>:view==='organization'?<OrganizationPanel companyId={companyId} en={en} asOwner onCompanyChanged={onChanged}/>:<TeamPanel companyId={companyId} en={en} asOwner/>}</section>;
+import SalesPipelinePanel from './sales-pipeline-panel';
+import BuyerRequestPanel from './buyer-request-panel';
+import {moduleLabel,type CompanyView} from './company-navigation';
+function ModuleScreen({companyId,en,onChanged,view='projects',asOwner=false}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean}){
+ const props={companyId,en,asOwner};
+ return <section className="company-module-workspace" aria-label={moduleLabel(view,en)}><h2 className="module-title">{moduleLabel(view,en)}</h2>{
+ view==='projects'?<ProjectWizard {...props} onChanged={onChanged}/>:
+ ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
+ view==='customers'?<CrmPanel {...props}/>:
+ ['pipeline','followups','sales-teams','reports','stages'].includes(view)?<SalesPipelinePanel {...props} section={view as 'pipeline'|'followups'|'sales-teams'|'reports'|'stages'}/>:
+ view==='buyers'?<BuyerRequestPanel {...props}/>:
+ ['bookings','contracts','collections','receipts','adjustments'].includes(view)?<CommercialPanel {...props} section={view as 'bookings'|'contracts'|'collections'|'receipts'|'adjustments'}/>:
+ ['team','roles','permissions'].includes(view)?<TeamPanel {...props} section={view as 'team'|'roles'|'permissions'}/>:
+ <OrganizationPanel {...props} section={view as 'settings'|'structure'|'placements'} onCompanyChanged={onChanged}/>
+ }</section>;
+}
+
+export default function CompanyWorkspace(props:Parameters<typeof ModuleScreen>[0]){
+ const view=props.view||'projects';
+ const [visited,setVisited]=useState<CompanyView[]>([view]);
+ useEffect(()=>{setVisited(previous=>previous.includes(view)?previous:[...previous,view]);},[view]);
+ return <div className="company-screens">{visited.map(screen=><div key={screen} style={{display:screen===view?'block':'none'}} aria-hidden={screen!==view}><ModuleScreen {...props} view={screen}/></div>)}</div>;
 }
