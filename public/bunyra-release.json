@@ -1,11 +1,12 @@
 {
-  "release": "2026-10-20-section-navigation",
+  "release": "2026-10-20-commissions-sales-reports",
   "design": "SayedElsenosy/BUNYRA",
   "navigation": "grouped-sidebar-single-section",
   "features": [
-    "separate-settings",
-    "project-modules",
-    "sales-modules",
-    "finance-modules"
+    "contract-commission-snapshots",
+    "net-collection-eligibility",
+    "immutable-commission-ledger",
+    "scoped-sales-reports",
+    "server-report-pagination"
   ]
 }

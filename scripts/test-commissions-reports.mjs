@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict';
+import {tenantSql,bindTenant} from '../.sites-runtime/tests/tenant.mjs';
+import * as pricing from '../.sites-runtime/tests/pricing.mjs';
+import * as commercial from '../.sites-runtime/tests/commercial.mjs';
+import * as crm from '../.sites-runtime/tests/crm.mjs';
+import * as sales from '../.sites-runtime/tests/sales.mjs';
+import * as commissions from '../.sites-runtime/tests/commissions.mjs';
+import {salesReports} from '../.sites-runtime/tests/sales-reports.mjs';
+import * as finance from '../.sites-runtime/tests/finance-adjustments.mjs';
+import {setPermission} from '../.sites-runtime/tests/service.mjs';
+export async function runCommissionTests(raw){
+ delete process.env.BUNYRA_NOTIFICATION_WEBHOOK_URL;
+ assert.equal((await raw`SELECT user_id FROM platform_owner`)[0].user_id,'identity-test-platform-owner','DEV ONLY');
+ const checks=[],check=async(name,fn)=>{await fn();checks.push({name,passed:true});console.log('PASS '+name)},deny=(fn,code='FORBIDDEN')=>assert.rejects(fn,e=>e.code===code||e.message===code),fresh=()=>tenantSql(raw);
+ const company=crypto.randomUUID(),project=crypto.randomUUID(),other=crypto.randomUUID(),otherProject=crypto.randomUUID(),u1=crypto.randomUUID(),u2=crypto.randomUUID(),tag=company.slice(0,8),today=new Date().toISOString().slice(0,10);
+ const actor=r=>({userId:'commission-'+tag+'-'+r,email:r+'-'+tag+'@example.com'}),admin=actor('admin'),ops=actor('ops'),s1=actor('sales1'),s2=actor('sales2'),fm=actor('finance'),manager=actor('manager');
+ await raw.transaction([
+ raw`INSERT INTO companies(id,name,account_limit) VALUES(${company},${'Commission QA '+tag},10),(${other},'Foreign commission fixture',10)`,
+ raw`INSERT INTO projects(id,company_id,name) VALUES(${project},${company},'Commission QA project'),(${otherProject},${other},'Other project')`,
+ raw`INSERT INTO memberships(company_id,user_id,email,role) VALUES(${company},${admin.userId},${admin.email},'company_admin'),(${company},${ops.userId},${ops.email},'operations'),(${company},${s1.userId},${s1.email},'sales'),(${company},${s2.userId},${s2.email},'sales'),(${company},${fm.userId},${fm.email},'finance_manager'),(${company},${manager.userId},${manager.email},'sales_manager')`,
+ raw`INSERT INTO inventory_units(id,company_id,project_id,code,building,floor,category,area,proposed_price_minor) VALUES(${u1},${company},${project},'COM-01','A','1','Office',100,100001),(${u2},${company},${project},'COM-02','A','1','Office',100,100001)`
+ ]);
+ const customer=await crm.createCustomer(fresh(),s1,{company_id:company,full_name:'Commission test customer',phone:'+201001234567',email:''});
+ const lead=await crm.createLead(fresh(),s1,{company_id:company,customer_id:customer.id,source:'fixture',project_id:project});
+ await raw`INSERT INTO crm_interactions(company_id,customer_id,lead_id,kind,body,created_by) VALUES(${company},${customer.id},${lead.id},'call','QA call',${s1.userId})`;
+ await raw`INSERT INTO crm_follow_ups(company_id,customer_id,lead_id,due_at,title,status,assigned_to,created_by) VALUES(${company},${customer.id},${lead.id},now(),'QA follow-up','done',${s1.userId},${s1.userId})`;
+ const book=await pricing.savePriceBook(fresh(),admin,{company_id:company,project_id:project,version:0,name:'Commission QA prices',plans:[{code:'PAY',name:'Approved terms',down_payment_bps:2000,installments:4,interval_months:1,adjustment_bps:0}],prices:[u1,u2].map(unit_id=>({unit_id,source_unit_version:1,price:'1000.01',plan_codes:['PAY']}))});
+ await pricing.approvePriceBook(fresh(),admin,{company_id:company,project_id:project,id:book.id,version:book.version,expected_revision:0});
+ const plan=(await raw`SELECT id FROM price_book_plans WHERE book_id=${book.id}`)[0].id;
+ const booking=async(unit,seller)=>{const b=(await commercial.createBooking(fresh(),seller,{company_id:company,project_id:project,unit_id:unit,customer_id:customer.id,lead_id:lead.id,plan_id:plan,customer_name:'Commission test customer',customer_phone:'12345678',reservation_amount:'200.00',date:today})).booking;await commercial.updateBooking(fresh(),ops,{company_id:company,booking_id:b.id},'approve');return b;};
+ const b1=await booking(u1,s1);
+ await commercial.updateBooking(fresh(),fm,{company_id:company,booking_id:b1.id,received_amount:'200.00'},'confirm_receipt');
+ const contract=await commercial.createContract(fresh(),ops,{company_id:company,booking_id:b1.id,date:today,commission_rate_bps:333,commission_threshold_bps:2000}),id=contract.contract.id;
+ const overview=()=>commissions.commissionOverview(fresh(),admin,company),balance=async()=>((await overview()).rows.find(r=>r.id===id));
+ await check('rate, original salesperson and exact minor-unit commission captured',async()=>{const r=await balance();assert.equal(r.commission_total_minor,'3330');assert.equal(r.commission_sales_user_id,s1.userId);assert.equal(r.commission_rate_bps,333)});
+ await check('fractional-cent eligibility uses exact comparison',async()=>assert.equal((await balance()).earned_minor,'0'));
+ const installment=(await raw`SELECT id FROM contract_installments WHERE contract_id=${id} AND number=2`)[0],receipt=(await raw`SELECT id FROM collections WHERE contract_id=${id}`)[0];
+ await commercial.recordCollection(fresh(),fm,{company_id:company,contract_id:id,installment_id:installment.id,amount:'0.01',reference:'Threshold penny'});
+ await check('confirmed penny crosses the collection threshold',async()=>{const r=await balance();assert.equal(r.net_collected_minor,'20001');assert.equal(r.earned_minor,'3330');assert.equal(r.payable_minor,'3330')});
+ await check('sales reads only their original commissions',async()=>{assert.equal((await commissions.commissionOverview(fresh(),s1,company)).rows.length,1);assert.equal((await commissions.commissionOverview(fresh(),s2,company)).rows.length,0)});
+ await check('sales cannot configure commission terms',()=>deny(()=>commissions.configureCommission(fresh(),s1,{company_id:company,contract_id:id,threshold_bps:0,version:1,reason:'Forbidden'})));
+ const payment=(amount,request=crypto.randomUUID(),user=fm,kind='payment')=>commissions.postCommission(fresh(),user,{company_id:company,contract_id:id,kind,amount,request_id:request,reason:'QA financial record',reference:'QA'});
+ await check('sales cannot post payments',()=>deny(()=>payment('1.00',crypto.randomUUID(),s1)));
+ await check('operations cannot post payments',()=>deny(()=>payment('1.00',crypto.randomUUID(),ops)));
+ const duplicateKey=crypto.randomUUID();
+ await check('concurrent retries share one idempotent payment',async()=>{const r=await Promise.all([payment('20.00',duplicateKey),payment('20.00',duplicateKey)]);assert.equal(r[0].id,r[1].id);assert.equal((await balance()).net_paid_minor,'2000');assert.equal((await raw`SELECT count(*)::int n FROM commission_ledger WHERE contract_id=${id}`)[0].n,1)});
+ await check('idempotency key cannot be reused with a different amount',()=>deny(()=>payment('19.00',duplicateKey),'COMMISSION_REQUEST_CONFLICT'));
+ await check('concurrent payments cannot exceed the remaining balance',async()=>{const results=await Promise.allSettled([payment('10.00'),payment('10.00')]);assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal((await balance()).net_paid_minor,'3000')});
+ await check('original rate cannot be silently changed',()=>deny(()=>commissions.configureCommission(fresh(),ops,{company_id:company,contract_id:id,rate_bps:500,threshold_bps:2000,version:1,reason:'Change rate'}),'COMMISSION_TERMS_IMMUTABLE'));
+ await check('raw tenant updates cannot rewrite frozen commission terms',async()=>{const db=fresh();bindTenant(db,company,admin.userId);await deny(()=>db`UPDATE contracts SET commission_total_minor=1 WHERE company_id=${company} AND id=${id}`,'COMMISSION_TERMS_IMMUTABLE')});
+ const adjust=async(kind,amount,extra)=>{const a=await finance.createAdjustment(fresh(),fm,{company_id:company,contract_id:id,kind,amount,reason:'QA adjustment',...extra});await finance.approveAdjustment(fresh(),fm,{company_id:company,adjustment_id:a.id});await finance.executeAdjustment(fresh(),fm,{company_id:company,adjustment_id:a.id});};
+ const nextInstallment=(await raw`SELECT id FROM contract_installments WHERE contract_id=${id} AND number=2`)[0].id;
+ await check('non-cash settlement does not inflate net collections',async()=>{await adjust('settlement','1.00',{installment_id:nextInstallment});assert.equal((await balance()).net_collected_minor,'20001')});
+ await check('refund below threshold creates a recovery balance',async()=>{await adjust('refund','0.02',{collection_id:receipt.id});const r=await balance();assert.equal(r.net_collected_minor,'19999');assert.equal(r.earned_minor,'0');assert.equal(r.recoverable_minor,'3000');assert.equal(r.commission_state,'recovery')});
+ await check('payment blocked after loss of eligibility',()=>deny(()=>payment('0.01'),'COMMISSION_BALANCE_CHANGED'));
+ await check('partial recovery reduces net paid without deleting payment history',async()=>{await payment('5.00',crypto.randomUUID(),fm,'recovery');assert.equal((await balance()).net_paid_minor,'2500');assert.equal((await overview()).history.length,3)});
+ await check('cannot record recovery above outstanding balance',()=>deny(()=>payment('26.00',crypto.randomUUID(),fm,'recovery'),'COMMISSION_BALANCE_CHANGED'));
+ await check('eligibility changes are versioned and audited',async()=>{await commissions.configureCommission(fresh(),ops,{company_id:company,contract_id:id,threshold_bps:0,version:1,reason:'QA entitlement adjustment'});const r=await balance();assert.equal(r.commission_version,2);assert.equal(r.payable_minor,'830');assert.equal((await raw`SELECT count(*)::int n FROM audit_logs WHERE company_id=${company} AND action='commission.terms_updated'`)[0].n,1)});
+ await check('stale settings cannot overwrite a newer threshold',()=>deny(()=>commissions.configureCommission(fresh(),ops,{company_id:company,contract_id:id,threshold_bps:10000,version:1,reason:'Stale update'}),'VERSION_CONFLICT'));
+ await payment('8.30');
+ await sales.transferLead(fresh(),admin,{company_id:company,lead_id:lead.id,to_user_id:s2.userId,reason:'QA transfer'});
+ await check('lead transfer preserves original seller commission ownership',async()=>{assert.equal((await commissions.commissionOverview(fresh(),s1,company)).rows[0].commission_sales_user_id,s1.userId);assert.equal((await commissions.commissionOverview(fresh(),s2,company)).rows.length,0)});
+ const input={from:today,to:today,group:'day'};
+ await check('sales reports retain actual caller and original contract seller after transfer',async()=>{const r=await salesReports(fresh(),s1,company,input);assert.equal(r.totals.calls,1);assert.equal(r.totals.followups,1);assert.equal(r.totals.completed_followups,1);assert.equal(r.totals.bookings,1);assert.equal(r.totals.sales,1);assert.equal(r.money[0].contract_value_minor,'100001');assert.equal(r.money[0].calculated_minor,'3330');assert.equal(r.money[0].paid_minor,'3830');assert.equal(r.money[0].recovered_minor,'500')});
+ await check('other representative cannot see original seller metrics',async()=>{const r=await salesReports(fresh(),s2,company,input);assert.equal(r.totals.calls,0);assert.equal(r.totals.sales,0)});
+ await check('daily weekly and monthly totals reconcile',async()=>{const d=await salesReports(fresh(),admin,company,input);for(const group of ['week','month']){const r=await salesReports(fresh(),admin,company,{...input,group});assert.deepEqual(r.totals,d.totals);assert.deepEqual(r.money,d.money)}});
+ await check('invalid dates and inverted periods are rejected',async()=>{await assert.rejects(()=>salesReports(fresh(),admin,company,{...input,from:'2026-02-30'}));await deny(()=>salesReports(fresh(),admin,company,{...input,from:'2027-01-01',to:'2026-01-01'}),'INVALID_DATE_RANGE')});
+ await check('manager without the seller in their team sees no commissions or sales',async()=>{assert.equal((await commissions.commissionOverview(fresh(),manager,company)).rows.length,0);assert.equal((await salesReports(fresh(),manager,company,input)).totals.sales,0)});
+ const team=await sales.saveSalesTeam(fresh(),admin,{company_id:company,name:'QA sales team',manager_user_id:manager.userId});await sales.addTeamMember(fresh(),admin,{company_id:company,team_id:team.id,user_id:s1.userId});
+ await check('manager sees their team and cannot filter to outsiders',async()=>{assert.equal((await commissions.commissionOverview(fresh(),manager,company)).rows.length,1);assert.equal((await salesReports(fresh(),manager,company,input)).totals.sales,1);await deny(()=>salesReports(fresh(),manager,company,{...input,user:s2.userId}));await deny(()=>commissions.commissionOverview(fresh(),manager,company,{user:s2.userId}))});
+ await setPermission(fresh(),admin,{company_id:company,user_id:s1.userId,project_id:project,action:'commissions.read',allowed:false});
+ await check('project denial hides commissions and amounts in reports',async()=>{assert.equal((await commissions.commissionOverview(fresh(),s1,company)).rows.length,0);const r=await salesReports(fresh(),s1,company,input);assert.equal(r.can_read_commissions,false);assert.equal(r.money[0].calculated_minor,'0')});
+ await setPermission(fresh(),admin,{company_id:company,user_id:fm.userId,project_id:project,action:'commissions.pay',allowed:false});
+ await check('explicit project denial blocks financial posting',()=>deny(()=>payment('0.01')));
+ await setPermission(fresh(),admin,{company_id:company,user_id:fm.userId,project_id:project,action:'commissions.pay',allowed:true});
+ await check('cross-company filters and operations are denied',async()=>{await deny(()=>commissions.commissionOverview(fresh(),admin,company,{project:otherProject}));await deny(()=>salesReports(fresh(),admin,company,{...input,project:otherProject}));await deny(()=>commissions.commissionOverview(fresh(),admin,other))});
+ await check('tenant RLS hides foreign commission ledger',async()=>{const db=fresh();bindTenant(db,other,admin.userId);assert.equal((await db`SELECT id FROM commission_ledger WHERE contract_id=${id}`).length,0)});
+ await check('ledger cannot be edited or removed',async()=>{const entry=(await raw`SELECT id FROM commission_ledger WHERE contract_id=${id} LIMIT 1`)[0].id;await deny(()=>raw`UPDATE commission_ledger SET reason='Changed' WHERE id=${entry}`,'COMMISSION_LEDGER_IMMUTABLE');await deny(()=>raw`DELETE FROM commission_ledger WHERE id=${entry}`,'COMMISSION_LEDGER_IMMUTABLE')});
+ await commercial.updateBooking(fresh(),ops,{company_id:company,booking_id:b1.id,reason:'QA cancellation'},'cancel');
+ await check('contract cancellation reverses entitlement without erasing paid history',async()=>{const r=await balance();assert.equal(r.earned_minor,'0');assert.equal(r.recoverable_minor,'3330');assert.equal(r.net_paid_minor,'3330');await deny(()=>payment('1.00'),'COMMISSION_BALANCE_CHANGED')});
+ await payment('33.30',crypto.randomUUID(),fm,'recovery');
+ await check('actual recovery clears the cancelled contract balance',async()=>{const r=await balance();assert.equal(r.net_paid_minor,'0');assert.equal(r.recoverable_minor,'0');assert.equal(r.commission_state,'cancelled')});
+ await check('report status filter excludes cancelled sales values',async()=>{const r=await salesReports(fresh(),admin,company,{...input,contract_status:'cancelled'});assert.equal(r.totals.sales,0);assert.equal(r.money[0].contract_value_minor,'0')});
+ const b2=await booking(u2,s2);const c2=await commercial.createContract(fresh(),ops,{company_id:company,booking_id:b2.id,date:today,commission_rate_bps:200,commission_threshold_bps:0});
+ await check('second seller gets their own independently scoped payable commission',async()=>{const r=await commissions.commissionOverview(fresh(),s2,company);assert.equal(r.rows.length,1);assert.equal(r.rows[0].id,c2.contract.id);assert.equal(r.rows[0].payable_minor,'2000')});
+ return {passed:checks.length,checks,fixture:{company,project,name:'Commission QA '+tag,contract:id,activeContract:c2.contract.id}};
+}
