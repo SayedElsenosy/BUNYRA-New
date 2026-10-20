@@ -1,5 +1,5 @@
 {
-  "release": "2026-10-21-customer360",
+  "release": "2026-10-21-saved-offers",
   "design": "SayedElsenosy/BUNYRA",
   "navigation": "grouped-sidebar-single-section",
   "features": [
@@ -17,6 +17,9 @@
     "customer-and-contract-deep-links",
     "scoped-customer360",
     "customer-activity-timeline",
-    "customer-buyer-request-context"
+    "customer-buyer-request-context",
+    "saved-offer-original-pdfs",
+    "buyer-offer-booking-context",
+    "immutable-booking-source"
   ]
 }

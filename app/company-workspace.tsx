@@ -9,6 +9,7 @@ import ProjectWizard from './project-wizard';
 import InventoryPanel from './inventory-panel';
 import OrganizationPanel from './organization-panel';
 import TeamPanel from './team-panel';
+import SavedOffersPanel from './saved-offers-panel';
 import CrmPanel from './crm-panel';
 import CommercialPanel from './commercial-panel';
 import SalesPipelinePanel from './sales-pipeline-panel';
@@ -20,7 +21,7 @@ function ModuleScreen({companyId,en,onChanged,view='home',asOwner=false,active=t
  ['home','work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
  view==='projects'?<ProjectWizard {...props} onChanged={onChanged}/>:
  ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
- view==='customers'?<CrmPanel {...props}/>:
+ view==='offers'?<SavedOffersPanel {...props} active={active}/>:view==='customers'?<CrmPanel {...props}/>:
  ['pipeline','followups','sales-teams','reports','stages'].includes(view)?<SalesPipelinePanel {...props} section={view as 'pipeline'|'followups'|'sales-teams'|'reports'|'stages'}/>:
  view==='buyers'?<BuyerRequestPanel {...props}/>:
  ['bookings','contracts','collections','receipts','adjustments'].includes(view)?<CommercialPanel {...props} section={view as 'bookings'|'contracts'|'collections'|'receipts'|'adjustments'}/>:

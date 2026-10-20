@@ -26,4 +26,7 @@ test('Empty grants produce no mounted screen',()=>assert.equal(resolveCompanyVie
 test('Valid deep link remains selected',()=>assert.equal(resolveCompanyView('followups',sales),'followups'));
 test('Prototype properties are never valid views',()=>assert.equal(isCompanyView('__proto__'),false));
 test('Executable URL text is never accepted as a view',()=>assert.equal(isCompanyView('javascript:alert(1)'),false));
+test('Sales can open saved offer history',()=>assert.ok(sales.includes('offers')));
+test('Finance-only and CRM-only roles cannot open saved offers',()=>{assert.ok(!finance.includes('offers'));assert.ok(!allowedCompanyViews(ctx('sales',{'leads.read':true})).includes('offers'));});
+test('Project price denials hide saved offers when all projects are denied',()=>{const v=allowedCompanyViews(ctx('sales',null,[{action:'pricing.read',project_id:'p1',allowed:false}]),['p1']);assert.ok(!v.includes('offers'));});
 console.log(JSON.stringify({passed:results.length,results},null,2));

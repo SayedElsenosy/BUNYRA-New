@@ -2,7 +2,7 @@ import {offerLogo} from './offer-logo';
 import {jsPDF} from 'jspdf';
 import {amiriBase64} from './offer-font';
 import {majorAmount} from './pricing-calculator';
-type Offer={
+type Offer={reference?:string;
  company:{name:string;name_en?:string;phone?:string;email?:string;address?:string};
  project:{name:string};unit:{code:string;building:string;floor:string;category:string;area:string};
  customer?:{full_name:string;phone:string;email?:string;address?:string}|null;
@@ -19,7 +19,7 @@ export function renderOfferPdf(data:Offer){
  function newPage(){footer();doc.addPage();header();}
  function text(value:string,size=12,bold=false){doc.setFontSize(size);doc.setTextColor(bold?155:22,bold?114:38,bold?62:59);const lines=doc.splitTextToSize(value,width-margin*2) as string[];for(const line of lines){if(y+22>bottom)newPage();doc.text(line,ar?width-margin:margin,y,{align:ar?'right':'left',isInputVisual:false,isOutputVisual:true,isInputRtl:ar,isOutputRtl:false});y+=21;} }
  function field(a:string,e:string,value:unknown){text(t(a,e)+': '+String(value||'—'));}
- header();text(ar?data.company.name:(data.company.name_en||data.company.name),19,true);field('المشروع','Project',data.project.name);field('العميل','Customer',data.customer?.full_name);field('الهاتف','Phone',data.customer?.phone);y+=8;text(t('بيانات الوحدة','UNIT DETAILS'),15,true);
+ header();text(ar?data.company.name:(data.company.name_en||data.company.name),19,true);if(data.reference)field('رقم العرض','Offer number',data.reference);field('المشروع','Project',data.project.name);field('العميل','Customer',data.customer?.full_name);field('الهاتف','Phone',data.customer?.phone);y+=8;text(t('بيانات الوحدة','UNIT DETAILS'),15,true);
  field('كود الوحدة','Unit code',data.unit.code);field('المبنى / الدور','Building / floor',data.unit.building+' / '+data.unit.floor);field('التصنيف','Category',data.unit.category);field('المساحة م²','Area sqm',data.unit.area);y+=8;text(t('السعر المعتمد ونظام السداد','APPROVED PRICE & PAYMENT PLAN'),15,true);
  field('نظام السداد','Payment plan',data.quote.plan.name+' · '+data.quote.plan.code);field('السعر الإجمالي','Total price',majorAmount(data.quote.calculation.total_minor)+' '+currency);field('المقدم','Down payment',majorAmount(data.quote.calculation.down_payment_minor)+' '+currency);y+=9;
  for(const i of data.quote.calculation.installments){if(y+32>bottom)newPage();doc.setFillColor(i.number%2?248:255,i.number%2?250:255,i.number%2?252:255);doc.rect(margin,y-15,width-margin*2,25,'F');doc.setFontSize(11);doc.setTextColor(22,38,59);doc.text(t('القسط','Installment')+' '+i.number,width-margin-8,y,{align:'right',isInputVisual:false,isOutputVisual:true,isInputRtl:ar,isOutputRtl:false});doc.text(i.due_date,width/2,y,{align:'center',isInputVisual:false,isOutputVisual:true,isInputRtl:false,isOutputRtl:false});doc.text(majorAmount(i.amount_minor)+' '+currency,margin+8,y,{isInputVisual:false,isOutputVisual:true,isInputRtl:false,isOutputRtl:false});y+=25;}
