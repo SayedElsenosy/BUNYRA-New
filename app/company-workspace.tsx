@@ -11,7 +11,7 @@ import CommercialPanel from './commercial-panel';
 import SalesPipelinePanel from './sales-pipeline-panel';
 import BuyerRequestPanel from './buyer-request-panel';
 import {moduleLabel,type CompanyView} from './company-navigation';
-function ModuleScreen({companyId,en,onChanged,view='projects',asOwner=false,active=true}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean;active?:boolean}){
+function ModuleScreen({companyId,en,onChanged,view='projects',asOwner=false,active=true}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean;active?:boolean;allowedViews?:readonly CompanyView[]}){
  const props={companyId,en,asOwner};
  return <section className="company-module-workspace" aria-label={moduleLabel(view,en)}><h2 className="module-title">{moduleLabel(view,en)}</h2>{
  view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
@@ -30,5 +30,5 @@ export default function CompanyWorkspace(props:Parameters<typeof ModuleScreen>[0
  const view=props.view||'projects';
  const [visited,setVisited]=useState<CompanyView[]>([view]);
  useEffect(()=>{setVisited(previous=>previous.includes(view)?previous:[...previous,view]);},[view]);
- return <div className="company-screens">{visited.map(screen=><div key={screen} style={{display:screen===view?'block':'none'}} aria-hidden={screen!==view}><ModuleScreen {...props} view={screen} active={screen===view}/></div>)}</div>;
+ return <div className="company-screens">{visited.filter(screen=>!props.allowedViews||props.allowedViews.includes(screen)).map(screen=><div key={screen} style={{display:screen===view?'block':'none'}} aria-hidden={screen!==view}><ModuleScreen {...props} view={screen} active={screen===view}/></div>)}</div>;
 }
