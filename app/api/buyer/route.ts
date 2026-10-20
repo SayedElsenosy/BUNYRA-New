@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     const company = url.searchParams.get('company') || '';
     const mode = url.searchParams.get('mode') === 'platform';
     const requestId = url.searchParams.get('request');
-    return json(requestId ? await buyerRequestMatches(sql, actor, company, requestId, mode) : await buyerOverview(sql, actor, company, mode));
+    return json(requestId ? await buyerRequestMatches(sql, actor, company, requestId, mode) : await buyerOverview(sql, actor, company, mode, {customer:url.searchParams.get('customer')||undefined,request:url.searchParams.get('target')||undefined}));
   } catch (error) { return failure(error); }
 }
 

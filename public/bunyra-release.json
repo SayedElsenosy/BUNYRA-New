@@ -1,5 +1,5 @@
 {
-  "release": "2026-10-20-workspace-hub",
+  "release": "2026-10-21-customer360",
   "design": "SayedElsenosy/BUNYRA",
   "navigation": "grouped-sidebar-single-section",
   "features": [
@@ -14,6 +14,9 @@
     "scoped-global-search",
     "unified-my-work",
     "audited-follow-up-completion",
-    "customer-and-contract-deep-links"
+    "customer-and-contract-deep-links",
+    "scoped-customer360",
+    "customer-activity-timeline",
+    "customer-buyer-request-context"
   ]
 }

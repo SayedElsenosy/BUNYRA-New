@@ -20,7 +20,7 @@ export default function Entry({ portal }: { portal?: 'owner' | 'company' }) {
   const [route,navigate]=useWorkspaceLocation();
   const view=resolveCompanyView(route.view,workspace?.allowed_views||[]);
   const [navigationNotice,setNavigationNotice]=useState(false);
-  const hubView=!!view&&['home','work','search'].includes(view);
+  const hubView=!!view&&(['home','work','search'].includes(view)||(view==='customers'&&!!route.record));
   const [en, setEn] = useState(false);
   const [dark, setDark] = useState(false);
   const t = (ar: string, eng: string) => en ? eng : ar;
