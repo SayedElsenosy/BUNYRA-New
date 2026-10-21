@@ -36,11 +36,15 @@ export async function planCatalog(sql:Sql,actor:Actor){
   sql`SELECT * FROM subscription_plans ORDER BY code`,
   sql`SELECT s.*,p.code AS plan_code,c.name AS company_name,
   (SELECT count(*)::int FROM memberships m WHERE m.company_id=s.company_id AND m.active) AS used_seats,
+  (SELECT count(*)::int FROM invitations i WHERE i.company_id=s.company_id AND i.status='pending' AND i.expires_at>now()
+   AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=i.company_id AND lower(m.email)=lower(i.email) AND m.active)) AS reserved_seats,
   (SELECT count(*)::int FROM projects j WHERE j.company_id=s.company_id) AS used_projects
   FROM company_subscriptions s JOIN subscription_plans p ON p.id=s.plan_id
   JOIN companies c ON c.id=s.company_id ORDER BY c.name`,
   sql`SELECT id,name,account_limit,version,
    (SELECT count(*)::int FROM memberships m WHERE m.company_id=c.id AND m.active) AS used_seats,
+   (SELECT count(*)::int FROM invitations i WHERE i.company_id=c.id AND i.status='pending' AND i.expires_at>now()
+    AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=i.company_id AND lower(m.email)=lower(i.email) AND m.active)) AS reserved_seats,
    (SELECT count(*)::int FROM projects j WHERE j.company_id=c.id) AS used_projects
    FROM companies c WHERE c.status<>'deleted' ORDER BY name`
  ]);
@@ -120,6 +124,8 @@ export async function companySubscription(sql:Sql,actor:Actor,company:string,pla
   sql`SELECT s.plan_id,s.status,s.seat_limit,s.project_limit,s.features,s.currency,s.billing_period,s.agreed_price_minor,
    s.starts_at,s.ends_at,s.version FROM company_subscriptions s WHERE s.company_id=${company}`,
   sql`SELECT (SELECT count(*)::int FROM memberships WHERE company_id=${company} AND active) AS active_seats,
+   (SELECT count(*)::int FROM invitations i WHERE i.company_id=${company} AND i.status='pending' AND i.expires_at>now()
+    AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=i.company_id AND lower(m.email)=lower(i.email) AND m.active)) AS reserved_seats,
    (SELECT count(*)::int FROM projects WHERE company_id=${company}) AS projects,
    (SELECT account_limit FROM companies WHERE id=${company}) AS legacy_seat_limit`
  ]);
