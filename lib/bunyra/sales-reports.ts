@@ -7,7 +7,7 @@ const query=z.object({project:uuid.optional(),user:z.string().max(200).optional(
 export async function salesReports(sql:Sql,actor:Actor,company:string,input:unknown,platform=false,exportFull=false){
  const f=query.parse(input);if(f.from>f.to||(Date.parse(f.to)-Date.parse(f.from))/86400000>366)throw new ServiceError('INVALID_DATE_RANGE');
  const scope=await reportScope(sql,actor,company,'reports.read',platform),selected=scopeFilters(scope,f.project,f.user);
- await requireFeature(sql,company,'advanced_reports');
+ await requireFeature(sql,company,'advanced_reports',platform);
  const commissionProjects=selected.projects.filter(p=>projectAllowed(scope.ctx,'commissions.read',p));
  const zone=(await sql`SELECT time_zone FROM company_settings WHERE company_id=${company}`)[0]?.time_zone||'Africa/Cairo';
  // Aggregate events before joining: one interaction or contract contributes once,
