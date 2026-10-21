@@ -80,3 +80,23 @@
 .pipeline-move-dialog select,.pipeline-move-dialog textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;min-height:44px}
 .pipeline-move-dialog textarea{min-height:110px}
 .pipeline-move-dialog select:focus,.pipeline-move-dialog textarea:focus{outline:2px solid #b78d4d;outline-offset:2px}
+
+/* Follow-up workflow */
+.follow-up-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.follow-up-metrics button{display:flex;justify-content:space-between;gap:12px;padding:18px;text-align:start;color:var(--ink)}
+.follow-up-metrics strong{font-size:25px;color:var(--primary)}
+.follow-up-escalation{border-inline-start:3px solid #bd704e!important}
+.follow-up-filter{display:grid;gap:7px;max-width:320px;margin:16px 0}
+.follow-up-list{display:grid;gap:10px;margin:16px 0;max-height:65dvh;overflow:auto;align-content:start}
+.follow-up-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px}
+.follow-up-item p{margin:7px 0;color:var(--muted)}
+.follow-up-item small{display:block;color:var(--muted);margin-top:6px}
+.follow-up-dialog{border:1px solid var(--line);border-radius:18px;padding:24px;width:min(650px,calc(100vw - 32px));max-height:90dvh;overflow:auto;color:var(--ink);background:var(--surface)}
+.follow-up-dialog::backdrop{background:#0d203b99}
+.follow-up-action,.follow-up-action label{display:grid;gap:12px;margin:14px 0}
+.follow-up-dialog input,.follow-up-dialog select,.follow-up-dialog textarea,.follow-up-filter select{font:inherit;font-size:14px;width:100%;box-sizing:border-box;min-height:44px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);padding:10px 12px}
+.follow-up-dialog textarea{min-height:100px;resize:vertical}
+.follow-up-history{display:grid;gap:10px;max-height:340px;overflow:auto}
+.follow-up-history article{border-top:1px solid var(--line);padding:12px 0;overflow-wrap:anywhere}
+.follow-up-history small{display:block;color:var(--muted);margin-top:6px}
+@media(max-width:640px){.follow-up-metrics{grid-template-columns:1fr}.follow-up-item{align-items:stretch;flex-direction:column}.follow-up-dialog{padding:18px}}
