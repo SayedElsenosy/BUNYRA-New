@@ -22,7 +22,8 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
  // Finance gets only finance-authorized contracts, sales gets only booking-authorized
  // contract values. This prevents mixing a broadly visible value denominator with
  // a partially restricted collection numerator.
- const contractProjects=financial?finance:bookings;
+ const salesValueRole=['sales','sales_manager','sales_admin'].includes(ctx.role);
+ const contractProjects=financial?finance:(salesValueRole?bookings:[]);
  const query=workspaceTaskSql+`, authorized_signed AS(
   SELECT c.id,c.project_id,c.commission_sales_user_id,c.commission_currency AS currency,
    c.signed_at,c.value_final_minor::numeric AS signed_minor,c.net_collected_minor::numeric AS net_minor,
@@ -31,6 +32,13 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
   WHERE c.company_id=$1::uuid AND c.project_id=ANY($16::uuid[])
     AND c.status IN('active','completed')
     AND ($2::text[] IS NULL OR c.commission_sales_user_id=ANY($2::text[]))
+ ), dashboard_tasks AS(
+  SELECT * FROM tasks WHERE
+   CASE $21::text
+    WHEN 'operations' THEN kind='booking_approval'
+    WHEN 'finance_manager' THEN kind IN('receipt_confirmation','installment')
+    WHEN 'accountant' THEN kind IN('receipt_confirmation','installment')
+    ELSE true END
  ), money AS(
   SELECT currency,count(*)::int AS contracts,
    sum(signed_minor)::text AS contract_value_minor,
@@ -53,7 +61,7 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
  ), urgent AS(
   SELECT id,kind,title,context,due_at,record_id,view,bucket,version,
    CASE bucket WHEN 'overdue' THEN 0 WHEN 'today' THEN 1 WHEN 'waiting' THEN 2 WHEN 'tomorrow' THEN 3 ELSE 4 END AS priority
-  FROM tasks
+  FROM dashboard_tasks
   ORDER BY priority,due_at NULLS LAST,created_at,id,kind LIMIT 6
  ), days AS(
   SELECT generate_series(
@@ -88,17 +96,17 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
     'bookings_pending',(SELECT count(*)::int FROM visible_bookings WHERE status='submitted'),
     'receipts_pending',(SELECT count(*)::int FROM visible_bookings WHERE status IN('approved','accounts_pending') AND project_id=ANY($8::uuid[])),
     'active_contracts',(SELECT count(*)::int FROM authorized_signed),
-    'tasks',(SELECT count(*)::int FROM tasks),
-    'overdue',(SELECT count(*)::int FROM tasks WHERE bucket='overdue'),
-    'today',(SELECT count(*)::int FROM tasks WHERE bucket='today'),
-    'waiting',(SELECT count(*)::int FROM tasks WHERE bucket='waiting')
+    'tasks',(SELECT count(*)::int FROM dashboard_tasks),
+    'overdue',(SELECT count(*)::int FROM dashboard_tasks WHERE bucket='overdue'),
+    'today',(SELECT count(*)::int FROM dashboard_tasks WHERE bucket='today'),
+    'waiting',(SELECT count(*)::int FROM dashboard_tasks WHERE bucket='waiting')
   )) AS metrics,
  (SELECT COALESCE(jsonb_agg(m ORDER BY m.currency),'[]'::jsonb) FROM money m) AS money,
  (SELECT COALESCE(jsonb_agg(p ORDER BY p.status),'[]'::jsonb) FROM pipeline p) AS pipeline,
  (SELECT COALESCE(jsonb_agg(t),'[]'::jsonb) FROM team t) AS team,
  (SELECT COALESCE(jsonb_agg(u ORDER BY u.priority,u.due_at NULLS LAST),'[]'::jsonb) FROM urgent u) AS urgent,
  (SELECT COALESCE(jsonb_agg(t ORDER BY t.day),'[]'::jsonb) FROM trend t) AS trend`;
- const rows=await sql.query(query,[...scope.params,contractProjects,commission,finance,financial,commissions]);
+ const rows=await sql.query(query,[...scope.params,contractProjects,commission,finance,financial,commissions,ctx.owner?'company_admin':ctx.role]);
  const m=rows[0];
  return {
   role:ctx.role,owner:ctx.owner,time_zone:scope.timeZone,as_of:scope.now,
