@@ -38,7 +38,10 @@ export async function listMembers(sql:Sql,actor:Actor,companyId:string,asOwner=f
  sql`SELECT id,name,permissions,version FROM custom_roles WHERE company_id=${companyId} ORDER BY name`,
  sql`SELECT id,name FROM projects WHERE company_id=${companyId} ORDER BY name`,
  sql`SELECT user_id,project_id,action,allowed FROM member_permissions WHERE company_id=${companyId}`]);
- const quota=(await sql`SELECT account_limit,version,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used FROM companies WHERE id=${companyId}`)[0];
+ const quota=(await sql`SELECT account_limit,version,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used,
+ (SELECT count(*)::int FROM invitations i WHERE i.company_id=${companyId} AND i.status='pending' AND i.expires_at>now()
+ AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=i.company_id AND lower(m.email)=lower(i.email) AND m.active)) AS reserved
+ FROM companies WHERE id=${companyId}`)[0];
  // Expose account labels only after company management authorization; hashes never leave this module.
  bindTenant(sql,null);let accounts;try { accounts=await sql`SELECT user_id,username,display_name,email AS contact_email FROM app_accounts WHERE company_id=${companyId}`; } finally { bindTenant(sql,companyId,actor.userId); }
  return {members:members.map(m=>({...m,...accounts.find(a=>a.user_id===m.user_id)})),invites:canManageMembers?invites:[],roles,projects,permissions,quota,capabilities:{members:canManageMembers,accounts:canManageAccounts,roles:canManageRoles},actor_id:actor.userId};
