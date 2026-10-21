@@ -22,7 +22,7 @@
     "test:tenancy": "node scripts/prepare-identity-tests.mjs && node scripts/run-tenancy-tests.mjs",
     "test:platform": "node scripts/prepare-identity-tests.mjs && node scripts/run-platform-tests.mjs",
     "test:companies": "node scripts/prepare-identity-tests.mjs && node scripts/run-company-tests.mjs",
-    "test:db": "npm run -s test:tenancy && npm run -s test:platform && npm run -s test:companies && npm run -s test:identity && npm run -s test:organization && npm run -s test:projects && npm run -s test:inventory && npm run -s test:inventory-sync && npm run -s test:accounts && npm run -s test:pricing && npm run -s test:plan-revisions && npm run -s test:crm && npm run -s test:sales && npm run -s test:finance && npm run -s test:commercial-integrity && npm run -s test:commissions-reports && npm run -s test:workspace && npm run -s test:customer-journey && npm run -s test:saved-offers && npm run -s test:pipeline && npm run -s test:lead-routing",
+    "test:db": "npm run -s test:tenancy && npm run -s test:platform && npm run -s test:companies && npm run -s test:identity && npm run -s test:organization && npm run -s test:projects && npm run -s test:inventory && npm run -s test:inventory-sync && npm run -s test:accounts && npm run -s test:pricing && npm run -s test:plan-revisions && npm run -s test:crm && npm run -s test:sales && npm run -s test:finance && npm run -s test:commercial-integrity && npm run -s test:commissions-reports && npm run -s test:workspace && npm run -s test:customer-journey && npm run -s test:saved-offers && npm run -s test:pipeline && npm run -s test:lead-routing && npm run -s test:follow-ups",
     "test:inventory-sync": "node scripts/prepare-identity-tests.mjs && node scripts/test-inventory-sync.mjs",
     "test:accounts": "node scripts/prepare-identity-tests.mjs && node scripts/run-account-tests.mjs",
     "test:pricing": "node scripts/prepare-identity-tests.mjs && node scripts/run-pricing-tests.mjs",
@@ -40,7 +40,8 @@
     "test:lead-routing": "node scripts/prepare-identity-tests.mjs && node scripts/run-lead-routing-tests.mjs",
     "test:report-dates": "node scripts/test-report-dates.mjs",
     "test:report-csv": "node scripts/test-report-csv.mjs",
-    "test:workspace-alerts": "npm run -s test:workspace"
+    "test:workspace-alerts": "npm run -s test:workspace",
+    "test:follow-ups": "node scripts/prepare-identity-tests.mjs && node scripts/run-follow-up-workflow-tests.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

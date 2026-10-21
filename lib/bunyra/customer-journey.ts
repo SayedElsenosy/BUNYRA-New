@@ -48,7 +48,7 @@ export async function customerJourney(sql:Sql,actor:Actor,input:unknown,platform
  'pipeline' AS view,l.id AS record,jsonb_build_object('source',l.source,'owner',m.email,'project',p.name) AS extra
  FROM leads l LEFT JOIN memberships m ON m.company_id=l.company_id AND m.user_id=l.owner_user_id LEFT JOIN projects p ON p.company_id=l.company_id AND p.id=l.project_id
  UNION ALL SELECT 'activity',i.id,i.kind,i.kind,i.body,''::text,i.created_at,'customers',i.customer_id,'{}'::jsonb FROM interactions i
- UNION ALL SELECT 'followups',f.id,'followup',f.title,'',f.status,f.due_at,'work',f.id,jsonb_build_object('assigned_to',m.email) FROM followups f LEFT JOIN memberships m ON m.company_id=f.company_id AND m.user_id=f.assigned_to
+ UNION ALL SELECT 'followups',f.id,'followup',f.title,'',f.status,f.due_at,'followups',f.id,jsonb_build_object('assigned_to',m.email) FROM followups f LEFT JOIN memberships m ON m.company_id=f.company_id AND m.user_id=f.assigned_to
  UNION ALL SELECT 'requests',r.id,'request',COALESCE(p.name,''),r.notes,r.status,r.created_at,'buyers',r.id,jsonb_build_object('category',r.unit_category,'min_area',r.min_area::text,'max_area',r.max_area::text,'payment_plan',r.payment_plan_code) FROM requests r LEFT JOIN projects p ON p.company_id=r.company_id AND p.id=r.project_id
  UNION ALL SELECT 'offers',o.id,'offer',o.offer_number,o.snapshot->'unit'->>'code','',o.created_at,'offers',o.id,jsonb_build_object('amount_minor',o.amount_minor::text,'currency',o.currency) FROM offers o
  UNION ALL SELECT 'bookings',b.id,'booking',u.code,p.name,b.status,b.created_at,'bookings',b.id,'{}'::jsonb FROM bookings b JOIN inventory_units u ON u.company_id=b.company_id AND u.id=b.unit_id JOIN projects p ON p.company_id=b.company_id AND p.id=b.project_id

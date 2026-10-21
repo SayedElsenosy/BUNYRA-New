@@ -1,5 +1,5 @@
 {
-  "release": "2026-10-21-kanban",
+  "release": "2026-10-21-follow-ups",
   "design": "SayedElsenosy/BUNYRA",
   "navigation": "grouped-sidebar-single-section",
   "features": [
@@ -23,6 +23,9 @@
     "immutable-booking-source",
     "scoped-paged-kanban",
     "atomic-reasoned-stage-moves",
-    "accessible-drag-and-move-dialog"
+    "accessible-drag-and-move-dialog",
+    "reasoned-follow-up-postponement",
+    "atomic-recurring-follow-ups",
+    "company-time-follow-up-sla"
   ]
 }
