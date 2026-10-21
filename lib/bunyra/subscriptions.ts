@@ -155,19 +155,4 @@ export async function requireEntitled(sql:Sql,actor:Actor,company:string,feature
  await requireFeature(sql,company,feature,platform);
 }
 
-/** Presentational screen filtering only; /api services MUST use requireEntitled.
- * Collections/contracts are core CRM workflow, not the future finance_erp add-on. */
-export const VIEW_ENTITLEMENTS:Partial<Record<string,Feature>>={
- customers:'crm',pipeline:'crm',followups:'crm','sales-teams':'crm',stages:'crm',
- inventory:'inventory',import:'inventory',pricing:'inventory',
- plans:'floorplans',buyers:'buyer_matching',
- commissions:'commissions',reports:'advanced_reports','deals-insights':'advanced_reports'
-};
-export function subscriptionAllowedViews(views:readonly string[],subscription:null|{status:string;features?:Partial<Record<Feature,boolean>>}){
- if(!subscription)return [...views]; // preserve legacy company behaviour
- if(subscription.status==='suspended')return [];
- return views.filter(v=>{
-  const feature=VIEW_ENTITLEMENTS[v];
-  return !feature||subscription.features?.[feature]===true;
- });
-}
+export {subscriptionAllowedViews,VIEW_ENTITLEMENTS} from './entitlement-views';
