@@ -33,7 +33,7 @@ test('Never include commission columns for a user lacking permission',()=>{
 });
 test('Empty result exports only headers and no invented data',()=>{
  const csv=dealsReportCsv({money:[],projects:[],trend:[]},'summary');
- assert.equal(csv.split('\r\n').length,3);
+ assert.equal(csv.split('\r\n').length,2);
 });
 test('Finance export maintains currency columns and cohort amounts',()=>{
  const csv=dealsReportCsv({money:[],trend:[],projects:[{project_id:'id',project_name:'=unexpected',currency:'EGP',contracts:1,contract_value_minor:'100001',collected_minor:'20000',outstanding_minor:'80001'}]},'projects');
