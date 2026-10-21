@@ -69,14 +69,14 @@ export default function LeadRoutingPanel({companyId,en=false,asOwner=false,activ
     <label>{t('الفريق المستهدف','Target team')}
      <select required value={team} onChange={e=>setTeam(e.target.value)}>
       <option value="">{t('اختر فريقًا','Choose a team')}</option>
-      {data.teams.filter(v=>v.active).map(v=><option key={v.id} value={v.id}>{v.name} · {v.eligible} {t('موظف مبيعات','sales members')}</option>)}
+      {data.teams.filter(v=>v.active||v.id===data.settings.team_id).map(v=><option key={v.id} value={v.id}>{v.name}{!v.active?' (inactive)':''} · {v.eligible} {t('موظف مبيعات','sales members')}</option>)}
      </select>
     </label>
     <label style={{display:'flex',alignItems:'center',gap:8}}>
      <input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/>
      <span>{t('تفعيل التوزيع التلقائي','Enable automatic assignment')}</span>
     </label>
-    <button className="primary" type="submit" disabled={loading||!team||(enabled&&!data.teams.some(v=>v.id===team&&v.eligible>0))}>
+    <button className="primary" type="submit" disabled={loading||!team||(enabled&&!data.teams.some(v=>v.id===team&&v.active&&v.eligible>0))}>
      <UsersRound size={16}/>{loading?t('جارٍ الحفظ…','Saving…'):t('حفظ الإعدادات','Save settings')}
     </button>
    </form>}
