@@ -4,6 +4,7 @@ import PipelineBoard from './pipeline-board';
 import LeadRoutingPanel from './lead-routing-panel';
 import {useEffect,useState} from 'react';
 import WorkspaceHubPanel from './workspace-hub-panel';
+import RoleDashboardPanel from './role-dashboard-panel';
 import WorkspaceAlertsPanel from './workspace-alerts-panel';
 import {useWorkspaceLocation} from './workspace-location';
 import {Search} from 'lucide-react';
@@ -23,7 +24,7 @@ import {moduleLabel,type CompanyView} from './company-navigation';
 function ModuleScreen({companyId,en,onChanged,view='home',asOwner=false,active=true}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean;active?:boolean;allowedViews?:readonly CompanyView[]}){
  const props={companyId,en,asOwner};
  return <section className="company-module-workspace" aria-label={moduleLabel(view,en)}>{!['home','work','search'].includes(view)&&<h2 className="module-title">{moduleLabel(view,en)}</h2>}{
- view==='alerts'?<WorkspaceAlertsPanel {...props} active={active}/>:['home','work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='deals-insights'?<DealsInsightsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
+ view==='home'?<RoleDashboardPanel {...props} active={active}/>:view==='alerts'?<WorkspaceAlertsPanel {...props} active={active}/>:['work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='deals-insights'?<DealsInsightsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
  view==='projects'?<ProjectWizard {...props} onChanged={onChanged}/>:
  ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
  view==='offers'?<SavedOffersPanel {...props} active={active}/>:view==='customers'?<CrmPanel {...props}/>:
