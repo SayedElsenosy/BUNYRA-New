@@ -42,6 +42,7 @@ export async function resetAccount(sql:Sql,actor:Actor,input:unknown,asOwner=fal
 export async function setAccountLimit(sql:Sql,actor:Actor,input:unknown){
  bindTenant(sql,null);if(!await owner(sql,actor))throw new ServiceError('FORBIDDEN',403);
  const c=z.object({company_id:uuid,account_limit:z.number().int().min(0).max(10000),version:z.number().int().positive()}).parse(input);
+ if((await sql`SELECT 1 FROM company_subscriptions WHERE company_id=${c.company_id}`).length)throw new ServiceError('SUBSCRIPTION_MANAGED_LIMIT',409);
  const r=await sql`WITH previous AS(SELECT * FROM companies WHERE id=${c.company_id} AND version=${c.version} AND status<>'deleted' FOR UPDATE), changed AS(UPDATE companies SET account_limit=${c.account_limit},version=version+1,updated_at=now() WHERE id IN(SELECT id FROM previous) RETURNING id,account_limit,version), logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,before_data,after_data) SELECT changed.id,${actor.userId},${actor.email},'company.account_limit_updated',jsonb_build_object('account_limit',previous.account_limit),to_jsonb(changed) FROM changed JOIN previous USING(id)) SELECT * FROM changed`;
  if(!r.length)throw new ServiceError('VERSION_CONFLICT',409);return r[0];
 }
