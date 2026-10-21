@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {COMPANY_VIEWS,type CompanyView} from '../lib/bunyra/workspace-navigation';
+import {SETTINGS_VIEWS} from './settings-workspace';
 export type {CompanyView} from '../lib/bunyra/workspace-navigation';
 import {FolderKanban,Users,Receipt,Settings2,Building2,ChevronDown,Menu,X,LayoutDashboard} from 'lucide-react';
 export const moduleGroups=[
@@ -16,5 +17,12 @@ export function moduleLabel(view:CompanyView,en:boolean){const item=moduleGroups
 export default function CompanyNavigation({view,onChange,en,allowedViews=COMPANY_VIEWS}:{view:CompanyView;onChange:(view:CompanyView)=>void;en:boolean;allowedViews?:readonly CompanyView[]}){
  const [expanded,setExpanded]=useState<string>(()=>moduleGroups.find(g=>g.items.some(i=>i[0]===view))?.id||'projects'),[mobile,setMobile]=useState(false);
  useEffect(()=>{setExpanded(moduleGroups.find(g=>g.items.some(i=>i[0]===view))?.id||'projects');},[view]);
- return <div className={'company-navigation'+(mobile?' is-open':'')}><button className="module-menu-toggle" aria-expanded={mobile} onClick={()=>setMobile(!mobile)}>{mobile?<X size={18}/>:<Menu size={18}/>}<span>{moduleLabel(view,en)}</span></button><nav aria-label={en?'Company sections':'أقسام الشركة'}>{moduleGroups.filter(g=>g.items.some(i=>allowedViews.includes(i[0]))).map(g=>{const active=g.items.some(i=>i[0]===view),open=expanded===g.id;return <div className="module-group" key={g.id}><button className={'module-parent'+(active?' active':'')} aria-expanded={open} title={en?g.en:g.ar} onClick={()=>setExpanded(open?'':g.id)}><g.Icon size={18}/><span>{en?g.en:g.ar}</span><ChevronDown size={14} className={open?'rotated':''}/></button>{open&&<div className="module-children">{g.items.filter(i=>allowedViews.includes(i[0])).map(i=><button key={i[0]} aria-current={view===i[0]?'page':undefined} className={view===i[0]?'selected':''} onClick={()=>{onChange(i[0]);setMobile(false);window.scrollTo({top:0,behavior:'instant'});}}>{i[en?2:1]}</button>)}</div>}</div>})}</nav></div>;
+ const navigate=(next:CompanyView)=>{onChange(next);setMobile(false);window.scrollTo({top:0,behavior:'instant'});};
+ const settingsEntry=SETTINGS_VIEWS.find(item=>allowedViews.includes(item));
+ const groups=moduleGroups.map(group=>({...group,items:group.items.filter(item=>item[0]!=='home'&&!SETTINGS_VIEWS.includes(item[0])&&allowedViews.includes(item[0]))})).filter(group=>group.items.length);
+ return <div className={'company-navigation'+(mobile?' is-open':'')}><button className="module-menu-toggle" aria-expanded={mobile} onClick={()=>setMobile(!mobile)}>{mobile?<X size={18}/>:<Menu size={18}/>}<span>{moduleLabel(view,en)}</span></button><nav aria-label={en?'Company sections':'أقسام الشركة'}>
+ {allowedViews.includes('home')&&<button className={'module-parent module-direct'+(view==='home'?' active':'')} aria-current={view==='home'?'page':undefined} onClick={()=>navigate('home')}><LayoutDashboard size={18}/><span>{en?'Home':'الرئيسية'}</span></button>}
+ {groups.map(g=>{const active=g.items.some(i=>i[0]===view),open=expanded===g.id;return <div className="module-group" key={g.id}><button className={'module-parent'+(active?' active':'')} aria-expanded={open} title={en?g.en:g.ar} onClick={()=>setExpanded(open?'':g.id)}><g.Icon size={18}/><span>{en?g.en:g.ar}</span><ChevronDown size={14} className={open?'rotated':''}/></button>{open&&<div className="module-children">{g.items.map(i=><button key={i[0]} aria-current={view===i[0]?'page':undefined} className={view===i[0]?'selected':''} onClick={()=>navigate(i[0])}>{i[en?2:1]}</button>)}</div>}</div>})}
+ {settingsEntry&&<button className={'module-parent module-direct'+(SETTINGS_VIEWS.includes(view)?' active':'')} aria-current={SETTINGS_VIEWS.includes(view)?'page':undefined} onClick={()=>navigate(settingsEntry)}><Settings2 size={18}/><span>{en?'Company settings':'إعدادات الشركة'}</span></button>}
+ </nav></div>;
 }
