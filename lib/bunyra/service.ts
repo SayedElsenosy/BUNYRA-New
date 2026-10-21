@@ -15,8 +15,9 @@ export async function access(sql:Sql,actor:Actor,companyId:string,action:Action,
  uuid.parse(companyId);bindTenant(sql,null);
  if(projectId){uuid.parse(projectId);if(!(await sql`SELECT id FROM projects WHERE company_id=${companyId} AND id=${projectId}`).length)throw new ServiceError('INVALID_PROJECT');}
  if(asOwner){if(!await owner(sql,actor))throw new ServiceError('FORBIDDEN',403);if(!(await sql`SELECT id FROM companies WHERE id=${companyId} AND status<>'deleted'`).length)throw new ServiceError('NOT_FOUND',404);await sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${companyId},${actor.userId},${actor.email},'platform_owner.company_access',${JSON.stringify({requested_action:action})}::jsonb)`;bindTenant(sql,companyId,actor.userId);return {owner:true,role:'company_admin' as Role,custom:null,overrides:[] as PermissionOverride[]};}
- const rows=await sql`SELECT m.role,m.custom_role_id,r.permissions FROM memberships m JOIN companies c ON c.id=m.company_id LEFT JOIN custom_roles r ON r.company_id=m.company_id AND r.id=m.custom_role_id WHERE m.company_id=${companyId} AND m.user_id=${actor.userId} AND m.active AND c.status='active'`;
+ const rows=await sql`SELECT m.role,m.custom_role_id,r.permissions,s.status AS subscription_status FROM memberships m JOIN companies c ON c.id=m.company_id LEFT JOIN custom_roles r ON r.company_id=m.company_id AND r.id=m.custom_role_id LEFT JOIN company_subscriptions s ON s.company_id=c.id WHERE m.company_id=${companyId} AND m.user_id=${actor.userId} AND m.active AND c.status='active'`;
  if(!rows.length)throw new ServiceError('FORBIDDEN',403);
+ if(rows[0].subscription_status==='suspended')throw new ServiceError('SUBSCRIPTION_SUSPENDED',403);
  const m=rows[0]; const overrides=await sql`SELECT action,project_id,allowed FROM member_permissions WHERE company_id=${companyId} AND user_id=${actor.userId}` as PermissionOverride[];
  const ctx={owner:false,role:m.role as Role,custom:m.custom_role_id?(m.permissions||{} as Record<string,boolean>):null,overrides};
  if(!hasPermission(ctx.role,ctx.custom,overrides,action,projectId))throw new ServiceError('FORBIDDEN',403);
@@ -37,7 +38,10 @@ export async function listMembers(sql:Sql,actor:Actor,companyId:string,asOwner=f
  sql`SELECT id,name,permissions,version FROM custom_roles WHERE company_id=${companyId} ORDER BY name`,
  sql`SELECT id,name FROM projects WHERE company_id=${companyId} ORDER BY name`,
  sql`SELECT user_id,project_id,action,allowed FROM member_permissions WHERE company_id=${companyId}`]);
- const quota=(await sql`SELECT account_limit,version,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used FROM companies WHERE id=${companyId}`)[0];
+ const quota=(await sql`SELECT account_limit,version,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used,
+ (SELECT count(*)::int FROM invitations i WHERE i.company_id=${companyId} AND i.status='pending' AND i.expires_at>now()
+ AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=i.company_id AND lower(m.email)=lower(i.email) AND m.active)) AS reserved
+ FROM companies WHERE id=${companyId}`)[0];
  // Expose account labels only after company management authorization; hashes never leave this module.
  bindTenant(sql,null);let accounts;try { accounts=await sql`SELECT user_id,username,display_name,email AS contact_email FROM app_accounts WHERE company_id=${companyId}`; } finally { bindTenant(sql,companyId,actor.userId); }
  return {members:members.map(m=>({...m,...accounts.find(a=>a.user_id===m.user_id)})),invites:canManageMembers?invites:[],roles,projects,permissions,quota,capabilities:{members:canManageMembers,accounts:canManageAccounts,roles:canManageRoles},actor_id:actor.userId};

@@ -6,7 +6,10 @@ import { ROLES,hasPermission } from './permissions';
 export const accountFields=z.object({username:usernameSchema,display_name:z.string().trim().min(2).max(120),email:z.union([z.string().trim().toLowerCase().email().max(254),z.literal('')]).default(''),password:passwordSchema});
 const createSchema=accountFields.extend({company_id:uuid,role:z.enum(ROLES),custom_role_id:uuid.nullable().default(null)});
 async function manage(sql:Sql,actor:Actor,companyId:string,asOwner:boolean){await access(sql,actor,companyId,'members.manage',asOwner);bindTenant(sql,null);if(!(await sql`SELECT id FROM companies WHERE id=${companyId} AND status='active'`).length)throw new ServiceError('COMPANY_INACTIVE',409);}
-export async function accountSummary(sql:Sql,actor:Actor,companyId:string,asOwner=false){await access(sql,actor,companyId,'company.read',asOwner);const r=await sql`SELECT account_limit,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used FROM companies WHERE id=${companyId}`;return r[0];}
+export async function accountSummary(sql:Sql,actor:Actor,companyId:string,asOwner=false){await access(sql,actor,companyId,'company.read',asOwner);const r=await sql`SELECT account_limit,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used,
+ (SELECT count(*)::int FROM invitations i WHERE i.company_id=${companyId} AND i.status='pending' AND i.expires_at>now()
+ AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=i.company_id AND lower(m.email)=lower(i.email) AND m.active)) AS reserved
+ FROM companies WHERE id=${companyId}`;return r[0];}
 export async function createAccount(sql:Sql,actor:Actor,input:unknown,asOwner=false){
  const c=createSchema.parse(input);await manage(sql,actor,c.company_id,asOwner);try {
  if(c.custom_role_id&&!(await sql`SELECT id FROM custom_roles WHERE company_id=${c.company_id} AND id=${c.custom_role_id}`).length)throw new ServiceError('INVALID_ROLE');
@@ -42,6 +45,7 @@ export async function resetAccount(sql:Sql,actor:Actor,input:unknown,asOwner=fal
 export async function setAccountLimit(sql:Sql,actor:Actor,input:unknown){
  bindTenant(sql,null);if(!await owner(sql,actor))throw new ServiceError('FORBIDDEN',403);
  const c=z.object({company_id:uuid,account_limit:z.number().int().min(0).max(10000),version:z.number().int().positive()}).parse(input);
+ if((await sql`SELECT 1 FROM company_subscriptions WHERE company_id=${c.company_id}`).length)throw new ServiceError('SUBSCRIPTION_MANAGED_LIMIT',409);
  const r=await sql`WITH previous AS(SELECT * FROM companies WHERE id=${c.company_id} AND version=${c.version} AND status<>'deleted' FOR UPDATE), changed AS(UPDATE companies SET account_limit=${c.account_limit},version=version+1,updated_at=now() WHERE id IN(SELECT id FROM previous) RETURNING id,account_limit,version), logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,before_data,after_data) SELECT changed.id,${actor.userId},${actor.email},'company.account_limit_updated',jsonb_build_object('account_limit',previous.account_limit),to_jsonb(changed) FROM changed JOIN previous USING(id)) SELECT * FROM changed`;
  if(!r.length)throw new ServiceError('VERSION_CONFLICT',409);return r[0];
 }
