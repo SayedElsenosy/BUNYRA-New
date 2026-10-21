@@ -76,3 +76,7 @@
 .pipeline-column{align-self:flex-start;box-sizing:border-box}
 .pipeline-customer-link{color:var(--ink)}
 .pipeline-move-dialog{background:var(--surface);color:var(--ink)}
+
+.pipeline-move-dialog select,.pipeline-move-dialog textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;min-height:44px}
+.pipeline-move-dialog textarea{min-height:110px}
+.pipeline-move-dialog select:focus,.pipeline-move-dialog textarea:focus{outline:2px solid #b78d4d;outline-offset:2px}
