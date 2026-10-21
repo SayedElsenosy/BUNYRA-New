@@ -1,3 +1,4 @@
+import {pipelineBoard} from '../../../lib/bunyra/pipeline';
 import { identity, sameOrigin, json, failure } from '../../../lib/bunyra/http';
 import { addTeamMember, moveLeadStage, reorderStages, salesOverview, saveSalesTeam, saveStage, transferLead, updateFollowUp } from '../../../lib/bunyra/sales';
 
@@ -7,6 +8,7 @@ export async function GET(request: Request) {
   try {
     const { sql, actor } = await identity();
     const url = new URL(request.url);
+    if(url.searchParams.get('board')==='1')return json(await pipelineBoard(sql,actor,url.searchParams.get('company')||'',{stage:url.searchParams.get('stage')||undefined,page:url.searchParams.get('page')||1},url.searchParams.get('mode')==='platform'));
     return json(await salesOverview(sql, actor, url.searchParams.get('company') || '', url.searchParams.get('mode') === 'platform'));
   } catch (error) { return failure(error); }
 }

@@ -8,7 +8,7 @@ const reorderInput = z.object({ company_id: uuid, ids: z.array(uuid).min(1) });
 const teamInput = z.object({ company_id: uuid, id: uuid.optional(), name: z.string().trim().min(2).max(100), manager_user_id: z.string().min(1).max(200), version: z.number().int().positive().optional() });
 const memberInput = z.object({ company_id: uuid, team_id: uuid, user_id: z.string().min(1).max(200) });
 const transferInput = z.object({ company_id: uuid, lead_id: uuid, to_user_id: z.string().min(1).max(200), reason: z.string().trim().max(500).default('') });
-const stageMoveInput = z.object({ company_id: uuid, lead_id: uuid, stage_id: uuid, version: z.number().int().positive() });
+const stageMoveInput = z.object({ company_id: uuid, lead_id: uuid, stage_id: uuid, version: z.number().int().positive(), reason: z.string().trim().min(3).max(500) });
 const followUpInput = z.object({ company_id: uuid, id: uuid, status: z.enum(['done', 'cancelled']) });
 
 function canManage(role: string, owner: boolean) { return owner || ['company_admin', 'sales_manager', 'sales_admin', 'operations'].includes(role); }
@@ -95,11 +95,25 @@ export async function transferLead(sql: Sql, actor: Actor, input: unknown, asOwn
 export async function moveLeadStage(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
   const c = stageMoveInput.parse(input);
   const ctx = await access(sql, actor, c.company_id, 'leads.write', asOwner);
-  await requireLead(sql,actor,c.company_id,c.lead_id,asOwner);
+  const scope=await requireLead(sql,actor,c.company_id,c.lead_id,asOwner);
+  if(scope.row.stage_id===c.stage_id)throw new ServiceError('STAGE_UNCHANGED',409);
   if (!(await sql`SELECT 1 FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND id=${c.stage_id} AND active`).length) throw new ServiceError('INVALID_STAGE', 400);
-  const rows = await sql`UPDATE crm_leads SET stage_id=${c.stage_id},version=version+1,updated_at=now() WHERE company_id=${c.company_id} AND id=${c.lead_id} AND version=${c.version} AND (owner_user_id=${actor.userId} OR ${canManage(ctx.role, ctx.owner)}::boolean) RETURNING *`;
+  const rows = await sql`WITH target AS MATERIALIZED(
+    SELECT id FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND id=${c.stage_id} AND active FOR SHARE
+  ), previous AS MATERIALIZED(
+    SELECT * FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.lead_id} AND version=${c.version}
+      AND owner_user_id=${scope.row.owner_user_id} AND project_id IS NOT DISTINCT FROM ${scope.row.project_id}::uuid
+      AND (owner_user_id=${actor.userId} OR ${canManage(ctx.role,ctx.owner)}::boolean) AND EXISTS(SELECT 1 FROM target) FOR UPDATE
+  ), changed AS(
+    UPDATE crm_leads SET stage_id=${c.stage_id},version=version+1,updated_at=now()
+    WHERE company_id=${c.company_id} AND id IN(SELECT id FROM previous) RETURNING *
+  ), logged AS(
+    INSERT INTO audit_logs(company_id,actor_id,actor_email,action,before_data,after_data)
+    SELECT ${c.company_id}::uuid,${actor.userId}::text,${actor.email}::text,'crm.lead_stage_changed',
+      to_jsonb(previous),to_jsonb(changed)||jsonb_build_object('reason',${c.reason}::text)
+    FROM previous JOIN changed USING(id)
+  ) SELECT * FROM changed`;
   if (!rows.length) throw new ServiceError('VERSION_CONFLICT', 409);
-  await sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_stage_changed',jsonb_build_object('lead_id',${c.lead_id}::text,'stage_id',${c.stage_id}::text))`;
   return rows[0];
 }
 
