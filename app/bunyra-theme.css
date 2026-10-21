@@ -91,3 +91,9 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,te
 .deals-progress-track>div{height:100%;background:var(--green);border-radius:100px;transition:width .2s}
 .deals-progress>.muted{margin-top:12px;font-size:11px}
 @media(max-width:750px){.deals-metric-grid{grid-template-columns:1fr}.deals-metric{padding:15px}.deals-progress{padding:14px}}
+
+/* Report exports use existing BUNYRA tokens and preserve keyboard focus. */
+.report-export-actions{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin:14px 0 16px}
+.report-export-actions .secondary{min-height:40px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;white-space:normal;text-align:center}
+.report-export-actions .secondary:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+@media(max-width:620px){.report-export-actions{gap:7px}.report-export-actions .secondary{flex:1 1 145px}}
