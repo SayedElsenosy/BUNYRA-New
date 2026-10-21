@@ -52,6 +52,21 @@ export async function salesReports(sql:Sql,actor:Actor,company:string,input:unkn
  (SELECT COALESCE(json_agg(r),'[]'::json) FROM(SELECT g.*,COALESCE(m.email,g.user_id) AS salesperson FROM grouped g LEFT JOIN memberships m ON m.company_id=${company} AND m.user_id=g.user_id ORDER BY period DESC,salesperson,user_id,currency LIMIT 100 OFFSET ${f.page*100})r) AS rows,
  (SELECT json_build_object('calls',COALESCE(sum(calls),0)::int,'followups',COALESCE(sum(followups),0)::int,'completed_followups',COALESCE(sum(completed_followups),0)::int,'bookings',COALESCE(sum(bookings),0)::int,'sales',COALESCE(sum(sales),0)::int) FROM grouped) AS totals,
  (SELECT COALESCE(json_agg(m),'[]'::json) FROM(SELECT currency,sum(contract_value_minor::numeric)::text AS contract_value_minor,sum(calculated_minor::numeric)::text AS calculated_minor,sum(earned_minor::numeric)::text AS earned_minor,sum(paid_minor::numeric)::text AS paid_minor,sum(recovered_minor::numeric)::text AS recovered_minor FROM grouped WHERE currency<>'—' GROUP BY currency ORDER BY currency)m) AS money,
- (SELECT count(*)::int FROM grouped) AS total_rows`;
+ (SELECT count(*)::int FROM grouped) AS total_rows,
+ (SELECT COALESCE(json_agg(t ORDER BY t.period),'[]'::json) FROM (
+   SELECT period,sum(calls)::int AS calls,sum(followups)::int AS followups,
+     sum(completed_followups)::int AS completed_followups,sum(bookings)::int AS bookings,sum(sales)::int AS sales
+   FROM grouped GROUP BY period
+ ) t) AS trend,
+ (SELECT COALESCE(json_agg(rep),'[]'::json) FROM (
+   SELECT g.user_id,COALESCE(m.email,g.user_id) AS salesperson,
+     sum(g.calls)::int AS calls,sum(g.followups)::int AS followups,
+     sum(g.completed_followups)::int AS completed_followups,
+     sum(g.bookings)::int AS bookings,sum(g.sales)::int AS sales
+   FROM grouped g LEFT JOIN memberships m ON m.company_id=${company} AND m.user_id=g.user_id
+   GROUP BY g.user_id,m.email
+   ORDER BY sales DESC,bookings DESC,calls DESC,salesperson ASC LIMIT 100
+ ) rep) AS representatives,
+ (SELECT count(DISTINCT user_id)::int FROM grouped) AS representatives_total`;
  return {...result[0],projects:scope.projects,members:scope.members,time_zone:zone,can_read_commissions:commissionProjects.length>0,generated_at:new Date().toISOString(),filters:f,page:f.page};
 }
