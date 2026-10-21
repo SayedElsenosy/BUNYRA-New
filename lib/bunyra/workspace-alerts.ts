@@ -16,8 +16,8 @@ export const readInput=z.object({
 /** A task alert reappears as unread if its due date, context or urgency bucket changes.
  * Records disappear from the active inbox when underlying work is completed. */
 export const signatureSql=`md5(concat_ws('|',t.kind,t.id::text,
-  COALESCE(t.title,''),COALESCE(t.context,''),COALESCE(t.due_at::text,''),
-  COALESCE(t.bucket,'')))`;
+  COALESCE(t.title,''),COALESCE(t.context,''),COALESCE(t.assignee_id,''),
+  COALESCE(t.due_at::text,''),COALESCE(t.bucket,'')))`;
 
 const visible=workspaceTaskSql+`, alerts AS (
  SELECT t.*, ${signatureSql} AS signature,
