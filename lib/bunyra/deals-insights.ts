@@ -23,7 +23,7 @@ export async function dealsInsights(sql:Sql,actor:Actor,company:string,input:unk
  // project-level permission on each action before querying the secure view.
  const finance=await reportScope(sql,actor,company,'finance.read',platform);
  const report=await access(sql,actor,company,'reports.read',platform);
- await requireFeature(sql,company,'advanced_reports');
+ await requireFeature(sql,company,'advanced_reports',platform);
  const projects=finance.projects.filter(p=>projectAllowed(report,'reports.read',p.id) && projectAllowed(finance.ctx,'finance.read',p.id));
  const selected=scopeFilters({...finance,projects},f.project,f.user);
  const zone=(await sql`SELECT time_zone FROM company_settings WHERE company_id=${company}`)[0]?.time_zone||'Africa/Cairo';
