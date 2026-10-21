@@ -113,7 +113,7 @@ export async function createLead(sql: Sql, actor: Actor, input: unknown, asOwner
   const requestedOwner = c.owner_user_id || actor.userId;
   // Routing is opt-in for admin-created leads only. A seller always owns the lead
   // they create unless an authorized manager explicitly selects an owner.
-  const autoEligible = !c.owner_user_id && (ctx.owner || (ctx.role === 'company_admin' && hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage')));
+  const autoEligible = !c.owner_user_id && !ctx.owner && ctx.role === 'company_admin' && hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage');
   await ensureCustomer(sql, c.company_id, c.customer_id);
   await requireCustomer(sql,actor,c.company_id,c.customer_id,'leads.write',asOwner);
   const scope = await crmScope(sql,actor,c.company_id,'leads.write',asOwner);
