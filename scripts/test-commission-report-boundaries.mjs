@@ -18,6 +18,13 @@ export async function testReportBoundaries(raw,fixture){
   assert.equal(adminResult.trend.reduce((sum,r)=>sum+r.contracts,0),adminResult.total_contracts);
   assert.equal(adminResult.projects.reduce((sum,r)=>sum+r.contracts,0),adminResult.total_contracts);
  });
+ await check('export includes all filtered report rows regardless of requested pagination',async()=>{
+  const normal=await salesReports(fresh(),admin,company,input);
+  const exported=await salesReports(fresh(),admin,company,{...input,page:42},false,true);
+  assert.equal(exported.rows.length,exported.total_rows);
+  assert.deepEqual(exported.totals,normal.totals);
+  assert.deepEqual(exported.money,normal.money);
+});
  await check('server report pagination preserves full matching totals',async()=>{const first=await salesReports(fresh(),admin,company,input),last=await salesReports(fresh(),admin,company,{...input,page:1});assert.ok(first.total_rows>0);assert.equal(last.rows.length,0);assert.equal(last.total_rows,first.total_rows);assert.deepEqual(last.totals,first.totals);assert.deepEqual(last.money,first.money);assert.deepEqual(last.trend,first.trend);assert.deepEqual(last.representatives,first.representatives);assert.equal(last.representatives_total,first.representatives_total);assert.equal(first.trend.reduce((sum,r)=>sum+Number(r.calls),0),first.totals.calls);assert.equal(first.representatives.reduce((sum,r)=>sum+Number(r.sales),0),first.totals.sales)});
  const customer=(await raw`SELECT id FROM crm_customers WHERE company_id=${company} LIMIT 1`)[0].id;
  await crm.createLead(fresh(),sales,{company_id:company,customer_id:customer,source:'Second lead',project_id:fixture.project});

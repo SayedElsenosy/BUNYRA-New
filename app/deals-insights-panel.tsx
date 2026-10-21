@@ -4,6 +4,7 @@ import {BarChart3,RefreshCw} from 'lucide-react';
 import {LineChart,Line,CartesianGrid,XAxis,YAxis,Tooltip,Legend,ResponsiveContainer} from 'recharts';
 import {majorAmount} from '../lib/bunyra/pricing-calculator';
 import {reportWindow,type ReportPreset} from '../lib/bunyra/report-dates';
+import {downloadReportCsv} from './report-download';
 
 type Money={currency:string;contracts:number;contract_value_minor:string;collected_minor:string;outstanding_minor:string;excess_minor:string};
 type Trend={period:string;currency:string;contracts:number;contract_value_minor:string;collected_minor:string;outstanding_minor:string};
@@ -22,6 +23,7 @@ export default function DealsInsightsPanel({companyId,en=false,asOwner=false,act
  const [preset,setPreset]=useState<ReportPreset|null>('month');
  const [data,setData]=useState<Data|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('');
  const [currency,setCurrency]=useState('');
+ const [exporting,setExporting]=useState('');
  const generation=useRef(0);
  const base='/api/deals-insights?'+new URLSearchParams({company:companyId,...(asOwner?{mode:'platform'}:{})});
  useEffect(()=>{
@@ -39,6 +41,16 @@ export default function DealsInsightsPanel({companyId,en=false,asOwner=false,act
   .finally(()=>{if(token===generation.current)setLoading(false);});
   return()=>{generation.current++;};
  },[companyId,asOwner,active,applied]);
+ async function exportCsv(kind:'summary'|'projects'|'timeline'){
+  setExporting(kind);setError('');
+  try{
+   const params=new URLSearchParams({company:companyId,report:'deals',detail:kind,...applied,...(asOwner?{mode:'platform'}:{})});
+   await downloadReportCsv(params,'bunyra-deals-'+kind+'-'+applied.from+'-'+applied.to+'.csv');
+  }catch(e){
+   const code=e instanceof Error?e.message:'';
+   setError(code==='EXPORT_TOO_LARGE'?t('عدد تفاصيل التقرير أكبر من حد التصدير. قلّل الفترة أو المشروع.','Report is too large. Narrow the date range or project.'):code==='FORBIDDEN'?t('لا تملك صلاحية تصدير بيانات التحصيل.','You are not allowed to export collections.'):t('تعذر تنزيل التقرير. حاول مجددًا.','Could not download the report. Please retry.'));
+  }finally{setExporting('');}
+ }
  function quick(p:ReportPreset){
   const window=reportWindow(p,data?.time_zone||'Africa/Cairo');
   const next={...filters,...window};
@@ -58,6 +70,10 @@ export default function DealsInsightsPanel({companyId,en=false,asOwner=false,act
    <label>{t('التجميع الزمني','Group by')}<select value={filters.group} onChange={e=>setFilters({...filters,group:e.target.value as Filters['group']})}><option value="day">{t('يومي','Day')}</option><option value="week">{t('أسبوعي','Week')}</option><option value="month">{t('شهري','Month')}</option></select></label>
    <button className="primary" type="submit" disabled={loading}>{t('تطبيق الفلاتر','Apply filters')}</button>
   </form>
+  <div className="report-export-actions" aria-label={t('تصدير التقارير','Export reports')}>
+   {([['summary','ملخص العملات CSV','Currency summary CSV'],['projects','المشروعات CSV','Projects CSV'],['timeline','الاتجاه الزمني CSV','Timeline CSV']] as const).map(([key,ar,eng])=>
+    <button key={key} className="secondary" type="button" disabled={loading||!!exporting||!data} onClick={()=>void exportCsv(key)}>{exporting===key?t('جارٍ التصدير…','Exporting…'):t(ar,eng)}</button>)}
+  </div>
   {loading&&<p role="status">{t('جارٍ إعداد تحليل الصفقات…','Loading Deals Insights…')}</p>}
   {error&&<p role="alert" className="inline-error">{error}</p>}
   {data&&!loading&&<><p className="report-scope-note">{t('توقيت الشركة','Company time zone')}: <bdi>{data.time_zone}</bdi> · {t('لحظة حساب التحصيل','Collection snapshot')}: {new Date(data.as_of).toLocaleString(en?'en-GB':'ar-EG',{timeZone:data.time_zone})}</p>
