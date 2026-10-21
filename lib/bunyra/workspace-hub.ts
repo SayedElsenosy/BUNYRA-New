@@ -1,3 +1,4 @@
+import {changeFollowUp} from './follow-ups';
 import {z} from 'zod';
 import {access,ServiceError,uuid,type Sql,type Actor} from './service';
 import {hasPermission,type Action} from './permissions';
@@ -10,7 +11,7 @@ export const hubQuery=z.object({
  entity:z.enum(['all','customer','unit','booking','contract']).default('all'),id:uuid.optional(),
 });
 type Query=z.infer<typeof hubQuery>;
-export const completeInput=z.object({company_id:uuid,id:uuid,operation:z.literal('complete_follow_up')}).strict();
+export const completeInput=z.object({company_id:uuid,id:uuid,operation:z.literal('complete_follow_up'),version:z.number().int().positive().optional()}).strict();
 const size=20;
 
 // Keep the scope in SQL, before counts, pagination, or any record leaves the server.
@@ -64,21 +65,21 @@ const scopes=`WITH visible_units AS (
  AND ($15::text[] IS NULL OR b.sales_user_id=ANY($15::text[]))
 ), tasks AS (
  SELECT f.id,'follow_up'::text AS kind,f.title,f.full_name AS context,f.due_at,f.created_at,
- f.assigned_to AS assignee_id,COALESCE(f.assignee,'') AS assignee,'customers'::text AS view,f.customer_id AS record_id,
+ f.assigned_to AS assignee_id,COALESCE(f.assignee,'') AS assignee,'customers'::text AS view,f.customer_id AS record_id,f.version AS version,
  CASE WHEN f.due_at<$14::timestamptz THEN 'overdue'
  WHEN (f.due_at AT TIME ZONE $13::text)::date=($14::timestamptz AT TIME ZONE $13::text)::date THEN 'today'
  WHEN (f.due_at AT TIME ZONE $13::text)::date=($14::timestamptz AT TIME ZONE $13::text)::date+1 THEN 'tomorrow' ELSE 'later' END AS bucket
  FROM visible_followups f
  UNION ALL
- SELECT b.id,'booking_approval','',b.customer_name||' · '||b.unit_code,NULL::timestamptz,b.created_at,NULL::text,''::text,'bookings',b.id,'waiting'
+ SELECT b.id,'booking_approval','',b.customer_name||' · '||b.unit_code,NULL::timestamptz,b.created_at,NULL::text,''::text,'bookings',b.id,NULL::integer,'waiting'
  FROM visible_bookings b WHERE b.status='submitted' AND b.project_id=ANY($7::uuid[])
  UNION ALL
- SELECT b.id,'receipt_confirmation','',b.customer_name||' · '||b.unit_code,NULL::timestamptz,b.created_at,NULL::text,''::text,'bookings',b.id,'waiting'
+ SELECT b.id,'receipt_confirmation','',b.customer_name||' · '||b.unit_code,NULL::timestamptz,b.created_at,NULL::text,''::text,'bookings',b.id,NULL::integer,'waiting'
  FROM visible_bookings b WHERE b.status IN('approved','accounts_pending') AND b.project_id=ANY($8::uuid[])
  AND ($15::text[] IS NULL OR b.sales_user_id=ANY($15::text[]))
  UNION ALL
  SELECT i.id,'installment',c.contract_number||' · #'||i.number::text,c.customer_name,
- ((i.due_date+1)::timestamp AT TIME ZONE $13::text)-interval '1 microsecond',i.created_at,NULL::text,''::text,'collections',c.id,
+ ((i.due_date+1)::timestamp AT TIME ZONE $13::text)-interval '1 microsecond',i.created_at,NULL::text,''::text,'collections',c.id,NULL::integer,
  CASE WHEN i.due_date<($14::timestamptz AT TIME ZONE $13::text)::date THEN 'overdue'
  WHEN i.due_date=($14::timestamptz AT TIME ZONE $13::text)::date THEN 'today' ELSE 'tomorrow' END
  FROM contract_installments i JOIN visible_contracts c ON c.id=i.contract_id
@@ -151,14 +152,6 @@ async function search(sql:Sql,q:Query,p:unknown[]){
 }
 
 export async function completeWorkItem(sql:Sql,actor:Actor,input:unknown,platform=false){
- const c=completeInput.parse(input),scope=await context(sql,actor,c.company_id,platform,'leads.write');
- if(!scope.can('leads.read')||!scope.can('leads.write'))throw new ServiceError('FORBIDDEN',403);
- const rows=await sql.query(scopes+`, changed AS (
- UPDATE crm_follow_ups f SET status='done',completed_at=now() WHERE f.company_id=$1::uuid AND f.id=$16::uuid
- AND f.status='open' AND EXISTS(SELECT 1 FROM visible_followups v WHERE v.id=f.id) RETURNING f.*
- ), logged AS (INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data)
- SELECT $1::uuid,$17::text,$18::text,'crm.follow_up_updated',to_jsonb(changed) FROM changed)
- SELECT id,status FROM changed`,[...scope.params,c.id,actor.userId,actor.email]);
- if(!rows.length)throw new ServiceError('WORK_ITEM_UNAVAILABLE',409);
- return rows[0];
+ const c=completeInput.parse(input);
+ return changeFollowUp(sql,actor,{company_id:c.company_id,id:c.id,version:c.version,operation:'complete'},platform);
 }

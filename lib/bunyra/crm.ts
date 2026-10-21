@@ -1,3 +1,4 @@
+import {repeatKind,localDue} from './follow-ups';
 import { z } from 'zod';
 import {crmScope,requireCustomer,requireLead} from './crm-scope';
 import {salesScope,projectAllowed} from './record-scope';
@@ -34,7 +35,7 @@ const followUpInput = z.object({
   company_id: uuid,
   customer_id: uuid,
   lead_id: uuid.nullable().default(null),
-  due_at: z.string().datetime(),
+  due_at: z.string().datetime().optional(),due_local:localDue.optional(),repeat_kind:repeatKind.default('none'),repeat_every:z.number().int().min(1).max(12).default(1),
   title: z.string().trim().min(2).max(160),
   assigned_to: z.string().min(1).max(200).optional(),
 });
@@ -90,7 +91,8 @@ export async function crmOverview(sql: Sql, actor: Actor, companyId: string, opt
     sql`SELECT f.id,f.customer_id,f.lead_id,f.due_at,f.title,f.status,f.assigned_to,f.created_at,c.full_name FROM crm_follow_ups f JOIN crm_customers c ON c.company_id=f.company_id AND c.id=f.customer_id WHERE f.company_id=${companyId} AND (${customer}::uuid IS NULL OR f.customer_id=${customer}::uuid) AND f.customer_id=ANY(${customerIds}::uuid[]) AND (${users===null} OR f.assigned_to=ANY(${users||[]}::text[])) AND (f.lead_id IS NULL OR f.lead_id=ANY(${ids}::uuid[])) AND (${owner}='' OR f.assigned_to=${owner}) ORDER BY f.status='open' DESC,f.due_at ASC LIMIT 100`,
   ]);
   const filtered = customers.map(row => ({ ...row, leads: (row.leads || []).filter((lead: {status: string; owner_user_id: string}) => (!status || lead.status === status) && (!owner || lead.owner_user_id === owner)) }));
-  return { ...ctx, can_write:projectAllowed(ctx,'leads.write'), customers: filtered, stats: stats[0], projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), members:members.filter(m=>!users||users.includes(m.user_id)), interactions, followUps };
+  const timeZone=(await sql`SELECT COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${companyId}),'Africa/Cairo') AS zone`)[0].zone;
+  return { ...ctx,time_zone:timeZone, can_write:projectAllowed(ctx,'leads.write'), customers: filtered, stats: stats[0], projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), members:members.filter(m=>!users||users.includes(m.user_id)), interactions, followUps };
 }
 
 export async function createCustomer(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
@@ -153,7 +155,7 @@ export async function addInteraction(sql: Sql, actor: Actor, input: unknown, asO
 }
 
 export async function addFollowUp(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
-  const c = followUpInput.parse(input);
+  const c = followUpInput.refine(v=>Boolean(v.due_at)!==Boolean(v.due_local),'Provide one due date').parse(input);
   await access(sql, actor, c.company_id, 'leads.write', asOwner);
   await ensureCustomer(sql, c.company_id, c.customer_id);
   await requireCustomer(sql,actor,c.company_id,c.customer_id,'leads.write',asOwner);
@@ -162,9 +164,12 @@ export async function addFollowUp(sql: Sql, actor: Actor, input: unknown, asOwne
   await ensureOwner(sql, c.company_id, assignedTo);
   if(c.lead_id)await requireLead(sql,actor,c.company_id,c.lead_id,asOwner);
   if (c.lead_id && !(await sql`SELECT 1 FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.lead_id} AND customer_id=${c.customer_id}`).length) throw new ServiceError('INVALID_LEAD');
-  const rows = await sql.transaction([
-    sql`INSERT INTO crm_follow_ups(company_id,customer_id,lead_id,due_at,title,assigned_to,created_by) VALUES(${c.company_id},${c.customer_id},${c.lead_id}::uuid,${c.due_at}::timestamptz,${c.title}::text,${assignedTo}::text,${actor.userId}::text) RETURNING *`,
-    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.follow_up_created',jsonb_build_object('customer_id',${c.customer_id}::text,'due_at',${c.due_at}::text)) RETURNING id`,
-  ]);
-  return rows[0][0];
+  let due=c.due_at;
+  if(c.due_local){const row=(await sql`SELECT (${c.due_local}::timestamp AT TIME ZONE COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${c.company_id}),'Africa/Cairo')) AS due,
+  to_char((${c.due_local}::timestamp AT TIME ZONE COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${c.company_id}),'Africa/Cairo')) AT TIME ZONE COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${c.company_id}),'Africa/Cairo'),'YYYY-MM-DD"T"HH24:MI')=${c.due_local} AS valid`)[0];if(!row.valid)throw new ServiceError('INVALID_FOLLOW_UP_DATE',400);due=row.due;}
+  const rows=await sql`WITH created AS(
+   INSERT INTO crm_follow_ups(company_id,customer_id,lead_id,due_at,title,assigned_to,created_by,repeat_kind,repeat_every)
+   VALUES(${c.company_id},${c.customer_id},${c.lead_id}::uuid,${due}::timestamptz,${c.title}::text,${assignedTo}::text,${actor.userId}::text,${c.repeat_kind},${c.repeat_every})RETURNING *
+  ),logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data)SELECT ${c.company_id},${actor.userId},${actor.email},'crm.follow_up_created',to_jsonb(created)FROM created) SELECT * FROM created`;
+  return rows[0];
 }
