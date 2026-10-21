@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {workspaceTaskContext,workspaceTaskSql} from './workspace-hub';
 import {allowedCompanyViews} from './workspace-navigation';
+import {subscriptionAllowedViews,type PackageFeature} from './entitlement-views';
 import {hasPermission,type Action} from './permissions';
 import {type Actor,type Sql,uuid} from './service';
 
@@ -11,6 +12,8 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
  // Central Workspace CTE remains the authority for task/lead/booking visibility.
  const scope=await workspaceTaskContext(sql,actor,company,platform);
  const ctx=scope.ctx;
+ const assigned=(await sql`SELECT status,features FROM company_subscriptions WHERE company_id=${company}`)[0] as {status:string;features:Record<string,boolean>}|undefined;
+ const entitled=(f:PackageFeature)=>ctx.owner||!assigned||assigned.status!=='suspended'&&assigned.features?.[f]===true;
  const projects=await sql`SELECT id FROM projects WHERE company_id=${company}`;
  const permitted=(action:Action)=>projects.filter(p=>ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,action,p.id)).map(p=>p.id as string);
  const intersection=(first:string[],second:string[])=>first.filter(p=>second.includes(p));
@@ -18,12 +21,12 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
  const commission=intersection(bookings,permitted('commissions.read'));
  const finance=intersection(bookings,permitted('finance.read'));
  const financial=scope.can('finance.read')&&finance.length>0;
- const commissions=scope.can('commissions.read')&&commission.length>0;
+ const commissions=entitled('commissions')&&scope.can('commissions.read')&&commission.length>0;
  // Finance gets only finance-authorized contracts, sales gets only booking-authorized
  // contract values. This prevents mixing a broadly visible value denominator with
  // a partially restricted collection numerator.
  const salesValueRole=['sales','sales_manager','sales_admin'].includes(ctx.role);
- const contractProjects=financial?finance:(salesValueRole?bookings:[]);
+ const contractProjects=financial?finance:(salesValueRole&&entitled('crm')?bookings:[]);
  const query=workspaceTaskSql+`, authorized_signed AS(
   SELECT c.id,c.project_id,c.commission_sales_user_id,c.commission_currency AS currency,
    c.signed_at,c.value_final_minor::numeric AS signed_minor,c.net_collected_minor::numeric AS net_minor,
@@ -111,12 +114,15 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
  return {
   role:ctx.role,owner:ctx.owner,time_zone:scope.timeZone,as_of:scope.now,
   capabilities:{
-   crm:scope.can('leads.read'),write_crm:scope.can('leads.write')&&scope.can('leads.read'),
-   inventory:scope.inventoryVisible,bookings:scope.can('bookings.read'),
+   crm:entitled('crm')&&scope.can('leads.read'),write_crm:entitled('crm')&&scope.can('leads.write')&&scope.can('leads.read'),
+   inventory:entitled('inventory')&&scope.inventoryVisible,bookings:scope.can('bookings.read'),
    finance:financial,commissions,team:ctx.owner||['company_admin','sales_manager','sales_admin'].includes(ctx.role)
   },
-  allowed_views:allowedCompanyViews(ctx,projects.map(p=>p.id as string)),
-  metrics:m.metrics,money:m.money,pipeline:m.pipeline,team:m.team,urgent:m.urgent,trend:m.trend,
+  allowed_views:subscriptionAllowedViews(allowedCompanyViews(ctx,projects.map(p=>p.id as string)),assigned||null),
+  metrics:{...m.metrics,customers:entitled('crm')?m.metrics.customers:0,open_leads:entitled('crm')?m.metrics.open_leads:0,available_units:entitled('inventory')?m.metrics.available_units:0},
+  money:m.money,pipeline:entitled('crm')?m.pipeline:[],team:entitled('crm')?m.team:[],
+  urgent:entitled('crm')?m.urgent:(m.urgent as Array<{kind:string}>).filter(item=>item.kind!=='follow_up'),
+  trend:entitled('crm')?m.trend:(m.trend as Array<{calls:number}>).map(row=>({...row,calls:0})),
   interpretation:'active_contracts_and_confirmed_net_collection_by_currency',
  };
 }

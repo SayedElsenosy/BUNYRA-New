@@ -145,3 +145,14 @@ export async function requireFeature(sql:Sql,company:string,feature:Feature,plat
  if(rows[0].status==='suspended')throw new ServiceError('SUBSCRIPTION_SUSPENDED',403);
  if(rows[0].features?.[feature]!==true)throw new ServiceError('FEATURE_NOT_IN_PLAN',403);
 }
+
+
+/** Re-check tenant membership and platform-owner status before applying a feature gate.
+ * NEVER trust mode=platform without access(); downstream service enforces the
+ * operation-specific permission and record/project scope independently. */
+export async function requireEntitled(sql:Sql,actor:Actor,company:string,feature:Feature,platform=false){
+ await access(sql,actor,company,'company.read',platform);
+ await requireFeature(sql,company,feature,platform);
+}
+
+export {subscriptionAllowedViews,VIEW_ENTITLEMENTS} from './entitlement-views';

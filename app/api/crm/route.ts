@@ -1,3 +1,4 @@
+import {requireEntitled} from '../../../lib/bunyra/subscriptions';
 import { identity, sameOrigin, json, failure } from '../../../lib/bunyra/http';
 import { addFollowUp, addInteraction, createCustomer, createLead, crmOverview, updateLead } from '../../../lib/bunyra/crm';
 
@@ -8,6 +9,7 @@ export async function GET(request: Request) {
     const { sql, actor } = await identity();
     const url = new URL(request.url);
     const company = url.searchParams.get('company') || '';
+    await requireEntitled(sql,actor,company,'crm',url.searchParams.get('mode')==='platform');
     return json(await crmOverview(sql, actor, company, {
       customer:url.searchParams.get('customer')||undefined,
       q: url.searchParams.get('q') || '',
@@ -26,6 +28,7 @@ export async function POST(request: Request) {
     const { sql, actor } = await identity();
     const input = await request.json() as { operation?: string; company_id?: string; [key: string]: unknown };
     const asOwner = new URL(request.url).searchParams.get('mode') === 'platform';
+    await requireEntitled(sql,actor,String(input.company_id||''),'crm',asOwner);
     if (input.operation === 'customer') return json(await createCustomer(sql, actor, input, asOwner), 201);
     if (input.operation === 'lead') return json(await createLead(sql, actor, input, asOwner), 201);
     if (input.operation === 'interaction') return json(await addInteraction(sql, actor, input, asOwner), 201);
@@ -40,7 +43,7 @@ export async function PATCH(request: Request) {
   try {
     sameOrigin(request);
     const { sql, actor } = await identity();
-    return json(await updateLead(sql, actor, await request.json(), new URL(request.url).searchParams.get('mode') === 'platform'));
+    const body=await request.json(),platform=new URL(request.url).searchParams.get('mode')==='platform';await requireEntitled(sql,actor,String(body.company_id||''),'crm',platform);return json(await updateLead(sql, actor, body, platform));
   } catch (error) {
     return failure(error);
   }
