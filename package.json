@@ -42,7 +42,8 @@
     "test:report-csv": "node scripts/test-report-csv.mjs",
     "test:workspace-alerts": "npm run -s test:workspace",
     "test:follow-ups": "node scripts/prepare-identity-tests.mjs && node scripts/run-follow-up-workflow-tests.mjs",
-    "test:feature-gates": "node scripts/test-feature-gates.mjs"
+    "test:feature-gates": "node scripts/test-feature-gates.mjs",
+    "test:lead-actions": "node scripts/prepare-identity-tests.mjs && node scripts/run-lead-actions-tests.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

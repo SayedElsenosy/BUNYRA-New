@@ -3,13 +3,14 @@ import {useEffect,useState} from 'react';
 import {Bell,Check,RefreshCw,ArrowUpLeft,CalendarClock} from 'lucide-react';
 import {useWorkspaceLocation} from './workspace-location';
 type Alert={
- id:string;kind:'follow_up'|'booking_approval'|'receipt_confirmation'|'installment';
+ id:string;kind:'follow_up'|'booking_approval'|'receipt_confirmation'|'installment'|'lead_assignment';
  title:string;context:string;due_at:string|null;created_at:string;
  assignee:string;bucket:'overdue'|'today'|'tomorrow'|'waiting'|'later';
  view:string;record_id:string;is_read:boolean;signature:string;
 };
 type Data={items:Alert[];total:number;unread:number;overdue:number;today:number;waiting:number;filtered_total:number;page:number;page_size:number;time_zone:string;as_of:string};
 const labels:Record<Alert['kind'],[string,string]>={
+ lead_assignment:['ليد جديد مسند','Fresh assigned lead'],
  follow_up:['متابعة عميل','Customer follow-up'],
  booking_approval:['اعتماد حجز','Booking approval'],
  receipt_confirmation:['تأكيد تحصيل حجز','Booking receipt confirmation'],
@@ -40,8 +41,10 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
  },[companyId,asOwner,filter,page,active,revision]);
  useEffect(()=>{
   if(!active)return;
-  const timer=window.setInterval(()=>setRevision(v=>v+1),60000);
-  return()=>window.clearInterval(timer);
+  const refresh=()=>setRevision(v=>v+1);
+  const timer=window.setInterval(refresh,60000);
+  window.addEventListener('bunyra:alerts-changed',refresh);
+  return()=>{window.clearInterval(timer);window.removeEventListener('bunyra:alerts-changed',refresh);};
  },[active]);
  async function markRead(item:Alert){
   if(busy)return false;
@@ -60,7 +63,7 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
   finally{setBusy('');}
  }
  function open(item:Alert){
-  const view=item.kind==='follow_up'?'customers':item.kind==='installment'?'collections':item.kind==='receipt_confirmation'?'receipts':'bookings';
+  const view=['follow_up','lead_assignment'].includes(item.kind)?'customers':item.kind==='installment'?'collections':item.kind==='receipt_confirmation'?'receipts':'bookings';
   navigate({view,record:item.record_id||'',action:'',page:'',bucket:''});
  }
  const choose=(value:Filter)=>{setFilter(value);setPage(0);};

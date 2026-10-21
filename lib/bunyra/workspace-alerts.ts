@@ -9,7 +9,7 @@ export const alertQuery=z.object({
 }).strict();
 
 export const readInput=z.object({
- company_id:uuid,kind:z.enum(['follow_up','booking_approval','receipt_confirmation','installment']),
+ company_id:uuid,kind:z.enum(['follow_up','booking_approval','receipt_confirmation','installment','lead_assignment']),
  id:uuid,operation:z.literal('read')
 }).strict();
 
@@ -17,12 +17,22 @@ export const readInput=z.object({
  * Records disappear from the active inbox when underlying work is completed. */
 export const signatureSql=`md5(concat_ws('|',t.kind,t.id::text,
   COALESCE(t.title,''),COALESCE(t.context,''),COALESCE(t.assignee_id,''),
-  COALESCE(t.due_at::text,''),COALESCE(t.bucket,'')))`;
+  COALESCE(t.due_at::text,''),COALESCE(t.bucket,''))||CASE WHEN t.kind='lead_assignment' THEN COALESCE(t.created_at::text,'') ELSE '' END)`;
 
-const visible=workspaceTaskSql+`, alerts AS (
+// Fresh leads stay in the inbox until acted on. Scope comes from the same
+// salesperson/project CTE as every other work item, before counts and reads.
+const inbox=workspaceTaskSql+`, inbox_tasks AS (
+ SELECT * FROM tasks
+ UNION ALL SELECT l.id,'lead_assignment'::text,'Fresh',c.full_name,NULL::timestamptz,COALESCE(l.stage_changed_at,l.created_at),
+ l.owner_user_id,COALESCE(m.email,''),'customers',l.customer_id,l.version,'waiting'
+ FROM visible_leads l JOIN crm_customers c ON c.company_id=l.company_id AND c.id=l.customer_id
+ LEFT JOIN memberships m ON m.company_id=l.company_id AND m.user_id=l.owner_user_id
+ WHERE l.stage_code='fresh'
+)`;
+const visible=inbox+`, alerts AS (
  SELECT t.*, ${signatureSql} AS signature,
   (r.signature IS NOT NULL AND r.signature=${signatureSql}) AS is_read
- FROM tasks t LEFT JOIN workspace_alert_reads r
+ FROM inbox_tasks t LEFT JOIN workspace_alert_reads r
  ON r.company_id=$1::uuid AND r.user_id=$16::text AND r.kind=t.kind AND r.source_id=t.id
 )`;
 
@@ -52,8 +62,8 @@ export async function workspaceAlerts(sql:Sql,actor:Actor,input:unknown,platform
 
 export async function readWorkspaceAlert(sql:Sql,actor:Actor,input:unknown,platform=false){
  const c=readInput.parse(input),scope=await workspaceTaskContext(sql,actor,c.company_id,platform);
- const rows=await sql.query(workspaceTaskSql+`, chosen AS(
- SELECT t.kind,t.id,${signatureSql} AS signature FROM tasks t
+ const rows=await sql.query(inbox+`, chosen AS(
+ SELECT t.kind,t.id,${signatureSql} AS signature FROM inbox_tasks t
  WHERE t.kind=$16::text AND t.id=$17::uuid
  ), recorded AS(
  INSERT INTO workspace_alert_reads(company_id,user_id,kind,source_id,signature)

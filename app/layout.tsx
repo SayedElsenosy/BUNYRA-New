@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./bunyra-theme.css";
+import "./lead-workspace.css";
 
 export const metadata: Metadata = {
   title: "BUNYRA | إدارة المنصة",

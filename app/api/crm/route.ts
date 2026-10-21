@@ -1,6 +1,6 @@
 import {requireEntitled} from '../../../lib/bunyra/subscriptions';
 import { identity, sameOrigin, json, failure } from '../../../lib/bunyra/http';
-import { addFollowUp, addInteraction, createCustomer, createLead, crmOverview, updateLead } from '../../../lib/bunyra/crm';
+import { addFollowUp, addInteraction, createCustomer, createLead, crmOverview, updateLead, recordLeadAction } from '../../../lib/bunyra/crm';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     const input = await request.json() as { operation?: string; company_id?: string; [key: string]: unknown };
     const asOwner = new URL(request.url).searchParams.get('mode') === 'platform';
     await requireEntitled(sql,actor,String(input.company_id||''),'crm',asOwner);
+    if (input.operation === 'lead_action') { const {operation,...action}=input; return json(await recordLeadAction(sql,actor,action,asOwner)); }
     if (input.operation === 'customer') return json(await createCustomer(sql, actor, input, asOwner), 201);
     if (input.operation === 'lead') return json(await createLead(sql, actor, input, asOwner), 201);
     if (input.operation === 'interaction') return json(await addInteraction(sql, actor, input, asOwner), 201);
