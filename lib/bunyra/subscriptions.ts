@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {ServiceError,access,owner,type Sql,type Actor,uuid} from './service';
 import {bindTenant} from './tenant';
+import {hasPermission} from './permissions';
 
 export const featureNames=['crm','inventory','floorplans','buyer_matching','advanced_reports','commissions','finance_erp','whatsapp'] as const;
 export type Feature=typeof featureNames[number];
@@ -113,7 +114,8 @@ export async function assignSubscription(sql:Sql,actor:Actor,input:unknown){
  return rows[0];
 }
 export async function companySubscription(sql:Sql,actor:Actor,company:string,platform=false){
- await access(sql,actor,company,'company.read',platform);
+ const ctx=await access(sql,actor,company,'company.read',platform);
+ const canSeePrice=ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'company.write')||hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage');
  const [sub,usage]=await Promise.all([
   sql`SELECT s.plan_id,s.status,s.seat_limit,s.project_limit,s.features,s.currency,s.billing_period,s.agreed_price_minor,
    s.starts_at,s.ends_at,s.version FROM company_subscriptions s WHERE s.company_id=${company}`,
@@ -121,7 +123,7 @@ export async function companySubscription(sql:Sql,actor:Actor,company:string,pla
    (SELECT count(*)::int FROM projects WHERE company_id=${company}) AS projects,
    (SELECT account_limit FROM companies WHERE id=${company}) AS legacy_seat_limit`
  ]);
- return {subscription:sub[0]||null,usage:usage[0]};
+ return {subscription:sub[0]?{...sub[0],agreed_price_minor:canSeePrice?sub[0].agreed_price_minor:null}:null,usage:usage[0]};
 }
 export async function requireFeature(sql:Sql,company:string,feature:Feature,platform=false){
  if(platform)return; // Verified owner privileges were checked by access() already.
