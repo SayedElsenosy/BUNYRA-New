@@ -100,7 +100,7 @@ export async function crmOverview(sql: Sql, actor: Actor, companyId: string, opt
   const autoAssignAvailable = !ctx.owner && ctx.role==='company_admin' && hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage');
   const routing = autoAssignAvailable ? (await sql`SELECT enabled FROM crm_lead_routing_settings WHERE company_id=${companyId}`)[0] : null;
   const timeZone=(await sql`SELECT COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${companyId}),'Africa/Cairo') AS zone`)[0].zone;
-  return { ...ctx,time_zone:timeZone, can_write:projectAllowed(ctx,'leads.write'), auto_assign_available:autoAssignAvailable, auto_assign_enabled:routing?.enabled===true, customers: filtered.map(c=>({...c,leads:c.leads.map((l: {project_id:string|null})=>({...l,can_write:projectAllowed(ctx,'leads.write',l.project_id)}))})), stats: stats[0], projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), members:members.filter(m=>!users||users.includes(m.user_id)), interactions, followUps };
+  return { ...ctx,time_zone:timeZone, can_assign:projectAllowed(ctx,'leads.write')&&(ctx.owner||['company_admin','sales_manager','sales_admin','operations'].includes(ctx.role)), can_write:projectAllowed(ctx,'leads.write'), auto_assign_available:autoAssignAvailable, auto_assign_enabled:routing?.enabled===true, customers: filtered.map(c=>({...c,leads:c.leads.map((l: {project_id:string|null})=>({...l,can_write:projectAllowed(ctx,'leads.write',l.project_id)}))})), stats: stats[0], projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), members:members.filter(m=>!users||users.includes(m.user_id)), interactions, followUps };
 }
 
 const leadActionInput=z.object({company_id:uuid,id:uuid,version:z.number().int().positive(),
