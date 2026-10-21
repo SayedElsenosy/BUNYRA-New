@@ -123,7 +123,12 @@ export async function companySubscription(sql:Sql,actor:Actor,company:string,pla
    (SELECT count(*)::int FROM projects WHERE company_id=${company}) AS projects,
    (SELECT account_limit FROM companies WHERE id=${company}) AS legacy_seat_limit`
  ]);
- return {subscription:sub[0]?{...sub[0],agreed_price_minor:canSeePrice?sub[0].agreed_price_minor:null}:null,usage:usage[0]};
+ const record=sub[0] as undefined|{
+  plan_id:string;status:string;seat_limit:number;project_limit:number;
+  features:Partial<Record<Feature,boolean>>;currency:string;billing_period:string;
+  agreed_price_minor:string|null;starts_at:string;ends_at:string|null;version:number;
+ };
+ return {subscription:record?{...record,agreed_price_minor:canSeePrice?record.agreed_price_minor:null}:null,usage:usage[0]};
 }
 export async function requireFeature(sql:Sql,company:string,feature:Feature,platform=false){
  if(platform)return; // Verified owner privileges were checked by access() already.
