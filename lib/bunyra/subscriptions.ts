@@ -123,7 +123,8 @@ export async function companySubscription(sql:Sql,actor:Actor,company:string,pla
  ]);
  return {subscription:sub[0]||null,usage:usage[0]};
 }
-export async function requireFeature(sql:Sql,company:string,feature:Feature){
+export async function requireFeature(sql:Sql,company:string,feature:Feature,platform=false){
+ if(platform)return; // Verified owner privileges were checked by access() already.
  // Caller must have already passed normal service permission checks.
  // Legacy companies have no subscription yet; no new restrictions applied.
  const rows=await sql`SELECT status,features FROM company_subscriptions WHERE company_id=${company}`;
