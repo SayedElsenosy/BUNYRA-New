@@ -11,7 +11,7 @@ import {useWorkspaceLocation} from './workspace-location';
 
 type Lead = WorkspaceLead;
 type Customer = WorkspaceCustomer;
-type Overview = { time_zone:string; can_write:boolean; auto_assign_available?:boolean; auto_assign_enabled?:boolean; customers: Customer[]; stats: { customers: number; open_leads: number; overdue_follow_ups: number; won_leads: number }; projects: { id: string; name: string }[]; members: { user_id: string; email: string; role: string }[]; interactions: { id: string; customer_id: string; kind: string; body: string; created_at: string }[]; followUps: { id: string; customer_id: string; due_at: string; title: string; status: string }[] };
+type Overview = { time_zone:string; can_write:boolean; can_assign?:boolean; auto_assign_available?:boolean; auto_assign_enabled?:boolean; customers: Customer[]; stats: { customers: number; open_leads: number; overdue_follow_ups: number; won_leads: number }; projects: { id: string; name: string }[]; members: { user_id: string; email: string; role: string }[]; interactions: { id: string; customer_id: string; kind: string; body: string; created_at: string }[]; followUps: { id: string; customer_id: string; due_at: string; title: string; status: string }[] };
 
 const statuses = ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost', 'paused'];
 const statusColor: Record<string, string> = { new: 'crm-status-new', contacted: 'crm-status-contacted', qualified: 'crm-status-qualified', proposal: 'crm-status-proposal', won: 'crm-status-won', lost: 'crm-status-lost', paused: 'crm-status-paused' };
@@ -70,7 +70,7 @@ export default function CrmPanel({ companyId, en = false, asOwner = false }: { c
   return <section className="crm-shell">{route.record&&<div className="context-banner">{t('ملف العميل المحدد','Selected customer profile')}<button onClick={()=>navigate({record:'',action:''})}>{t('كل العملاء','All customers')}</button></div>}
     <div className="page-heading"><div><div className="eyebrow">BUNYRA · CRM</div><h2>{t('العملاء والفرص', 'Customers & Leads')}</h2><p>{t('مساحة موحدة للعميل من أول تواصل حتى التحويل.', 'One customer workspace from first contact to conversion.')}</p></div>{data?.can_write&&<button className="primary" onClick={openCustomer}><Plus size={17} />{t('عميل جديد', 'New customer')}</button>}</div>
     {message && <div className="crm-message" role="status">{message}<button onClick={() => setMessage('')} aria-label={t('إغلاق', 'Close')}><X size={15} /></button></div>}
-    <LeadWorkspace data={data} selected={route.view==='customers'&&route.record?selected:null} en={en}
+    <LeadWorkspace companyId={companyId} asOwner={asOwner} onAssigned={async()=>{await load();setRevision(n=>n+1);}} data={data} selected={route.view==='customers'&&route.record?selected:null} en={en}
       onOpen={c=>{setSelected(c);navigate({record:c.id,action:''});}}
       onBack={()=>{setSelected(null);navigate({record:'',action:''});}}
       onAction={(lead,customer)=>{setActionError('');setActionTarget({lead,customer});}}
