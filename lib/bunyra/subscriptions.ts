@@ -49,10 +49,11 @@ export async function savePlan(sql:Sql,actor:Actor,input:unknown){
  await requireOwner(sql,actor);
  const candidate=(input as Record<string,unknown>)?.id;
  const c=candidate?updatePlan.parse(input):planSchema.parse(input);
+ const version=candidate?updatePlan.parse(input).version:0;
  const json=JSON.stringify(c.features);
  if('id' in c){
   const rows=await sql`WITH previous AS(
-   SELECT * FROM subscription_plans WHERE id=${c.id} AND version=${c.version} FOR UPDATE
+   SELECT * FROM subscription_plans WHERE id=${c.id} AND version=${version} FOR UPDATE
   ),changed AS(
    UPDATE subscription_plans SET name_ar=${c.name_ar},name_en=${c.name_en},billing_period=${c.billing_period},
    currency=${c.currency},price_minor=${c.price_minor},included_seats=${c.included_seats},included_projects=${c.included_projects},
