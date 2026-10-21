@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LEAD_STAGES, stageLabel, terminalStage } from './lead-stages';
 import {repeatKind,localDue} from './follow-ups';
 import {hasPermission} from './permissions';
 import {crmScope,requireCustomer,requireLead} from './crm-scope';
@@ -20,6 +21,7 @@ const leadInput = z.object({
   customer_id: uuid,
   source: z.string().trim().min(2).max(80),
   status: z.enum(['new','contacted','qualified','proposal','won','lost','paused']).default('new'),
+  stage_code:z.enum(LEAD_STAGES.map(s=>s[0]) as [typeof LEAD_STAGES[number][0],...typeof LEAD_STAGES[number][0][]]).optional(),
   owner_user_id: z.string().min(1).max(200).optional(),
   project_id: uuid.nullable().default(null),
   interest: z.string().trim().max(1000).default(''),
@@ -77,7 +79,10 @@ export async function crmOverview(sql: Sql, actor: Actor, companyId: string, opt
   const owner = options.owner || '';
   const [customers, stats, projects, members, interactions, followUps] = await Promise.all([
     sql`SELECT c.id,c.full_name,c.phone,c.email,c.address,c.notes,c.version,c.created_at,c.updated_at,
-      COALESCE(json_agg(json_build_object('id',l.id,'status',l.status,'source',l.source,'owner_user_id',l.owner_user_id,'project_id',l.project_id,'project_name',p.name,'version',l.version,'updated_at',l.updated_at) ORDER BY l.updated_at DESC) FILTER (WHERE l.id IS NOT NULL),'[]') AS leads
+      COALESCE(json_agg(json_build_object('id',l.id,'status',l.status,'stage_code',l.stage_code,'stage_changed_at',l.stage_changed_at,'created_at',l.created_at,'source',l.source,'owner_user_id',l.owner_user_id,'project_id',l.project_id,'project_name',p.name,'version',l.version,'updated_at',l.updated_at,
+       'last_action',(SELECT json_build_object('body',i.body,'at',i.created_at) FROM crm_interactions i WHERE i.company_id=l.company_id AND i.lead_id=l.id ORDER BY i.created_at DESC,i.id DESC LIMIT 1),
+       'next_follow_up',(SELECT json_build_object('id',f.id,'title',f.title,'due_at',f.due_at) FROM crm_follow_ups f WHERE f.company_id=l.company_id AND f.lead_id=l.id AND f.status='open' AND (${users===null} OR f.assigned_to=ANY(${users||[]}::text[])) ORDER BY f.due_at,f.id LIMIT 1)
+      ) ORDER BY l.updated_at DESC) FILTER (WHERE l.id IS NOT NULL),'[]') AS leads
       FROM crm_customers c LEFT JOIN crm_leads l ON l.company_id=c.company_id AND l.customer_id=c.id AND l.id=ANY(${ids}::uuid[]) LEFT JOIN projects p ON p.company_id=l.company_id AND p.id=l.project_id
       WHERE c.company_id=${companyId} AND (${customer}::uuid IS NULL OR c.id=${customer}::uuid) AND c.id=ANY(${customerIds}::uuid[]) AND (${q}='' OR c.full_name ILIKE ${'%' + q + '%'} OR c.phone ILIKE ${'%' + q + '%'} OR c.email ILIKE ${'%' + q + '%'})
       GROUP BY c.id ORDER BY c.updated_at DESC LIMIT 200`,
@@ -95,7 +100,32 @@ export async function crmOverview(sql: Sql, actor: Actor, companyId: string, opt
   const autoAssignAvailable = !ctx.owner && ctx.role==='company_admin' && hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage');
   const routing = autoAssignAvailable ? (await sql`SELECT enabled FROM crm_lead_routing_settings WHERE company_id=${companyId}`)[0] : null;
   const timeZone=(await sql`SELECT COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${companyId}),'Africa/Cairo') AS zone`)[0].zone;
-  return { ...ctx,time_zone:timeZone, can_write:projectAllowed(ctx,'leads.write'), auto_assign_available:autoAssignAvailable, auto_assign_enabled:routing?.enabled===true, customers: filtered, stats: stats[0], projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), members:members.filter(m=>!users||users.includes(m.user_id)), interactions, followUps };
+  return { ...ctx,time_zone:timeZone, can_write:projectAllowed(ctx,'leads.write'), auto_assign_available:autoAssignAvailable, auto_assign_enabled:routing?.enabled===true, customers: filtered.map(c=>({...c,leads:c.leads.map((l: {project_id:string|null})=>({...l,can_write:projectAllowed(ctx,'leads.write',l.project_id)}))})), stats: stats[0], projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), members:members.filter(m=>!users||users.includes(m.user_id)), interactions, followUps };
+}
+
+const leadActionInput=z.object({company_id:uuid,id:uuid,version:z.number().int().positive(),
+ stage_code:z.enum(LEAD_STAGES.map(s=>s[0]) as [typeof LEAD_STAGES[number][0],...typeof LEAD_STAGES[number][0][]]),
+ body:z.string().trim().min(2).max(2800),answered:z.boolean(),due_local:localDue.optional()}).strict();
+
+/** One version-checked write records the stage, outcome and next action together. */
+export async function recordLeadAction(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=leadActionInput.parse(input),scope=await requireLead(sql,actor,c.company_id,c.id,platform);
+ if(!terminalStage(c.stage_code)&&!c.due_local)throw new ServiceError('FOLLOW_UP_DATE_REQUIRED');
+ let due:string|null=null;
+ if(c.due_local){
+  const d=(await sql`SELECT (${c.due_local}::timestamp AT TIME ZONE COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${c.company_id}),'Africa/Cairo')) AS due,
+   to_char((${c.due_local}::timestamp AT TIME ZONE COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${c.company_id}),'Africa/Cairo')) AT TIME ZONE COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${c.company_id}),'Africa/Cairo'),'YYYY-MM-DD"T"HH24:MI')=${c.due_local} AND (${c.due_local}::timestamp AT TIME ZONE COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${c.company_id}),'Africa/Cairo'))>now() AS valid`)[0];
+  if(!d.valid)throw new ServiceError('INVALID_FOLLOW_UP_DATE');due=d.due;
+ }
+ const outcome=`${stageLabel(c.stage_code,true)} · ${c.answered?'Answered':'No answer'}\n${c.body}`;
+ const rows=await sql`WITH previous AS(SELECT * FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.id} AND version=${c.version} AND owner_user_id=${scope.row.owner_user_id} FOR UPDATE),
+ changed AS(UPDATE crm_leads SET stage_code=${c.stage_code},stage_changed_at=COALESCE(stage_changed_at,now()),version=version+1,updated_at=now() WHERE company_id=${c.company_id} AND id IN(SELECT id FROM previous) RETURNING *),
+ interaction AS(INSERT INTO crm_interactions(company_id,customer_id,lead_id,kind,body,created_by) SELECT company_id,customer_id,id,'call',${outcome},${actor.userId} FROM changed RETURNING id),
+ replaced AS(UPDATE crm_follow_ups f SET status='cancelled',version=f.version+1 WHERE f.company_id=${c.company_id} AND f.lead_id IN(SELECT id FROM changed) AND f.lead_action AND f.status='open' RETURNING f.*),
+ next_action AS(INSERT INTO crm_follow_ups(company_id,customer_id,lead_id,title,due_at,assigned_to,created_by,lead_action) SELECT company_id,customer_id,id,${stageLabel(c.stage_code,true)},${due}::timestamptz,owner_user_id,${actor.userId},true FROM changed WHERE ${due}::timestamptz IS NOT NULL RETURNING id),
+ logged AS(INSERT INTO audit_logs(company_id,actor_id,actor_email,action,before_data,after_data) SELECT ${c.company_id},${actor.userId},${actor.email},'crm.lead_action_recorded',to_jsonb(p),to_jsonb(n)||jsonb_build_object('answered',${c.answered}::boolean,'next_due_at',${due}::text,'interaction_id',(SELECT id FROM interaction),'replaced_follow_ups',(SELECT COALESCE(jsonb_agg(r),'[]') FROM replaced r)) FROM previous p JOIN changed n USING(id)) SELECT * FROM changed`;
+ if(!rows.length)throw new ServiceError('VERSION_CONFLICT',409);
+ return rows[0];
 }
 
 export async function createCustomer(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
@@ -136,9 +166,9 @@ export async function createLead(sql: Sql, actor: Actor, input: unknown, asOwner
       CASE WHEN ${autoEligible}::boolean AND EXISTS(SELECT 1 FROM crm_lead_routing_settings WHERE company_id=${c.company_id} AND enabled)
         THEN 'round_robin' ELSE 'manual' END AS assignment
    ), created AS (
-    INSERT INTO crm_leads(company_id,customer_id,source,status,owner_user_id,project_id,interest,lost_reason,created_by,stage_id)
+    INSERT INTO crm_leads(company_id,customer_id,source,status,owner_user_id,project_id,interest,lost_reason,created_by,stage_id,stage_code)
     SELECT ${c.company_id}::uuid,${c.customer_id}::uuid,${c.source}::text,${c.status}::text,routed.owner_id,${c.project_id}::uuid,${c.interest}::text,${c.lost_reason}::text,${actor.userId}::text,
-    (SELECT id FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND active ORDER BY position LIMIT 1)
+    (SELECT id FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND active ORDER BY position LIMIT 1),${c.stage_code??null}::text
     FROM routed RETURNING *
    ), logged AS (
     INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data)

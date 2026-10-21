@@ -5,11 +5,12 @@ import {workspaceTaskContext,workspaceTaskSql} from './workspace-hub';
 export const alertQuery=z.object({
  company:uuid,
  bucket:z.enum(['all','unread','overdue','today','tomorrow','waiting']).default('all'),
- page:z.coerce.number().int().min(0).max(10000).default(0)
+ page:z.coerce.number().int().min(0).max(10000).default(0),
+ order:z.enum(['priority','recent']).default('priority')
 }).strict();
 
 export const readInput=z.object({
- company_id:uuid,kind:z.enum(['follow_up','booking_approval','receipt_confirmation','installment']),
+ company_id:uuid,kind:z.enum(['follow_up','booking_approval','receipt_confirmation','installment','lead_assignment']),
  id:uuid,operation:z.literal('read')
 }).strict();
 
@@ -17,18 +18,28 @@ export const readInput=z.object({
  * Records disappear from the active inbox when underlying work is completed. */
 export const signatureSql=`md5(concat_ws('|',t.kind,t.id::text,
   COALESCE(t.title,''),COALESCE(t.context,''),COALESCE(t.assignee_id,''),
-  COALESCE(t.due_at::text,''),COALESCE(t.bucket,'')))`;
+  COALESCE(t.due_at::text,''),COALESCE(t.bucket,''))||CASE WHEN t.kind='lead_assignment' THEN COALESCE(t.created_at::text,'') ELSE '' END)`;
 
-const visible=workspaceTaskSql+`, alerts AS (
+// Fresh leads stay in the inbox until acted on. Scope comes from the same
+// salesperson/project CTE as every other work item, before counts and reads.
+const inbox=workspaceTaskSql+`, inbox_tasks AS (
+ SELECT * FROM tasks
+ UNION ALL SELECT l.id,'lead_assignment'::text,'Fresh',c.full_name,NULL::timestamptz,COALESCE(l.stage_changed_at,l.created_at),
+ l.owner_user_id,COALESCE(m.email,''),'customers',l.customer_id,l.version,'waiting'
+ FROM visible_leads l JOIN crm_customers c ON c.company_id=l.company_id AND c.id=l.customer_id
+ LEFT JOIN memberships m ON m.company_id=l.company_id AND m.user_id=l.owner_user_id
+ WHERE l.stage_code='fresh'
+)`;
+const visible=inbox+`, alerts AS (
  SELECT t.*, ${signatureSql} AS signature,
   (r.signature IS NOT NULL AND r.signature=${signatureSql}) AS is_read
- FROM tasks t LEFT JOIN workspace_alert_reads r
+ FROM inbox_tasks t LEFT JOIN workspace_alert_reads r
  ON r.company_id=$1::uuid AND r.user_id=$16::text AND r.kind=t.kind AND r.source_id=t.id
 )`;
 
 export async function workspaceAlerts(sql:Sql,actor:Actor,input:unknown,platform=false){
  const q=alertQuery.parse(input),scope=await workspaceTaskContext(sql,actor,q.company,platform);
- const params=[...scope.params,actor.userId,q.bucket,q.page*20];
+ const params=[...scope.params,actor.userId,q.bucket,q.page*20,q.order];
  const data=(await sql.query(visible+`
  SELECT
  (SELECT count(*)::int FROM alerts) AS total,
@@ -37,13 +48,13 @@ export async function workspaceAlerts(sql:Sql,actor:Actor,input:unknown,platform
  (SELECT count(*)::int FROM alerts WHERE bucket='today') AS today,
  (SELECT count(*)::int FROM alerts WHERE bucket='waiting') AS waiting,
  (SELECT count(*)::int FROM alerts WHERE ($17='all' OR ($17='unread' AND NOT is_read) OR bucket=$17)) AS filtered_total,
- (SELECT COALESCE(jsonb_agg(x ORDER BY x.priority,x.due_at NULLS LAST,x.created_at,x.id),'[]'::jsonb) FROM (
+ (SELECT COALESCE(jsonb_agg(x ORDER BY CASE WHEN $19::text='recent' THEN x.created_at END DESC,x.priority,x.due_at NULLS LAST,x.created_at,x.id),'[]'::jsonb) FROM (
    SELECT id,kind,title,context,due_at,created_at,assignee,assignee_id,
      bucket,view,record_id,is_read,signature,
      CASE bucket WHEN 'overdue' THEN 0 WHEN 'today' THEN 1 WHEN 'waiting' THEN 2 WHEN 'tomorrow' THEN 3 ELSE 4 END AS priority
    FROM alerts
    WHERE ($17='all' OR ($17='unread' AND NOT is_read) OR bucket=$17)
-   ORDER BY priority,due_at NULLS LAST,created_at,id,kind
+   ORDER BY CASE WHEN $19::text='recent' THEN created_at END DESC,priority,due_at NULLS LAST,created_at,id,kind
    LIMIT 20 OFFSET $18::int
  ) x) AS items
  `,params))[0];
@@ -52,8 +63,8 @@ export async function workspaceAlerts(sql:Sql,actor:Actor,input:unknown,platform
 
 export async function readWorkspaceAlert(sql:Sql,actor:Actor,input:unknown,platform=false){
  const c=readInput.parse(input),scope=await workspaceTaskContext(sql,actor,c.company_id,platform);
- const rows=await sql.query(workspaceTaskSql+`, chosen AS(
- SELECT t.kind,t.id,${signatureSql} AS signature FROM tasks t
+ const rows=await sql.query(inbox+`, chosen AS(
+ SELECT t.kind,t.id,${signatureSql} AS signature FROM inbox_tasks t
  WHERE t.kind=$16::text AND t.id=$17::uuid
  ), recorded AS(
  INSERT INTO workspace_alert_reads(company_id,user_id,kind,source_id,signature)
@@ -65,5 +76,16 @@ export async function readWorkspaceAlert(sql:Sql,actor:Actor,input:unknown,platf
  SELECT source_id,kind,read_at FROM recorded`,
  [...scope.params,c.kind,c.id,actor.userId]);
  if(!rows.length)throw new ServiceError('WORK_ITEM_UNAVAILABLE',404);
+ return rows[0];
+}
+
+export async function readAllWorkspaceAlerts(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=z.object({company_id:uuid,operation:z.literal('read_all')}).strict().parse(input);
+ const scope=await workspaceTaskContext(sql,actor,c.company_id,platform);
+ const rows=await sql.query(inbox+`, recorded AS(
+ INSERT INTO workspace_alert_reads(company_id,user_id,kind,source_id,signature)
+ SELECT $1::uuid,$16::text,t.kind,t.id,${signatureSql} FROM inbox_tasks t
+ ON CONFLICT(company_id,user_id,kind,source_id) DO UPDATE SET signature=EXCLUDED.signature,read_at=now() RETURNING source_id)
+ SELECT count(*)::int AS count FROM recorded`,[...scope.params,actor.userId]);
  return rows[0];
 }

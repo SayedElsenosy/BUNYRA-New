@@ -44,7 +44,7 @@ export async function customerJourney(sql:Sql,actor:Actor,input:unknown,platform
  ), offers AS (
  SELECT o.* FROM sales_offers o WHERE o.company_id=$1 AND o.customer_id=$2 AND o.status='ready' AND o.project_id=ANY($8::uuid[]) AND ($3::text[] IS NULL OR o.created_by=ANY($3::text[]))
  ), records AS (
- SELECT 'leads' AS section,l.id,'lead' AS kind,l.status AS title,l.interest AS body,l.status,l.created_at AS at,
+ SELECT 'leads' AS section,l.id,'lead' AS kind,l.stage_code AS title,l.interest AS body,l.stage_code AS status,l.created_at AS at,
  'pipeline' AS view,l.id AS record,jsonb_build_object('source',l.source,'owner',m.email,'project',p.name) AS extra
  FROM leads l LEFT JOIN memberships m ON m.company_id=l.company_id AND m.user_id=l.owner_user_id LEFT JOIN projects p ON p.company_id=l.company_id AND p.id=l.project_id
  UNION ALL SELECT 'activity',i.id,i.kind,i.kind,i.body,''::text,i.created_at,'customers',i.customer_id,'{}'::jsonb FROM interactions i
@@ -55,7 +55,7 @@ export async function customerJourney(sql:Sql,actor:Actor,input:unknown,platform
  UNION ALL SELECT 'contracts',c.id,'contract',c.contract_number,u.code,c.status,c.signed_at,'contracts',c.id,jsonb_build_object('amount_minor',c.value_final_minor::text,'currency',c.commission_currency) FROM contracts c JOIN inventory_units u ON u.company_id=c.company_id AND u.id=c.unit_id
  UNION ALL SELECT 'collections',r.id,'collection',c.contract_number,r.reference,r.status,r.received_at,'receipts',c.id,jsonb_build_object('amount_minor',r.amount_minor::text,'currency',c.commission_currency) FROM public.collections r JOIN contracts c ON c.company_id=r.company_id AND c.id=r.contract_id WHERE r.company_id=$1
  ), timeline AS (
- SELECT * FROM records UNION ALL SELECT 'activity',id,kind,title,body,status,at,view,record,extra FROM records WHERE section<>'activity'
+ SELECT * FROM records UNION ALL SELECT 'activity',r.id,r.kind,r.title,r.body,r.status,CASE WHEN r.kind='followup' THEN (SELECT f.created_at FROM followups f WHERE f.id=r.id) ELSE r.at END,r.view,r.record,r.extra FROM records r WHERE r.section<>'activity'
  )`;
  const [counts,rows]=await Promise.all([
   sql.query(ctes+` SELECT section,count(*)::int AS total FROM timeline GROUP BY section`,params),

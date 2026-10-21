@@ -16,3 +16,11 @@ export async function downloadReportCsv(params:URLSearchParams,filename:string){
  try{anchor.click();}
  finally{anchor.remove();window.setTimeout(()=>URL.revokeObjectURL(url),30000);}
 }
+
+export async function downloadCrmReportPdf(params:URLSearchParams,filename:string){
+ const response=await fetch('/api/crm-report-pdf?'+params,{cache:'no-store',credentials:'same-origin'});
+ if(!response.ok){let code='EXPORT_FAILED';try{code=(await response.json()).error||code;}catch{}throw Error(code);}
+ if(!(response.headers.get('content-type')||'').includes('application/pdf'))throw Error('EXPORT_FAILED');
+ const url=URL.createObjectURL(await response.blob()),anchor=document.createElement('a');anchor.href=url;anchor.download=filename;document.body.appendChild(anchor);
+ try{anchor.click();}finally{anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
+}
