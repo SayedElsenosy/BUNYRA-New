@@ -16,7 +16,7 @@ type Plan={id:string;code:string;name_ar:string;name_en:string;billing_period:'m
 type Subscription={company_id:string;plan_id:string;plan_code:string;status:string;seat_limit:number;project_limit:number;currency:string;billing_period:string;agreed_price_minor:string|null;starts_at:string;ends_at:string|null;version:number;used_seats:number;used_projects:number;company_name:string};
 type Company={id:string;name:string;account_limit:number;used_seats:number;used_projects:number;version:number};
 type Model={plans:Plan[];subscriptions:Subscription[];companies:Company[]};
-const initial={code:'',name_ar:'',name_en:'',billing_period:'month' as const,currency:'EGP',price:'',included_seats:'10',included_projects:'2',active:true,features:{crm:true,inventory:true,advanced_reports:false} as Record<string,boolean>};
+const initial={code:'',name_ar:'',name_en:'',billing_period:'month' as 'month'|'year',currency:'EGP',price:'',included_seats:'10',included_projects:'2',active:true,features:{crm:true,inventory:true,advanced_reports:false} as Record<string,boolean>};
 function minor(value:string):number|null{
  if(!value.trim())return null;
  if(!/^\d{1,13}(\.\d{1,2})?$/.test(value))throw new Error('INVALID_PRICE');
@@ -113,10 +113,12 @@ export default function SaaSPlansPanel({en=false}:{en?:boolean}){
   e.preventDefault();
   const existing=data?.subscriptions.find(s=>s.company_id===selectedCompany);
   const now=new Date().toISOString(),start=existing?.starts_at||now;
-  void persist('assign',{company_id:selectedCompany,plan_id:selectedPlan,seat_limit:Number(seats),
-   project_limit:Number(projects),agreed_price_minor:minor(agreed),status,
-   starts_at:start,ends_at:endsAt?new Date(endsAt).toISOString():null,
-   version:existing?.version||0});
+  try{
+   void persist('assign',{company_id:selectedCompany,plan_id:selectedPlan,seat_limit:Number(seats),
+    project_limit:Number(projects),agreed_price_minor:minor(agreed),status,
+    starts_at:start,ends_at:endsAt?new Date(endsAt).toISOString():null,
+    version:existing?.version||0});
+  }catch{setError(t('راجع السعر وموعد النهاية.','Check the price and end date.'));}
  }
  const selected=data?.companies.find(c=>c.id===selectedCompany);
  return <div className="saas-plans">
