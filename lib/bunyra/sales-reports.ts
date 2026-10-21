@@ -3,13 +3,15 @@ import {uuid,ServiceError,type Sql,type Actor} from './service';
 import {projectAllowed} from './record-scope';
 import {reportScope,scopeFilters,dateValue} from './report-scope';
 const query=z.object({project:uuid.optional(),user:z.string().max(200).optional(),from:z.string().refine(dateValue),to:z.string().refine(dateValue),group:z.enum(['day','week','month']).default('day'),booking_status:z.enum(['all','submitted','approved','accounts_pending','accounts_confirmed','rejected','cancelled']).default('all'),contract_status:z.enum(['all','active','cancelled','completed']).default('all') ,page:z.coerce.number().int().min(0).max(10000).default(0)}).strict();
-export async function salesReports(sql:Sql,actor:Actor,company:string,input:unknown,platform=false){
+export async function salesReports(sql:Sql,actor:Actor,company:string,input:unknown,platform=false,exportFull=false){
  const f=query.parse(input);if(f.from>f.to||(Date.parse(f.to)-Date.parse(f.from))/86400000>366)throw new ServiceError('INVALID_DATE_RANGE');
  const scope=await reportScope(sql,actor,company,'reports.read',platform),selected=scopeFilters(scope,f.project,f.user);
  const commissionProjects=selected.projects.filter(p=>projectAllowed(scope.ctx,'commissions.read',p));
  const zone=(await sql`SELECT time_zone FROM company_settings WHERE company_id=${company}`)[0]?.time_zone||'Africa/Cairo';
  // Aggregate events before joining: one interaction or contract contributes once,
  // even if a customer has several leads. No offer PDFs are counted as sales.
+ const limit=exportFull?10001:100;
+ const offset=exportFull?0:f.page*100;
  const result=await sql`WITH visible_leads AS(
  SELECT id,project_id,owner_user_id FROM crm_leads WHERE company_id=${company}
  AND (project_id=ANY(${selected.projects}::uuid[]) OR (project_id IS NULL AND ${!f.project}))
@@ -49,7 +51,7 @@ export async function salesReports(sql:Sql,actor:Actor,company:string,input:unkn
  AND occurred_at<((${f.to}::date+1)::timestamp AT TIME ZONE ${zone})
  GROUP BY period,user_id,currency)
  SELECT
- (SELECT COALESCE(json_agg(r),'[]'::json) FROM(SELECT g.*,COALESCE(m.email,g.user_id) AS salesperson FROM grouped g LEFT JOIN memberships m ON m.company_id=${company} AND m.user_id=g.user_id ORDER BY period DESC,salesperson,user_id,currency LIMIT 100 OFFSET ${f.page*100})r) AS rows,
+ (SELECT COALESCE(json_agg(r),'[]'::json) FROM(SELECT g.*,COALESCE(m.email,g.user_id) AS salesperson FROM grouped g LEFT JOIN memberships m ON m.company_id=${company} AND m.user_id=g.user_id ORDER BY period DESC,salesperson,user_id,currency LIMIT ${limit} OFFSET ${offset})r) AS rows,
  (SELECT json_build_object('calls',COALESCE(sum(calls),0)::int,'followups',COALESCE(sum(followups),0)::int,'completed_followups',COALESCE(sum(completed_followups),0)::int,'bookings',COALESCE(sum(bookings),0)::int,'sales',COALESCE(sum(sales),0)::int) FROM grouped) AS totals,
  (SELECT COALESCE(json_agg(m),'[]'::json) FROM(SELECT currency,sum(contract_value_minor::numeric)::text AS contract_value_minor,sum(calculated_minor::numeric)::text AS calculated_minor,sum(earned_minor::numeric)::text AS earned_minor,sum(paid_minor::numeric)::text AS paid_minor,sum(recovered_minor::numeric)::text AS recovered_minor FROM grouped WHERE currency<>'—' GROUP BY currency ORDER BY currency)m) AS money,
  (SELECT count(*)::int FROM grouped) AS total_rows,
@@ -68,5 +70,6 @@ export async function salesReports(sql:Sql,actor:Actor,company:string,input:unkn
    ORDER BY sales DESC,bookings DESC,calls DESC,salesperson ASC LIMIT 100
  ) rep) AS representatives,
  (SELECT count(DISTINCT user_id)::int FROM grouped) AS representatives_total`;
+ if(exportFull&&Number(result[0].total_rows)>10000)throw new ServiceError('EXPORT_TOO_LARGE',413);
  return {...result[0],projects:scope.projects,members:scope.members,time_zone:zone,can_read_commissions:commissionProjects.length>0,generated_at:new Date().toISOString(),filters:f,page:f.page};
 }
