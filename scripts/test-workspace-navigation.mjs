@@ -5,6 +5,10 @@ const {allowedCompanyViews,resolveCompanyView,COMPANY_VIEWS,isCompanyView}=await
 const ctx=(role,custom=null,overrides=[])=>({role,custom,overrides});const results=[];
 const test=(name,fn)=>{fn();results.push({name,passed:true});};
 const sales=allowedCompanyViews(ctx('sales'));
+test('Every company member with company.read sees alerts but no hidden data',()=>{
+ const v=allowedCompanyViews(ctx('sales'));assert.ok(v.includes('alerts'));
+ assert.ok(!allowedCompanyViews(ctx('sales',{'leads.read':true})).includes('alerts'));
+});
 test('Sales can access customer and booking screens',()=>assert.ok(['customers','pipeline','followups','inventory','bookings','reports','commissions'].every(v=>sales.includes(v))));
 test('Sales cannot access company administration or finance screens',()=>assert.ok(['team','roles','permissions','settings','placements','import','collections','receipts','contracts','structure','stages'].every(v=>!sales.includes(v))));
 const finance=allowedCompanyViews(ctx('accountant'));
