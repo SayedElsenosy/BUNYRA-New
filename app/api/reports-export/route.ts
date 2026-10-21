@@ -2,6 +2,7 @@ import {identity,failure} from '../../../lib/bunyra/http';
 import {ServiceError} from '../../../lib/bunyra/service';
 import {salesReports} from '../../../lib/bunyra/sales-reports';
 import {dealsInsights} from '../../../lib/bunyra/deals-insights';
+import {requireEntitlement} from '../../../lib/bunyra/subscriptions';
 import {salesReportCsv,dealsReportCsv,type DealsExportKind} from '../../../lib/bunyra/report-csv';
 
 export const dynamic='force-dynamic';
@@ -12,6 +13,7 @@ export async function GET(request:Request){
   const {company='',mode,report,detail,...filters}=Object.fromEntries(url.searchParams);
   delete filters.page; // CSV is not the current table page.
   const platform=mode==='platform';
+  await requireEntitlement(sql,actor,company,'report_exports',platform);
   let output:string;
   let label:string;
   if(report==='sales'){
