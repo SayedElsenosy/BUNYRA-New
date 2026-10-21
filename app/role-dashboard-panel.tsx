@@ -36,7 +36,7 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
  const t=(ar:string,english:string)=>en?english:ar;
  const [data,setData]=useState<Data|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[revision,setRevision]=useState(0);
  const [currency,setCurrency]=useState('');
- const [clock]=useState(()=>new Date());
+
  useEffect(()=>{
   if(!active)return;
   const controller=new AbortController();
@@ -87,7 +87,7 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
   cards.push({id:'overdue',ar:'مهام متأخرة',en:'Overdue tasks',value:m.overdue,view:'work',Icon:CalendarClock});
  }
  const selected=data?.money.find(m=>m.currency===currency);
- const formatDay=(v:string)=>new Intl.DateTimeFormat(en?'en-GB':'ar-EG',{timeZone:data?.time_zone||'Africa/Cairo',weekday:'short',month:'short',day:'numeric'}).format(new Date(v+'T12:00:00Z'));
+ const formatDay=(v:string)=>new Intl.DateTimeFormat(en?'en-GB':'ar-EG',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric'}).format(new Date(v+'T00:00:00Z'));
  const taskLink=(item:Urgent)=>item.kind==='follow_up'&&can('followups')?'followups':can(item.view)?item.view:'work';
  return <section className="role-dashboard">
   <div className="role-dashboard-hero">
