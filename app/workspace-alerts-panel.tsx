@@ -75,10 +75,10 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
  ];
  return <section className="panel workspace-alerts" aria-label={t('مركز التنبيهات','Alerts center')}>
   <div className="panel-heading"><div><div className="eyebrow">BUNYRA · ALERTS</div><h2><Bell size={19} aria-hidden="true"/>{t('مركز تنبيهات العمل','Work alerts center')}</h2>
-   <p className="muted">{t('تنبيهات المهام النشطة حسب دورك ومشروعاتك. تتحول لمقروءة لحسابك فقط، وتظهر مجددًا إذا تغير موعدها أو أولويتها.','Active work alerts scoped to your account and projects. Read status is personal and resets if an alert changes deadline or urgency.')}</p>
+   <p className="muted">{t('تنبيهات الليدز والمتابعات والمهام حسب دورك ومشروعاتك. تتحول لمقروءة لحسابك فقط، وتظهر مجددًا إذا تغير موعدها أو أولويتها.','Active work alerts scoped to your account and projects. Read status is personal and resets if an alert changes deadline or urgency.')}</p>
   </div><button className="secondary" disabled={loading} onClick={()=>setRevision(v=>v+1)}><RefreshCw size={16}/>{t('تحديث','Refresh')}</button></div>
   <div className="alerts-metrics" aria-live="polite">
-   <div><span>{t('مهام نشطة','Active alerts')}</span><strong>{number(data?.total||0)}</strong></div>
+   <div><span>{t('تنبيهات نشطة','Active alerts')}</span><strong>{number(data?.total||0)}</strong></div>
    <div><span>{t('غير مقروءة','Unread')}</span><strong>{number(data?.unread||0)}</strong></div>
    <div><span>{t('متأخرة','Overdue')}</span><strong>{number(data?.overdue||0)}</strong></div>
   </div>
