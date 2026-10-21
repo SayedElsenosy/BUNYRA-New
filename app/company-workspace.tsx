@@ -1,5 +1,6 @@
 'use client';
 import PipelineBoard from './pipeline-board';
+import LeadRoutingPanel from './lead-routing-panel';
 import {useEffect,useState} from 'react';
 import WorkspaceHubPanel from './workspace-hub-panel';
 import {useWorkspaceLocation} from './workspace-location';
@@ -23,7 +24,7 @@ function ModuleScreen({companyId,en,onChanged,view='home',asOwner=false,active=t
  view==='projects'?<ProjectWizard {...props} onChanged={onChanged}/>:
  ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
  view==='offers'?<SavedOffersPanel {...props} active={active}/>:view==='customers'?<CrmPanel {...props}/>:
- view==='pipeline'?<PipelineBoard {...props} active={active}/>:['pipeline','followups','sales-teams','reports','stages'].includes(view)?<SalesPipelinePanel {...props} section={view as 'pipeline'|'followups'|'sales-teams'|'reports'|'stages'}/>:
+ view==='pipeline'?<PipelineBoard {...props} active={active}/>:view==='sales-teams'?<><SalesPipelinePanel {...props} section="sales-teams"/><LeadRoutingPanel {...props} active={active}/></>:['pipeline','followups','reports','stages'].includes(view)?<SalesPipelinePanel {...props} section={view as 'pipeline'|'followups'|'sales-teams'|'reports'|'stages'}/>:
  view==='buyers'?<BuyerRequestPanel {...props}/>:
  ['bookings','contracts','collections','receipts','adjustments'].includes(view)?<CommercialPanel {...props} section={view as 'bookings'|'contracts'|'collections'|'receipts'|'adjustments'}/>:
  ['team','roles','permissions'].includes(view)?<TeamPanel {...props} section={view as 'team'|'roles'|'permissions'}/>:
