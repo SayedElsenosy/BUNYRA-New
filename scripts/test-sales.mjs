@@ -18,7 +18,7 @@ export async function runSalesTests(sql) {
   const overview = await sales.salesOverview(tenantSql(sql), manager, a);
   const first = overview.stages[0], second = overview.stages[1];
   await check('pipeline stages are seeded for each company', () => assert.ok(overview.stages.length >= 6));
-  await check('sales rep moves an owned lead between stages', async () => { const moved = await sales.moveLeadStage(tenantSql(sql), rep, { company_id: a, lead_id: lead.id, stage_id: second.id, version: lead.version }); assert.equal(moved.stage_id, second.id); });
+  await check('sales rep moves an owned lead between stages', async () => { const moved = await sales.moveLeadStage(tenantSql(sql), rep, { company_id: a, lead_id: lead.id, stage_id: second.id, version: lead.version, reason: 'Customer requested a proposal' }); assert.equal(moved.stage_id, second.id); });
   let team;
   await check('sales manager creates a team', async () => { team = await sales.saveSalesTeam(tenantSql(sql), manager, { company_id: a, name: 'North team', manager_user_id: manager.userId }); assert.equal(team.manager_user_id, manager.userId); });
   await check('authorized admin assigns a team member and the manager transfers a lead', async () => { await sales.addTeamMember(tenantSql(sql), admin, { company_id: a, team_id: team.id, user_id: rep.userId }); const moved = await sales.transferLead(tenantSql(sql), manager, { company_id: a, lead_id: lead.id, to_user_id: manager.userId, reason: 'Team reassignment' }); assert.equal(moved.owner_user_id, manager.userId); });

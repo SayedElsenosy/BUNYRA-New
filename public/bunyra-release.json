@@ -1,5 +1,5 @@
 {
-  "release": "2026-10-21-saved-offers",
+  "release": "2026-10-21-kanban",
   "design": "SayedElsenosy/BUNYRA",
   "navigation": "grouped-sidebar-single-section",
   "features": [
@@ -20,6 +20,9 @@
     "customer-buyer-request-context",
     "saved-offer-original-pdfs",
     "buyer-offer-booking-context",
-    "immutable-booking-source"
+    "immutable-booking-source",
+    "scoped-paged-kanban",
+    "atomic-reasoned-stage-moves",
+    "accessible-drag-and-move-dialog"
   ]
 }
