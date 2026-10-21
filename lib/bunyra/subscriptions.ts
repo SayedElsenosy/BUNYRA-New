@@ -145,3 +145,29 @@ export async function requireFeature(sql:Sql,company:string,feature:Feature,plat
  if(rows[0].status==='suspended')throw new ServiceError('SUBSCRIPTION_SUSPENDED',403);
  if(rows[0].features?.[feature]!==true)throw new ServiceError('FEATURE_NOT_IN_PLAN',403);
 }
+
+
+/** Re-check tenant membership and platform-owner status before applying a feature gate.
+ * NEVER trust mode=platform without access(); downstream service enforces the
+ * operation-specific permission and record/project scope independently. */
+export async function requireEntitled(sql:Sql,actor:Actor,company:string,feature:Feature,platform=false){
+ await access(sql,actor,company,'company.read',platform);
+ await requireFeature(sql,company,feature,platform);
+}
+
+/** Presentational screen filtering only; /api services MUST use requireEntitled.
+ * Collections/contracts are core CRM workflow, not the future finance_erp add-on. */
+export const VIEW_ENTITLEMENTS:Partial<Record<string,Feature>>={
+ customers:'crm',pipeline:'crm',followups:'crm','sales-teams':'crm',stages:'crm',
+ inventory:'inventory',import:'inventory',pricing:'inventory',
+ plans:'floorplans',buyers:'buyer_matching',
+ commissions:'commissions',reports:'advanced_reports','deals-insights':'advanced_reports'
+};
+export function subscriptionAllowedViews(views:readonly string[],subscription:null|{status:string;features?:Partial<Record<Feature,boolean>>}){
+ if(!subscription)return [...views]; // preserve legacy company behaviour
+ if(subscription.status==='suspended')return [];
+ return views.filter(v=>{
+  const feature=VIEW_ENTITLEMENTS[v];
+  return !feature||subscription.features?.[feature]===true;
+ });
+}
