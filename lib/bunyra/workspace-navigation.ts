@@ -6,7 +6,7 @@ export const VIEW_RULES = {
  pricing:{all:['projects.read','inventory.read','pricing.read'],project:true},
  import:{all:['projects.read','inventory.read','inventory.write'],project:true},
  plans:{all:['projects.read','inventory.read'],project:true},
- customers:{all:['leads.read']},pipeline:{all:['leads.read']},followups:{all:['leads.read']},
+ offers:{all:['leads.read','projects.read','inventory.read','pricing.read'],project:true},customers:{all:['leads.read']},pipeline:{all:['leads.read']},followups:{all:['leads.read']},
  'sales-teams':{all:['leads.read']},reports:{all:['reports.read']},'pipeline-reports':{all:['leads.read']},buyers:{all:['leads.read']},
  bookings:{all:['bookings.read']},contracts:{all:['bookings.read','finance.read']},
  collections:{all:['bookings.read','finance.read']},receipts:{all:['bookings.read','finance.read']},adjustments:{all:['bookings.read','finance.read']},

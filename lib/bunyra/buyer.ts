@@ -25,7 +25,7 @@ async function matchRows(sql: Sql, actor:Actor, company: string, platform:boolea
   const allowed=projects.filter(p=>projectAllowed(ctx,'inventory.read',p.id)&&projectAllowed(ctx,'pricing.read',p.id)).map(p=>p.id);
   const budget=request.max_budget?minorUnits(request.max_budget).toString():null;
   return sql`
-    SELECT u.id,u.code,u.building,u.floor,u.category,u.area::text,e.price_minor::text,b.currency,
+    SELECT u.id,u.project_id,u.code,u.building,u.floor,u.category,u.area::text,e.price_minor::text,b.currency,
       COALESCE(jsonb_agg(DISTINCT jsonb_build_object(
         'id',p.id,'code',p.code,'name',p.name,'down_payment_bps',p.down_payment_bps,
         'installments',p.installments,'interval_months',p.interval_months,
@@ -54,12 +54,13 @@ export async function buyerOverview(sql: Sql, actor: Actor, companyId: string, a
   const customer=options.customer?uuid.parse(options.customer):null,request=options.request?uuid.parse(options.request):null;
   const ctx = await access(sql, actor, companyId, 'leads.read', asOwner);
   const users=await salesScope(sql,actor,companyId,ctx);
+  const today=(await sql`SELECT to_char(now() AT TIME ZONE COALESCE((SELECT time_zone FROM company_settings WHERE company_id=${companyId}),'Africa/Cairo'),'YYYY-MM-DD') AS today`)[0].today;
   const [customers, projects, requests] = await Promise.all([
     sql`SELECT id,full_name,phone,email FROM crm_customers WHERE company_id=${companyId} AND (${customer}::uuid IS NULL OR id=${customer}::uuid) ORDER BY full_name LIMIT 500`,
     sql`SELECT id,name FROM projects WHERE company_id=${companyId} ORDER BY name`,
     sql`SELECT r.id,r.customer_id,c.full_name,r.project_id,p.name AS project_name,r.unit_category,r.min_area::text,r.max_area::text,r.max_budget_minor::text,r.payment_plan_code,r.status,r.notes,r.created_at,r.updated_at FROM buyer_requests r JOIN crm_customers c ON c.company_id=r.company_id AND c.id=r.customer_id LEFT JOIN projects p ON p.company_id=r.company_id AND p.id=r.project_id WHERE r.company_id=${companyId} AND (${request}::uuid IS NULL OR r.id=${request}::uuid) AND (${customer}::uuid IS NULL OR r.customer_id=${customer}::uuid) AND (${users===null} OR r.created_by=ANY(${users||[]}::text[])) ORDER BY r.updated_at DESC LIMIT 100`,
   ]);
-  return { ...ctx, customers, projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), requests:requests.filter(r=>projectAllowed(ctx,'leads.read',r.project_id)), can_write: projectAllowed(ctx,'leads.write') && (ctx.owner || ['company_admin', 'sales', 'sales_manager', 'sales_admin'].includes(ctx.role)) };
+  return { ...ctx, today, can_offer:projectAllowed(ctx,'offers.create')||projectAllowed(ctx,'bookings.create'), customers, projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), requests:requests.filter(r=>projectAllowed(ctx,'leads.read',r.project_id)), can_write: projectAllowed(ctx,'leads.write') && (ctx.owner || ['company_admin', 'sales', 'sales_manager', 'sales_admin'].includes(ctx.role)) };
 }
 
 export async function createBuyerRequest(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
