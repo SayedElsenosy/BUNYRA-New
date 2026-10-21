@@ -5,9 +5,19 @@ import * as crm from '../.sites-runtime/tests/crm.mjs';
 import * as commercial from '../.sites-runtime/tests/commercial.mjs';
 import * as commissions from '../.sites-runtime/tests/commissions.mjs';
 import {salesReports} from '../.sites-runtime/tests/sales-reports.mjs';
+import {dealsInsights} from '../.sites-runtime/tests/deals-insights.mjs';
 export async function testReportBoundaries(raw,fixture){
  assert.equal((await raw`SELECT user_id FROM platform_owner`)[0].user_id,'identity-test-platform-owner','DEV ONLY');
  const checks=[],check=async(name,fn)=>{await fn();checks.push({name,passed:true});console.log('PASS '+name)},fresh=()=>tenantSql(raw),company=fixture.company,tag=company.slice(0,8),actor=r=>({userId:'commission-'+tag+'-'+r,email:r+'-'+tag+'@example.com'}),admin=actor('admin'),ops=actor('ops'),sales=actor('sales1'),today=new Date().toISOString().slice(0,10),input={from:today,to:today,group:'day'};
+ await check('Deals Insights requires financial plus reporting access; sales cannot use it',async()=>{
+  await deny(()=>dealsInsights(fresh(),sales,company,input));
+  const adminResult=await dealsInsights(fresh(),admin,company,input);
+  assert.equal(adminResult.total_contracts,1);
+  assert.equal(adminResult.money[0].currency,'EGP');
+  assert.equal(adminResult.money[0].contract_value_minor,'100001');
+  assert.equal(adminResult.trend.reduce((sum,r)=>sum+r.contracts,0),adminResult.total_contracts);
+  assert.equal(adminResult.projects.reduce((sum,r)=>sum+r.contracts,0),adminResult.total_contracts);
+ });
  await check('server report pagination preserves full matching totals',async()=>{const first=await salesReports(fresh(),admin,company,input),last=await salesReports(fresh(),admin,company,{...input,page:1});assert.ok(first.total_rows>0);assert.equal(last.rows.length,0);assert.equal(last.total_rows,first.total_rows);assert.deepEqual(last.totals,first.totals);assert.deepEqual(last.money,first.money);assert.deepEqual(last.trend,first.trend);assert.deepEqual(last.representatives,first.representatives);assert.equal(last.representatives_total,first.representatives_total);assert.equal(first.trend.reduce((sum,r)=>sum+Number(r.calls),0),first.totals.calls);assert.equal(first.representatives.reduce((sum,r)=>sum+Number(r.sales),0),first.totals.sales)});
  const customer=(await raw`SELECT id FROM crm_customers WHERE company_id=${company} LIMIT 1`)[0].id;
  await crm.createLead(fresh(),sales,{company_id:company,customer_id:customer,source:'Second lead',project_id:fixture.project});
@@ -26,6 +36,28 @@ export async function testReportBoundaries(raw,fixture){
  await check('legacy configuration requires an explicit rate',async()=>{await assert.rejects(()=>commissions.configureCommission(fresh(),ops,{company_id:company,contract_id:c2.contract.id,threshold_bps:0,version:1,reason:'Missing rate'}),e=>e.code==='COMMISSION_RATE_REQUIRED')});
  await commissions.configureCommission(fresh(),ops,{company_id:company,contract_id:c2.contract.id,rate_bps:0,threshold_bps:0,version:1,reason:'Explicitly no commission'});
  await check('zero-rate contracts are clearly marked without inventing a payable amount',async()=>{const r=(await commissions.commissionOverview(fresh(),admin,company,{project})).rows.find(x=>x.id===c2.contract.id);assert.equal(r.commission_state,'no_commission');assert.equal(r.payable_minor,'0')});
+ await check('Deals Insights separates currencies and excludes cancelled contracts',async()=>{
+  const view=await dealsInsights(fresh(),admin,company,input);
+  assert.deepEqual(view.money.map(x=>x.currency).sort(),['EGP','USD']);
+  assert.equal(view.money.find(x=>x.currency==='USD').contract_value_minor,'10050');
+  assert.equal(view.money.find(x=>x.currency==='USD').contracts,2);
+  assert.equal(view.total_contracts,3);
+  assert.ok(view.money.every(row=>BigInt(row.outstanding_minor)>=0n));
+ });
+ await check('Deals Insights project/rep filter cannot expose foreign company data',async()=>{
+  const selection=await dealsInsights(fresh(),admin,company,{...input,project,user:sales.userId});
+  assert.deepEqual(selection.money.map(m=>m.currency),['USD']);
+  assert.equal(selection.total_contracts,2);
+  await deny(()=>dealsInsights(fresh(),admin,company,{...input,project:crypto.randomUUID()}));
+  await deny(()=>dealsInsights(fresh(),admin,crypto.randomUUID(),input));
+ });
+ await check('Finance project deny stops deals insights even when report grant exists',async()=>{
+  const fm=actor('finance');
+  const {setPermission}=await import('../.sites-runtime/tests/service.mjs');
+  await setPermission(fresh(),admin,{company_id:company,user_id:fm.userId,project_id:project,action:'finance.read',allowed:false});
+  await deny(()=>dealsInsights(fresh(),fm,company,{...input,project}));
+  await setPermission(fresh(),admin,{company_id:company,user_id:fm.userId,project_id:project,action:'finance.read',allowed:true});
+ });
  await check('currencies stay separate in commission totals and report totals',async()=>{const a=await commissions.commissionOverview(fresh(),admin,company);assert.deepEqual(a.summary.map(x=>x.currency).sort(),['EGP','USD']);const r=await salesReports(fresh(),admin,company,input);assert.deepEqual(r.money.map(x=>x.currency),['EGP','USD']);assert.equal(r.money.find(x=>x.currency==='USD').contract_value_minor,'10050');assert.equal(r.money.find(x=>x.currency==='USD').calculated_minor,'1')});
  await check('project and representative filters exclude unrelated metrics',async()=>{const r=await salesReports(fresh(),admin,company,{...input,project,user:sales.userId});assert.equal(r.totals.calls,0);assert.equal(r.totals.sales,2);assert.equal(r.money.length,1);assert.equal(r.money[0].currency,'USD')});
  await raw`UPDATE company_settings SET time_zone='America/New_York' WHERE company_id=${company}`;

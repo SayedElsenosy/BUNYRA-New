@@ -10,7 +10,7 @@ export const VIEW_RULES = {
  'sales-teams':{all:['leads.read']},reports:{all:['reports.read']},'pipeline-reports':{all:['leads.read']},buyers:{all:['leads.read']},
  bookings:{all:['bookings.read']},contracts:{all:['bookings.read','finance.read']},
  collections:{all:['bookings.read','finance.read']},receipts:{all:['bookings.read','finance.read']},adjustments:{all:['bookings.read','finance.read']},
- commissions:{all:['commissions.read']},structure:{all:['company.read'],any:['company.write','members.manage','accounts.manage']},placements:{all:['company.read','members.manage']},
+ 'deals-insights':{all:['reports.read','finance.read'],project:true},commissions:{all:['commissions.read']},structure:{all:['company.read'],any:['company.write','members.manage','accounts.manage']},placements:{all:['company.read','members.manage']},
  team:{all:['company.read'],any:['accounts.manage','members.manage']},roles:{all:['company.read','roles.manage']},
  permissions:{all:['company.read','roles.manage']},settings:{all:['company.write']},stages:{all:['leads.read','leads.write'],roles:['company_admin','operations','sales_manager','sales_admin']}
 } satisfies Record<string,{all:Action[];any?:Action[];project?:boolean;roles?:Role[]}>;
