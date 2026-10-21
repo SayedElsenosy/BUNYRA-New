@@ -34,7 +34,7 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
     AND ($2::text[] IS NULL OR c.commission_sales_user_id=ANY($2::text[]))
  ), dashboard_tasks AS(
   SELECT * FROM tasks WHERE
-   CASE $21::text
+   CASE $20::text
     WHEN 'operations' THEN kind='booking_approval'
     WHEN 'finance_manager' THEN kind IN('receipt_confirmation','installment')
     WHEN 'accountant' THEN kind IN('receipt_confirmation','installment')
@@ -42,10 +42,10 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
  ), money AS(
   SELECT currency,count(*)::int AS contracts,
    sum(signed_minor)::text AS contract_value_minor,
-   CASE WHEN $19::boolean THEN sum(net_minor)::text ELSE NULL::text END AS net_collected_minor,
-   CASE WHEN $19::boolean THEN sum(GREATEST(0,signed_minor-net_minor))::text ELSE NULL::text END AS outstanding_minor,
-   CASE WHEN $20::boolean THEN sum(CASE WHEN project_id=ANY($17::uuid[]) THEN commission_minor ELSE 0 END)::text ELSE NULL::text END AS commissions_minor,
-   CASE WHEN $20::boolean THEN sum(CASE WHEN project_id=ANY($17::uuid[]) THEN earned_minor ELSE 0 END)::text ELSE NULL::text END AS earned_minor
+   CASE WHEN $18::boolean THEN sum(net_minor)::text ELSE NULL::text END AS net_collected_minor,
+   CASE WHEN $18::boolean THEN sum(GREATEST(0,signed_minor-net_minor))::text ELSE NULL::text END AS outstanding_minor,
+   CASE WHEN $19::boolean THEN sum(CASE WHEN project_id=ANY($17::uuid[]) THEN commission_minor ELSE 0 END)::text ELSE NULL::text END AS commissions_minor,
+   CASE WHEN $19::boolean THEN sum(CASE WHEN project_id=ANY($17::uuid[]) THEN earned_minor ELSE 0 END)::text ELSE NULL::text END AS earned_minor
   FROM authorized_signed GROUP BY currency
  ), pipeline AS(
   SELECT status,count(*)::int AS total FROM visible_leads GROUP BY status
@@ -106,7 +106,7 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
  (SELECT COALESCE(jsonb_agg(t),'[]'::jsonb) FROM team t) AS team,
  (SELECT COALESCE(jsonb_agg(u ORDER BY u.priority,u.due_at NULLS LAST),'[]'::jsonb) FROM urgent u) AS urgent,
  (SELECT COALESCE(jsonb_agg(t ORDER BY t.day),'[]'::jsonb) FROM trend t) AS trend`;
- const rows=await sql.query(query,[...scope.params,contractProjects,commission,finance,financial,commissions,ctx.owner?'company_admin':ctx.role]);
+ const rows=await sql.query(query,[...scope.params,contractProjects,commission,financial,commissions,ctx.owner?'company_admin':ctx.role]);
  const m=rows[0];
  return {
   role:ctx.role,owner:ctx.owner,time_zone:scope.timeZone,as_of:scope.now,
