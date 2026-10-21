@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {access,ServiceError,type Actor,type Sql,uuid} from './service';
 import {reportScope,scopeFilters,dateValue} from './report-scope';
 import {projectAllowed} from './record-scope';
+import {requireEntitlement} from './subscriptions';
 
 /** Financial insights are snapshots for contracts SIGNED in the chosen period.
  * Collections are cumulative confirmed net receipts against those contracts,
@@ -17,6 +18,7 @@ const filters=z.object({
 
 export async function dealsInsights(sql:Sql,actor:Actor,company:string,input:unknown,platform=false){
  const f=filters.parse(input);
+ await requireEntitlement(sql,actor,company,'deals_insights',platform);
  if(f.from>f.to||(Date.parse(f.to)-Date.parse(f.from))/86400000>366)throw new ServiceError('INVALID_DATE_RANGE',400);
  // Demand BOTH report and finance permissions. Filter projects by effective
  // project-level permission on each action before querying the secure view.
