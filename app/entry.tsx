@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import BunyraBrand from './bunyra-brand';
 import Console from './console';
-import { Building2, Globe, Moon, Sun, ShieldCheck, FolderKanban, LogOut } from 'lucide-react';
+import { Building2, Globe, Moon, Sun, ShieldCheck, FolderKanban, LogOut, Bell } from 'lucide-react';
 
 type Session = { user: { name: string; email: string }; is_owner: boolean; companies: { id: string; name: string; name_en: string; role: string }[] };
 type Workspace = { company: { id: string; name: string; name_en: string }; projects: { id: string; name: string }[]; can_manage_members: boolean; allowed_views:CompanyView[]; role:string };
@@ -20,7 +20,8 @@ export default function Entry({ portal }: { portal?: 'owner' | 'company' }) {
   const [route,navigate]=useWorkspaceLocation();
   const view=resolveCompanyView(route.view,workspace?.allowed_views||[]);
   const [navigationNotice,setNavigationNotice]=useState(false);
-  const hubView=!!view&&(['home','work','search'].includes(view)||(view==='customers'&&!!route.record));
+  const [alertUnread,setAlertUnread]=useState<number|null>(null);
+  const hubView=!!view&&(['home','work','search','alerts'].includes(view)||(view==='customers'&&!!route.record));
   const [en, setEn] = useState(false);
   const [dark, setDark] = useState(false);
   const t = (ar: string, eng: string) => en ? eng : ar;
@@ -72,11 +73,28 @@ export default function Entry({ portal }: { portal?: 'owner' | 'company' }) {
     if(route.view&&route.view!==view)setNavigationNotice(true);
     if(route.company!==selected||route.view!==(view||''))navigate({company:selected,view:view||''},true);
   },[workspace,selected,route.view]);
+  useEffect(()=>{
+    if(!session||session.is_owner||!workspace||workspace.company.id!==selected||!workspace.allowed_views.includes('alerts')){
+      setAlertUnread(null);return;
+    }
+    let current=true;
+    const refresh=()=>{
+      void fetch('/api/alerts?'+new URLSearchParams({company:selected,page:'0'}),{cache:'no-store'})
+        .then(async r=>{if(!r.ok)throw Error('UNAVAILABLE');return r.json();})
+        .then(data=>{if(current)setAlertUnread(Math.max(0,Number(data.unread)||0));})
+        .catch(()=>{if(current)setAlertUnread(null);});
+    };
+    refresh();
+    const timer=window.setInterval(refresh,60000);
+    window.addEventListener('focus',refresh);
+    window.addEventListener('bunyra:alerts-changed',refresh);
+    return()=>{current=false;window.clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('bunyra:alerts-changed',refresh);};
+  },[selected,workspace?.company.id,session?.is_owner]);
   function changeView(next:CompanyView){if(workspace?.allowed_views.includes(next)){setNavigationNotice(false);navigate({company:selected,view:next,record:'',action:'',page:''});}}
   if (session?.is_owner) return <Console />;
   return <div className={session?"tenant-shell has-workspace":"tenant-shell"}>
     {session&&<aside className="sidebar tenant-sidebar"><a className="brand" href="/company"><BunyraBrand dark /></a><div className="workspace"><span className="workspace-icon"><Building2 size={21}/></span><div><strong>{workspace?.company.name||t('مساحة الشركة','Company workspace')}</strong><small>{t('حساب الشركة','Company account')}</small></div></div><p className="nav-label">{t('مساحة العمل','WORKSPACE')}</p>{view&&<CompanyNavigation view={view} onChange={changeView} en={en} allowedViews={workspace?.allowed_views||[]}/>}<div className="side-bottom"><div className="foundation"><span className="mini-dot"/>{t('مساحة عمل متصلة','Connected workspace')}<p>{t('مشروعاتك وفريقك في مكان واحد','Your projects and team in one place')}</p></div><a className="profile" href="/auth/sign-out?portal=company"><span className="avatar">{session.user.name?.slice(0,1)||'B'}</span><div><strong>{session.user.name}</strong><small>{t('تسجيل الخروج','Sign out')}</small></div><LogOut size={17}/></a></div></aside>}
-    <header className="topbar"><a href="/" className="tenant-brand"><BunyraBrand dark={dark}/></a><div className="top-actions"><button className="icon-button" aria-label={t('تغيير اللغة', 'Change language')} onClick={() => setEn(!en)}><Globe size={18} />{en ? 'ع' : 'EN'}</button><button className="icon-button" aria-label={t('تغيير المظهر', 'Change theme')} onClick={() => setDark(!dark)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>{session && <a href="/auth/sign-out?return_to=%2F" target="_top" className="icon-button" aria-label={t('تسجيل الخروج', 'Sign out')}><LogOut size={18} /></a>}</div></header>
+    <header className="topbar"><a href="/" className="tenant-brand"><BunyraBrand dark={dark}/></a><div className="top-actions">{view&&workspace?.allowed_views.includes('alerts')&&<button type="button" className="icon-button alert-bell" onClick={()=>changeView('alerts')} aria-label={t('مركز التنبيهات','Alerts center')+(alertUnread!==null?' · '+alertUnread:'')}><Bell size={19}/>{alertUnread!==null&&alertUnread>0&&<span className="alert-bell-counter">{alertUnread>99?'99+':alertUnread}</span>}</button>}<button className="icon-button" aria-label={t('تغيير اللغة', 'Change language')} onClick={() => setEn(!en)}><Globe size={18} />{en ? 'ع' : 'EN'}</button><button className="icon-button" aria-label={t('تغيير المظهر', 'Change theme')} onClick={() => setDark(!dark)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button>{session && <a href="/auth/sign-out?return_to=%2F" target="_top" className="icon-button" aria-label={t('تسجيل الخروج', 'Sign out')}><LogOut size={18} /></a>}</div></header>
     <main className="tenant-main"><div className={hubView?'workspace-sr-heading':'eyebrow'}>BUNYRA · WORKSPACE</div><h1 className={hubView?'workspace-sr-heading':undefined}>{session ? t('مساحة عمل الشركة', 'Company workspace') : t('أهلاً بك في BUNYRA', 'Welcome to BUNYRA')}</h1>
       {loading ? <div className="loading">{t('جارٍ التحقق من الحساب…', 'Checking your account…')}</div> : error ? <div className="error-panel"><ShieldCheck size={35} /><h2>{error === 'UNAUTHORIZED' ? t('اختر بوابة الدخول', 'Choose your sign-in portal') : error === 'FORBIDDEN' ? t('ليس لديك وصول نشط إلى هذه الشركة', 'No active access to this company') : t('تعذر الاتصال بالخدمة', 'Service unavailable')}</h2>{error === 'UNAUTHORIZED' ? <><a className="primary" href={portal === 'owner' ? '/owner/login' : '/company/login'} target="_top">{portal === 'owner' ? t('دخول إدارة المنصة', 'Platform owner sign in') : t('دخول الشركات', 'Company sign in')}</a>{!portal && <a className="secondary" href="/owner/login">{t('دخول إدارة المنصة', 'Platform owner sign in')}</a>}</> : <button className="secondary" onClick={() => location.reload()}>{t('إعادة المحاولة', 'Retry')}</button>}</div> : session && !session.companies.length ? <section className="panel empty"><Building2 size={32} /><h2>{t('لم تنضم إلى شركة بعد', 'No company memberships yet')}</h2><p>{t('تواصل مع إدارة المنصة لربط حسابك بالشركة.', 'Contact the platform administrator to link your account to a company.')}</p><small dir="ltr">{session.user.email}</small></section> : <>
         <div className="workspace-toolbar"><label>{t('الشركة الحالية', 'Current company')}<select value={selected} onChange={e => {setNavigationNotice(false);setSelected(e.target.value);navigate({company:e.target.value,view:'',q:'',record:'',action:'',page:'',bucket:'',entity:''});}}>{session?.companies.map(c => <option value={c.id} key={c.id}>{en ? c.name_en || c.name : c.name}</option>)}</select></label><span dir="ltr">{session?.user.email}</span></div>

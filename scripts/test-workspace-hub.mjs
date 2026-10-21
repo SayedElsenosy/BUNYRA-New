@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {tenantSql} from '../.sites-runtime/tests/tenant.mjs';
 import {workspaceHub,completeWorkItem} from '../.sites-runtime/tests/workspace-hub.mjs';
+import {workspaceAlerts,readWorkspaceAlert} from '../.sites-runtime/tests/workspace-alerts.mjs';
 import {createCustomer,createLead,crmOverview} from '../.sites-runtime/tests/crm.mjs';
 import {createAccount} from '../.sites-runtime/tests/accounts.mjs';
 import {savePriceBook,approvePriceBook} from '../.sites-runtime/tests/pricing.mjs';
@@ -67,7 +68,62 @@ export async function runHubTests(raw){
  await check('Manager sees managed team without unrelated salespeople',async()=>{const d=await get(manager,'tasks');assert.equal(d.total,4);assert.ok(!d.items.some(x=>x.id===otherFollow));});
  await check('Operations receives submitted booking approvals without fake deadlines',async()=>{const d=await get(ops,'tasks',{bucket:'waiting'});assert.equal(d.total,1);assert.equal(d.items[0].id,b2.id);assert.equal(d.items[0].due_at,null);});
  await check('Accounts receives pending receipts and overdue active installments',async()=>{const d=await get(fm,'tasks');assert.ok(d.items.some(x=>x.kind==='receipt_confirmation'&&x.id===b3.id));assert.ok(d.items.some(x=>x.kind==='installment'&&x.record_id===contract.id));assert.ok(!d.items.some(x=>x.kind==='follow_up'));});
- await check('Search paginates on server and counts all authorized contacts',async()=>{const d=await get(s1,'search',{q:'Hub QA',entity:'customer'});assert.equal(d.total,26);assert.equal(d.items.length,20);const next=await get(s1,'search',{q:'Hub QA',entity:'customer',page:1});assert.equal(next.items.length,6);assert.ok(!next.items.some(x=>d.items.some(y=>x.id===y.id)));});
+ await check('Personal alert inbox counts only currently visible tasks',async()=>{
+  const first=await workspaceAlerts(fresh(),s1,{company});
+  assert.equal(first.total,4);
+  assert.equal(first.unread,4);
+  assert.deepEqual(new Set(first.items.map(a=>a.id)),new Set(followIds));
+  const other=await workspaceAlerts(fresh(),s2,{company});
+  assert.ok(other.items.some(a=>a.id===otherFollow));
+  assert.ok(!other.items.some(a=>followIds.includes(a.id)));
+  const managerial=await workspaceAlerts(fresh(),manager,{company});
+  assert.equal(managerial.total,4);
+  assert.ok(!managerial.items.some(a=>a.id===otherFollow));
+ });
+ await check('Operations and finance see their own authorization-scoped alert kinds',async()=>{
+  const o=await workspaceAlerts(fresh(),ops,{company,bucket:'waiting'});
+  assert.equal(o.items.length,1);assert.equal(o.items[0].kind,'booking_approval');assert.equal(o.items[0].id,b2.id);
+  const f=await workspaceAlerts(fresh(),fm,{company});
+  assert.ok(f.items.some(a=>a.kind==='receipt_confirmation'&&a.id===b3.id));
+  assert.ok(f.items.some(a=>a.kind==='installment'));
+  assert.ok(!f.items.some(a=>a.kind==='follow_up'));
+ });
+ await check('Read receipt is personal, persistent, and idempotent',async()=>{
+  const input={company_id:company,kind:'follow_up',id:followIds[0],operation:'read'};
+  await readWorkspaceAlert(fresh(),s1,input);
+  await readWorkspaceAlert(fresh(),s1,input);
+  const own=await workspaceAlerts(fresh(),s1,{company});
+  assert.equal(own.unread,3);
+  assert.equal(own.items.find(a=>a.id===followIds[0]).is_read,true);
+  const other=await workspaceAlerts(fresh(),manager,{company});
+  assert.ok(other.items.find(a=>a.id===followIds[0]).is_read===false);
+  const unread=await workspaceAlerts(fresh(),s1,{company,bucket:'unread'});
+  assert.equal(unread.total,4);assert.equal(unread.filtered_total,3);
+  assert.ok(!unread.items.some(a=>a.id===followIds[0]));
+  assert.equal((await raw`SELECT count(*)::int n FROM workspace_alert_reads WHERE company_id=${company} AND user_id=${s1.userId} AND source_id=${followIds[0]}`)[0].n,1);
+ });
+ await check('Changing alert content makes previous read receipt stale',async()=>{
+  const id=followIds[0];
+  const previous=(await raw`SELECT title FROM crm_follow_ups WHERE company_id=${company} AND id=${id}`)[0].title;
+  await raw`UPDATE crm_follow_ups SET title=${previous+' updated'} WHERE company_id=${company} AND id=${id}`;
+  const next=await workspaceAlerts(fresh(),s1,{company});
+  assert.equal(next.items.find(a=>a.id===id).is_read,false);
+  assert.equal(next.unread,4);
+  await raw`UPDATE crm_follow_ups SET title=${previous} WHERE company_id=${company} AND id=${id}`;
+ });
+ await check('Forged employee, company or unrelated task cannot be marked read',async()=>{
+  await deny(()=>readWorkspaceAlert(fresh(),s2,{company_id:company,kind:'follow_up',id:followIds[1],operation:'read'}),'WORK_ITEM_UNAVAILABLE');
+  await deny(()=>readWorkspaceAlert(fresh(),s1,{company_id:other,kind:'follow_up',id:followIds[1],operation:'read'}));
+  await deny(()=>readWorkspaceAlert(fresh(),s1,{company_id:company,kind:'booking_approval',id:followIds[1],operation:'read'}),'WORK_ITEM_UNAVAILABLE');
+  await deny(()=>readWorkspaceAlert(fresh(),s1,{company_id:company,kind:'follow_up',id:crypto.randomUUID(),operation:'read'}),'WORK_ITEM_UNAVAILABLE');
+ });
+ await check('RLS prevents writing or reading another user\'s alert read receipt',async()=>{
+  const db=fresh();
+  await workspaceAlerts(db,s1,{company});
+  assert.equal((await db`SELECT count(*)::int n FROM workspace_alert_reads WHERE user_id=${s2.userId}`)[0].n,0);
+  await assert.rejects(()=>db`INSERT INTO workspace_alert_reads(company_id,user_id,kind,source_id,signature) VALUES(${company},${s2.userId},'follow_up',${followIds[0]},repeat('a',32))`);
+ });
+  await check('Search paginates on server and counts all authorized contacts',async()=>{const d=await get(s1,'search',{q:'Hub QA',entity:'customer'});assert.equal(d.total,26);assert.equal(d.items.length,20);const next=await get(s1,'search',{q:'Hub QA',entity:'customer',page:1});assert.equal(next.items.length,6);assert.ok(!next.items.some(x=>d.items.some(y=>x.id===y.id)));});
  await check('Searching customer names cannot disclose other salespeople',async()=>{const d=await get(s1,'search',{q:'second customer'});assert.equal(d.total,0);});
  await check('Arabic digits find the actual normalized phone',async()=>{const d=await get(s1,'search',{q:'٠١٠٠١١١١١١١',entity:'customer'});assert.equal(d.items[0].id,customer1.id);});
  await check('Literal SQL-like search text is not executable or a wildcard',async()=>{const d=await get(s1,'search',{q:"%' OR 1=1 --"});assert.equal(d.total,0);});

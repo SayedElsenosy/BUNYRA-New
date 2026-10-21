@@ -162,3 +162,7 @@ export async function completeWorkItem(sql:Sql,actor:Actor,input:unknown,platfor
  if(!rows.length)throw new ServiceError('WORK_ITEM_UNAVAILABLE',409);
  return rows[0];
 }
+
+// Shared authorized task source for the in-app alert inbox.
+// Task visibility remains defined once, in the Workspace scope CTE.
+export {context as workspaceTaskContext,scopes as workspaceTaskSql};
