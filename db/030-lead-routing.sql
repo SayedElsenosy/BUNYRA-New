@@ -42,7 +42,6 @@ BEGIN
  WHERE tm.company_id=p_company AND tm.team_id=v_team
    AND m.role IN('sales','sales_manager')
    AND (
-     p_project IS NULL OR (
        COALESCE(
          (SELECT mp.allowed FROM member_permissions mp WHERE mp.company_id=p_company AND mp.user_id=m.user_id AND mp.project_id=p_project AND mp.action='leads.read'),
          (SELECT mp.allowed FROM member_permissions mp WHERE mp.company_id=p_company AND mp.user_id=m.user_id AND mp.project_id IS NULL AND mp.action='leads.read'),
@@ -53,7 +52,6 @@ BEGIN
          (SELECT mp.allowed FROM member_permissions mp WHERE mp.company_id=p_company AND mp.user_id=m.user_id AND mp.project_id IS NULL AND mp.action='leads.write'),
          CASE WHEN m.custom_role_id IS NULL THEN true ELSE COALESCE((cr.permissions->>'leads.write')::boolean,false) END
        )
-     )
    );
  v_count:=COALESCE(array_length(v_members,1),0);
  IF v_count=0 THEN RAISE EXCEPTION 'ROUTING_NO_ELIGIBLE_MEMBERS' USING ERRCODE='P0001'; END IF;
