@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {hasPermission} from './permissions';
 import {crmScope,requireCustomer,requireLead} from './crm-scope';
 import {salesScope,projectAllowed} from './record-scope';
 import { access, type Actor, type Sql, ServiceError, uuid } from './service';
@@ -108,20 +109,42 @@ export async function createCustomer(sql: Sql, actor: Actor, input: unknown, asO
 
 export async function createLead(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
   const c = leadInput.parse(input);
-  await access(sql, actor, c.company_id, 'leads.write', asOwner);
-  const ownerId = c.owner_user_id || actor.userId;
+  const ctx = await access(sql, actor, c.company_id, 'leads.write', asOwner);
+  const requestedOwner = c.owner_user_id || actor.userId;
+  // Routing is opt-in for admin-created leads only. A seller always owns the lead
+  // they create unless an authorized manager explicitly selects an owner.
+  const autoEligible = !c.owner_user_id && (ctx.owner || (ctx.role === 'company_admin' && hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage')));
   await ensureCustomer(sql, c.company_id, c.customer_id);
   await requireCustomer(sql,actor,c.company_id,c.customer_id,'leads.write',asOwner);
-  const scope=await crmScope(sql,actor,c.company_id,'leads.write',asOwner);if(scope.users&&!scope.users.includes(ownerId))throw new ServiceError('FORBIDDEN',403);if(c.project_id&&!projectAllowed(scope.ctx,'leads.write',c.project_id))throw new ServiceError('FORBIDDEN',403);
-  await ensureOwner(sql, c.company_id, ownerId);
-  if (c.project_id && !(await sql`SELECT 1 FROM projects WHERE company_id=${c.company_id} AND id=${c.project_id}`).length) throw new ServiceError('INVALID_PROJECT');
-  const rows = await sql.transaction([
-    sql`INSERT INTO crm_leads(company_id,customer_id,source,status,owner_user_id,project_id,interest,lost_reason,created_by,stage_id) VALUES(${c.company_id},${c.customer_id},${c.source}::text,${c.status}::text,${ownerId}::text,${c.project_id}::uuid,${c.interest}::text,${c.lost_reason}::text,${actor.userId}::text,(SELECT id FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND active ORDER BY position LIMIT 1)) RETURNING *`,
-    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.lead_created',jsonb_build_object('customer_id',${c.customer_id}::text,'owner_user_id',${ownerId}::text,'status',${c.status}::text)) RETURNING id`,
-  ]);
-  return rows[0][0];
+  const scope = await crmScope(sql,actor,c.company_id,'leads.write',asOwner);
+  if(scope.users && !scope.users.includes(requestedOwner))throw new ServiceError('FORBIDDEN',403);
+  if(c.project_id && !projectAllowed(scope.ctx,'leads.write',c.project_id))throw new ServiceError('FORBIDDEN',403);
+  if(!autoEligible)await ensureOwner(sql, c.company_id, requestedOwner);
+  if(c.project_id && !(await sql`SELECT 1 FROM projects WHERE company_id=${c.company_id} AND id=${c.project_id}`).length)throw new ServiceError('INVALID_PROJECT');
+  // Routing, lead creation and audit are one SQL statement. A failed write
+  // rolls back the routing cursor; a row lock inside the function avoids
+  // duplicate allocation under concurrent requests.
+  const rows = await sql`
+   WITH routed AS MATERIALIZED (
+    SELECT CASE WHEN ${autoEligible}::boolean
+      THEN bunyra_route_lead_owner(${c.company_id}::uuid,${c.project_id}::uuid,${requestedOwner}::text)
+      ELSE ${requestedOwner}::text END AS owner_id,
+      CASE WHEN ${autoEligible}::boolean AND EXISTS(SELECT 1 FROM crm_lead_routing_settings WHERE company_id=${c.company_id} AND enabled)
+        THEN 'round_robin' ELSE 'manual' END AS assignment
+   ), created AS (
+    INSERT INTO crm_leads(company_id,customer_id,source,status,owner_user_id,project_id,interest,lost_reason,created_by,stage_id)
+    SELECT ${c.company_id}::uuid,${c.customer_id}::uuid,${c.source}::text,${c.status}::text,routed.owner_id,${c.project_id}::uuid,${c.interest}::text,${c.lost_reason}::text,${actor.userId}::text,
+    (SELECT id FROM crm_pipeline_stages WHERE company_id=${c.company_id} AND active ORDER BY position LIMIT 1)
+    FROM routed RETURNING *
+   ), logged AS (
+    INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data)
+    SELECT ${c.company_id}::uuid,${actor.userId}::text,${actor.email}::text,'crm.lead_created',
+    jsonb_build_object('customer_id',created.customer_id,'owner_user_id',created.owner_user_id,'status',created.status,'assignment',routed.assignment)
+    FROM created CROSS JOIN routed
+   ) SELECT * FROM created`;
+  if(!rows.length)throw new ServiceError('LEAD_CREATE_FAILED',409);
+  return rows[0];
 }
-
 export async function updateLead(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
   const c = updateLeadInput.parse(input);
   await access(sql, actor, c.company_id, 'leads.write', asOwner);
