@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {tenantSql} from '../.sites-runtime/tests/tenant.mjs';
 import {workspaceHub,completeWorkItem} from '../.sites-runtime/tests/workspace-hub.mjs';
+import {roleDashboard} from '../.sites-runtime/tests/role-dashboard.mjs';
 import {workspaceAlerts,readWorkspaceAlert} from '../.sites-runtime/tests/workspace-alerts.mjs';
 import {createCustomer,createLead,crmOverview} from '../.sites-runtime/tests/crm.mjs';
 import {createAccount} from '../.sites-runtime/tests/accounts.mjs';
@@ -62,6 +63,51 @@ export async function runHubTests(raw){
  await updateBooking(fresh(),ops,{company_id:company,booking_id:b3.id},'approve');
  const get=(who,kind='overview',extra={})=>workspaceHub(fresh(),who,{company,kind,...extra});
  await check('Sales dashboard uses full scoped customer counts beyond one page',async()=>{const d=await get(s1);assert.equal(d.metrics.customers,26);assert.equal(d.metrics.open_leads,2);assert.equal(d.capabilities.finance,false);assert.equal(d.metrics.active_contracts,0);assert.equal(d.metrics.work.total,4);});
+ await check('Sales dashboard hides finance and unrelated salesperson data',async()=>{
+  const d=await roleDashboard(fresh(),s1,{company});
+  assert.equal(d.role,'sales');assert.equal(d.capabilities.finance,false);
+  assert.ok(!d.allowed_views.includes('deals-insights'));
+  assert.ok(d.money.every(m=>m.net_collected_minor===null&&m.outstanding_minor===null));
+  assert.ok(d.urgent.every(x=>x.kind==='follow_up'));
+  assert.ok(d.team.every(x=>x.user_id===s1.userId));
+  assert.equal(d.trend.length,7);assert.equal(d.metrics.open_leads,2);
+ });
+ await check('Sales manager dashboard excludes unrelated representative',async()=>{
+  const d=await roleDashboard(fresh(),manager,{company});
+  assert.equal(d.role,'sales_manager');assert.ok(d.capabilities.team);
+  assert.ok(d.team.some(x=>x.user_id===s1.userId)&&!d.team.some(x=>x.user_id===s2.userId));
+  assert.ok(d.money.every(m=>m.net_collected_minor===null));
+ });
+ await check('Finance dashboard shows authorized confirmed collections, not customer CRM',async()=>{
+  const d=await roleDashboard(fresh(),fm,{company});
+  assert.equal(d.role,'finance_manager');assert.equal(d.capabilities.crm,false);
+  assert.equal(d.capabilities.finance,true);assert.ok(!d.allowed_views.includes('customers'));
+  assert.ok(d.money.some(m=>m.currency==='EGP'&&m.net_collected_minor!==null));
+  assert.ok(d.urgent.every(x=>x.kind!=='follow_up'));
+  assert.equal(d.metrics.open_leads,0);
+ });
+ await check('Operations dashboard focuses booking approvals not financial receipts',async()=>{
+  const d=await roleDashboard(fresh(),ops,{company});
+  assert.equal(d.role,'operations');assert.equal(d.capabilities.finance,false);
+  assert.equal(d.metrics.bookings_pending,1);assert.ok(d.urgent.some(x=>x.kind==='booking_approval'));
+  assert.ok(d.money.every(m=>m.net_collected_minor===null));
+ });
+ await check('Company Admin dashboard shows permitted full-company aggregates',async()=>{
+  const d=await roleDashboard(fresh(),admin,{company});
+  assert.equal(d.role,'company_admin');assert.ok(d.capabilities.finance);
+  assert.ok(d.allowed_views.includes('deals-insights'));
+  assert.ok(d.money.every(m=>m.currency&&m.contract_value_minor!==undefined));
+ });
+ await check('Custom read-only role hides finance and commission aggregates',async()=>{
+  const d=await roleDashboard(fresh(),reader,{company});
+  assert.equal(d.capabilities.finance,false);assert.equal(d.capabilities.commissions,false);
+  assert.ok(d.money.length===0);
+  assert.ok(!d.allowed_views.includes('reports')&&!d.allowed_views.includes('collections'));
+ });
+ await check('Dashboard rejects foreign company and forged owner bypass',async()=>{
+  await deny(()=>roleDashboard(fresh(),s1,{company:other}));
+  await deny(()=>roleDashboard(fresh(),s1,{company:other},true));
+ });
  await check('Own and other employee tasks never mix',async()=>{const d=await get(s1,'tasks');assert.deepEqual(new Set(d.items.map(x=>x.id)),new Set(followIds));assert.ok(!d.items.some(x=>x.id===otherFollow));});
  await check('Overdue, today, tomorrow and waiting buckets are disjoint',async()=>{const d=await get(s1,'tasks');assert.equal(d.summary.overdue,1);assert.equal(d.summary.today,1);assert.equal(d.summary.tomorrow,1);assert.equal(d.summary.waiting,0);assert.equal(d.time_zone,'Pacific/Kiritimati');});
  await check('Task date filters use company-local tomorrow',async()=>{const d=await get(s1,'tasks',{bucket:'tomorrow'});assert.equal(d.total,1);assert.equal(d.items[0].id,followIds[2]);});
