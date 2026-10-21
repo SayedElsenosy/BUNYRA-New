@@ -1,3 +1,4 @@
+import {changeFollowUp} from './follow-ups';
 import { z } from 'zod';
 import {hasPermission} from './permissions';
 import {crmScope,requireLead} from './crm-scope';
@@ -9,7 +10,7 @@ const teamInput = z.object({ company_id: uuid, id: uuid.optional(), name: z.stri
 const memberInput = z.object({ company_id: uuid, team_id: uuid, user_id: z.string().min(1).max(200) });
 const transferInput = z.object({ company_id: uuid, lead_id: uuid, to_user_id: z.string().min(1).max(200), reason: z.string().trim().max(500).default('') });
 const stageMoveInput = z.object({ company_id: uuid, lead_id: uuid, stage_id: uuid, version: z.number().int().positive(), reason: z.string().trim().min(3).max(500) });
-const followUpInput = z.object({ company_id: uuid, id: uuid, status: z.enum(['done', 'cancelled']) });
+const followUpInput = z.object({ company_id: uuid, id: uuid, status: z.enum(['done', 'cancelled']),reason:z.string().trim().max(1000).optional() });
 
 function canManage(role: string, owner: boolean) { return owner || ['company_admin', 'sales_manager', 'sales_admin', 'operations'].includes(role); }
 async function ensureMember(sql: Sql, companyId: string, userId: string) {
@@ -118,10 +119,6 @@ export async function moveLeadStage(sql: Sql, actor: Actor, input: unknown, asOw
 }
 
 export async function updateFollowUp(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
-  const c = followUpInput.parse(input); const ctx = await access(sql, actor, c.company_id, 'leads.write', asOwner);
-  const scope=await crmScope(sql,actor,c.company_id,'leads.write',asOwner);
-  const rows = await sql`UPDATE crm_follow_ups SET status=${c.status},completed_at=CASE WHEN ${c.status}='done' THEN now() ELSE null END WHERE company_id=${c.company_id} AND id=${c.id} AND customer_id=ANY(${scope.customerIds}::uuid[]) AND (${scope.users===null} OR assigned_to=ANY(${scope.users||[]}::text[])) AND (lead_id IS NULL OR lead_id=ANY(${scope.ids}::uuid[])) RETURNING *`;
-  if (!rows.length) throw new ServiceError('FORBIDDEN', 403);
-  await sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'crm.follow_up_updated',${JSON.stringify(rows[0])}::jsonb)`;
-  return rows[0];
+  const c=followUpInput.parse(input);
+  return changeFollowUp(sql,actor,{...c,operation:c.status==='done'?'complete':'cancel'},asOwner);
 }
