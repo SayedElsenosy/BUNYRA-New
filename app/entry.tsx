@@ -21,7 +21,7 @@ export default function Entry({ portal }: { portal?: 'owner' | 'company' }) {
   const view=resolveCompanyView(route.view,workspace?.allowed_views||[]);
   const [navigationNotice,setNavigationNotice]=useState(false);
   const [alertUnread,setAlertUnread]=useState<number|null>(null);
-  const hubView=!!view&&(['home','work','search'].includes(view)||(view==='customers'&&!!route.record));
+  const hubView=!!view&&(['home','work','search','alerts'].includes(view)||(view==='customers'&&!!route.record));
   const [en, setEn] = useState(false);
   const [dark, setDark] = useState(false);
   const t = (ar: string, eng: string) => en ? eng : ar;
