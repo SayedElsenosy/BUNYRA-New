@@ -7,6 +7,7 @@ import {useWorkspaceLocation} from './workspace-location';
 import {Search} from 'lucide-react';
 import CommissionPanel from './commission-panel';
 import SalesReportsPanel from './sales-reports-panel';
+import DealsInsightsPanel from './deals-insights-panel';
 import ProjectWizard from './project-wizard';
 import InventoryPanel from './inventory-panel';
 import OrganizationPanel from './organization-panel';
@@ -20,7 +21,7 @@ import {moduleLabel,type CompanyView} from './company-navigation';
 function ModuleScreen({companyId,en,onChanged,view='home',asOwner=false,active=true}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean;active?:boolean;allowedViews?:readonly CompanyView[]}){
  const props={companyId,en,asOwner};
  return <section className="company-module-workspace" aria-label={moduleLabel(view,en)}>{!['home','work','search'].includes(view)&&<h2 className="module-title">{moduleLabel(view,en)}</h2>}{
- ['home','work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
+ ['home','work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='deals-insights'?<DealsInsightsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
  view==='projects'?<ProjectWizard {...props} onChanged={onChanged}/>:
  ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
  view==='offers'?<SavedOffersPanel {...props} active={active}/>:view==='customers'?<CrmPanel {...props}/>:
