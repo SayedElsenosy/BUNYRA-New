@@ -89,15 +89,13 @@ export async function assignSubscription(sql:Sql,actor:Actor,input:unknown){
  const values=JSON.stringify(plan.features);
  const rows=await sql`WITH previous AS(
    SELECT * FROM company_subscriptions WHERE company_id=${c.company_id} AND version=${c.version} FOR UPDATE
-  ), guard AS(
-   SELECT EXISTS(SELECT 1 FROM company_subscriptions WHERE company_id=${c.company_id}) AS existing
   ),changed AS(
    INSERT INTO company_subscriptions(company_id,plan_id,status,seat_limit,project_limit,features,currency,
      billing_period,agreed_price_minor,starts_at,ends_at,configured_by)
    SELECT ${c.company_id},${c.plan_id},${c.status},${c.seat_limit},${c.project_limit},
     ${values}::jsonb,${plan.currency},${plan.billing_period},${c.agreed_price_minor},
     ${c.starts_at}::timestamptz,${c.ends_at}::timestamptz,${actor.userId}
-   WHERE (SELECT existing FROM guard)=false AND ${c.version}=0
+   WHERE ${c.version}=0 OR EXISTS(SELECT 1 FROM previous)
    ON CONFLICT(company_id) DO UPDATE SET plan_id=excluded.plan_id,status=excluded.status,
     seat_limit=excluded.seat_limit,project_limit=excluded.project_limit,features=excluded.features,
     currency=excluded.currency,billing_period=excluded.billing_period,agreed_price_minor=excluded.agreed_price_minor,
