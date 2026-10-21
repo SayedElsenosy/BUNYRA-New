@@ -20,5 +20,6 @@ jobs:
       - run: npm run test:navigation
       - run: npm run test:report-dates
       - run: npm run test:report-csv
+      - run: npm run test:feature-gates
       - run: npm run typecheck
       - run: npm run build:cloudflare
