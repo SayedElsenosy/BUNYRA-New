@@ -53,3 +53,26 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,te
 @media(max-width:650px){.hub-heading h2{font-size:21px}.hub-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.hub-metric{padding:15px}.hub-metric strong{font-size:27px}.hub-attention{grid-template-columns:repeat(2,minmax(0,1fr))}.hub-attention button{padding:14px}.hub-search{flex-wrap:wrap}.hub-search>input{flex-basis:calc(100% - 40px)}.hub-search>select{flex:1;max-width:none;min-width:0}.hub-tabs>button{font-size:12px;padding:10px}.hub-row{flex-wrap:wrap;gap:10px}.hub-kind{min-width:65px;max-width:85px}.hub-row-content{flex-basis:calc(100% - 100px)}.hub-complete{margin-inline-start:auto}.hub-detail-grid{grid-template-columns:1fr}.hub-launcher kbd{display:none}.hub-pagination{gap:10px}}
 
 .workspace-sr-heading{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+
+
+/* Scoped Sales Insights — original BUNYRA tokens; light/dark + RTL/LTR. */
+.reports-presets{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}
+.reports-preset{background:var(--surface);border:1px solid var(--line);border-radius:999px;color:var(--ink);padding:9px 15px;font-size:12px;font-weight:700;min-height:40px}
+.reports-preset:hover{border-color:var(--primary);color:var(--primary)}
+.reports-preset.is-selected{background:var(--tint);border-color:var(--primary);color:var(--primary)}
+.sales-visuals{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;margin:22px 0}
+.sales-visual-card{min-width:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:20px;box-shadow:var(--shadow)}
+.sales-visual-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:20px}
+.sales-visual-heading h3{font-size:16px;font-weight:800;color:var(--ink);line-height:1.6}
+.sales-visual-heading p{font-size:11px;line-height:1.8;color:var(--muted);margin-top:5px}
+.sales-visual-note{background:var(--tint);color:var(--primary);border-radius:100px;padding:6px 10px;font-size:10px;white-space:nowrap}
+.sales-visual-footnote{font-size:11px;color:var(--muted);line-height:1.75;margin-top:13px}
+.sales-visual-empty{background:var(--bg);padding:40px 14px;text-align:center;border-radius:10px;color:var(--muted)}
+.sales-visual-table{width:100%;border-collapse:collapse;min-width:370px}
+.sales-visual-table th{color:var(--muted);font-size:11px;font-weight:700;background:var(--bg);white-space:nowrap}
+.sales-visual-table th,.sales-visual-table td{padding:12px 10px;border-bottom:1px solid var(--line);text-align:start}
+.sales-visual-table td{font-size:12px;max-width:250px;overflow-wrap:anywhere}
+.sales-visual-table td:not(:first-child){font-variant-numeric:tabular-nums}
+.sales-visual-table tbody tr:hover{background:var(--tint)}
+@media(max-width:1120px){.sales-visuals{grid-template-columns:1fr}}
+@media(max-width:600px){.reports-presets{gap:6px}.reports-preset{flex:1 1 calc(50% - 6px);padding:8px}.sales-visual-card{padding:14px}.sales-visual-heading{flex-wrap:wrap}.sales-visual-table{min-width:330px}}
