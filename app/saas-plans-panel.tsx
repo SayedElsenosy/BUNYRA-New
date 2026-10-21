@@ -13,8 +13,8 @@ const names:{id:Feature;ar:string;en:string}[]=[
  {id:'whatsapp',ar:'تكامل واتساب',en:'WhatsApp integration'}
 ];
 type Plan={id:string;code:string;name_ar:string;name_en:string;billing_period:'month'|'year';currency:string;price_minor:string|null;included_seats:number;included_projects:number;features:Record<string,boolean>;active:boolean;version:number};
-type Subscription={company_id:string;plan_id:string;plan_code:string;status:string;seat_limit:number;project_limit:number;currency:string;billing_period:string;agreed_price_minor:string|null;starts_at:string;ends_at:string|null;version:number;used_seats:number;used_projects:number;company_name:string};
-type Company={id:string;name:string;account_limit:number;used_seats:number;used_projects:number;version:number};
+type Subscription={company_id:string;plan_id:string;plan_code:string;status:string;seat_limit:number;project_limit:number;currency:string;billing_period:string;agreed_price_minor:string|null;starts_at:string;ends_at:string|null;version:number;used_seats:number;reserved_seats:number;used_projects:number;company_name:string};
+type Company={id:string;name:string;account_limit:number;used_seats:number;reserved_seats:number;used_projects:number;version:number};
 type Model={plans:Plan[];subscriptions:Subscription[];companies:Company[]};
 const initial={code:'',name_ar:'',name_en:'',billing_period:'month' as 'month'|'year',currency:'EGP',price:'',included_seats:'10',included_projects:'2',active:true,features:{crm:true,inventory:true,advanced_reports:false} as Record<string,boolean>};
 function minor(value:string):number|null{
@@ -62,7 +62,7 @@ export default function SaaSPlansPanel({en=false}:{en?:boolean}){
    setEndsAt(existing.ends_at?.slice(0,16)||'');
   }else if(plan){
    setSelectedPlan(plan.id);
-   setSeats(String(Math.max(plan.included_seats,company?.used_seats||0)));
+   setSeats(String(Math.max(plan.included_seats,(company?.used_seats||0)+(company?.reserved_seats||0))));
    setProjects(String(Math.max(plan.included_projects,company?.used_projects||0)));
    setAgreed(displayPrice(plan.price_minor));setStatus('active');setEndsAt('');
   }
@@ -157,11 +157,11 @@ export default function SaaSPlansPanel({en=false}:{en?:boolean}){
     <label>{t('حالة الاشتراك','Subscription status')}<select value={status} onChange={e=>setStatus(e.target.value as typeof status)}><option value="trial">{t('تجريبي','Trial')}</option><option value="active">{t('نشط','Active')}</option><option value="grace">{t('فترة سماح','Grace')}</option><option value="suspended">{t('موقوف','Suspended')}</option></select></label>
     <label>{t('تاريخ نهاية التعاقد (اختياري)','Contract end (optional)')}<input type="datetime-local" value={endsAt} onChange={e=>setEndsAt(e.target.value)}/></label>
    </div>
-   {selected&&<p className="muted">{t('الاستخدام الفعلي','Current usage')}: {selected.used_seats} {t('موظف','seats')} · {selected.used_projects} {t('مشروع','projects')} · {t('الحد الحالي للحسابات','Current account cap')}: {selected.account_limit}</p>}
+   {selected&&<p className="muted">{t('الاستخدام الفعلي','Current usage')}: {selected.used_seats} {t('موظف نشط','active seats')} + {selected.reserved_seats} {t('دعوات محجوزة','reserved invitations')} · {selected.used_projects} {t('مشروع','projects')} · {t('الحد الحالي للحسابات','Current account cap')}: {selected.account_limit}</p>}
    <p className="muted">{t('لا يمكن تقليل الحدود عن استخدام الشركة الحالي. لا يتم تغيير الاشتراك تلقائيًا عند انتهاء التاريخ؛ الفوترة والتجديد ستضاف في مرحلة مستقلة.','Limits cannot fall below active usage. Expiry does not auto-change status; billing and renewals will be added separately.')}</p>
    <button className="primary" disabled={busy||!selectedCompany||!selectedPlan} type="submit"><CheckCircle2 size={17}/>{t('اعتماد اشتراك الشركة','Assign company contract')}</button>
    </form>
-   <div className="table-scroll"><table><thead><tr><th>{t('الشركة','Company')}</th><th>{t('الباقة','Plan')}</th><th>{t('الموظفون','Seats')}</th><th>{t('المشروعات','Projects')}</th><th>{t('الحالة','Status')}</th></tr></thead><tbody>{data?.subscriptions.map(s=><tr key={s.company_id}><td>{s.company_name}</td><td>{s.plan_code}</td><td>{s.used_seats} / {s.seat_limit}</td><td>{s.used_projects} / {s.project_limit}</td><td>{s.status}</td></tr>)}</tbody></table></div>
+   <div className="table-scroll"><table><thead><tr><th>{t('الشركة','Company')}</th><th>{t('الباقة','Plan')}</th><th>{t('الموظفون','Seats')}</th><th>{t('المشروعات','Projects')}</th><th>{t('الحالة','Status')}</th></tr></thead><tbody>{data?.subscriptions.map(s=><tr key={s.company_id}><td>{s.company_name}</td><td>{s.plan_code}</td><td>{s.used_seats} + {s.reserved_seats} / {s.seat_limit}</td><td>{s.used_projects} / {s.project_limit}</td><td>{s.status}</td></tr>)}</tbody></table></div>
   </section>
  </div>;
 }
