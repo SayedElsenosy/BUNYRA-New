@@ -39,7 +39,8 @@
     "test:pipeline": "node scripts/prepare-identity-tests.mjs && node scripts/run-pipeline-tests.mjs",
     "test:lead-routing": "node scripts/prepare-identity-tests.mjs && node scripts/run-lead-routing-tests.mjs",
     "test:report-dates": "node scripts/test-report-dates.mjs",
-    "test:report-csv": "node scripts/test-report-csv.mjs"
+    "test:report-csv": "node scripts/test-report-csv.mjs",
+    "test:workspace-alerts": "npm run -s test:workspace"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
