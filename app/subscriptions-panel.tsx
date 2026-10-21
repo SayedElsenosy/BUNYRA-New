@@ -33,7 +33,7 @@ export default function SubscriptionsPanel({en=false}:{en?:boolean}){
    await load();
   }catch(e){
    const code=e instanceof Error?e.message:'SAVE_FAILED';
-   setError(({SUBSCRIPTION_SEATS_BELOW_USAGE:t('عدد المقاعد أقل من المستخدمين والدعوات الحالية.','Too few seats for active users and reservations.'),SUBSCRIPTION_PROJECTS_BELOW_USAGE:t('حد المشروعات أقل من الاستخدام الحالي.','Project limit below current usage.'),SUBSCRIPTION_UNITS_BELOW_USAGE:t('حد الوحدات أقل من الاستخدام الحالي.','Unit limit below current usage.'),VERSION_CONFLICT:t('بيانات الاشتراك اتغيرت؛ حدّث الصفحة.','Subscription changed; refresh.')}) as Record<string,string>)[code]||code);
+   setError((({SUBSCRIPTION_SEATS_BELOW_USAGE:t('عدد المقاعد أقل من المستخدمين والدعوات الحالية.','Too few seats for active users and reservations.'),SUBSCRIPTION_PROJECTS_BELOW_USAGE:t('حد المشروعات أقل من الاستخدام الحالي.','Project limit below current usage.'),SUBSCRIPTION_UNITS_BELOW_USAGE:t('حد الوحدات أقل من الاستخدام الحالي.','Unit limit below current usage.'),VERSION_CONFLICT:t('بيانات الاشتراك اتغيرت؛ حدّث الصفحة.','Subscription changed; refresh.')}) as Record<string,string>)[code]||code);
   }finally{setBusy(false);}
  }
  function assignCompany(id:string){
