@@ -91,7 +91,9 @@ export async function crmOverview(sql: Sql, actor: Actor, companyId: string, opt
     sql`SELECT f.id,f.customer_id,f.lead_id,f.due_at,f.title,f.status,f.assigned_to,f.created_at,c.full_name FROM crm_follow_ups f JOIN crm_customers c ON c.company_id=f.company_id AND c.id=f.customer_id WHERE f.company_id=${companyId} AND (${customer}::uuid IS NULL OR f.customer_id=${customer}::uuid) AND f.customer_id=ANY(${customerIds}::uuid[]) AND (${users===null} OR f.assigned_to=ANY(${users||[]}::text[])) AND (f.lead_id IS NULL OR f.lead_id=ANY(${ids}::uuid[])) AND (${owner}='' OR f.assigned_to=${owner}) ORDER BY f.status='open' DESC,f.due_at ASC LIMIT 100`,
   ]);
   const filtered = customers.map(row => ({ ...row, leads: (row.leads || []).filter((lead: {status: string; owner_user_id: string}) => (!status || lead.status === status) && (!owner || lead.owner_user_id === owner)) }));
-  return { ...ctx, can_write:projectAllowed(ctx,'leads.write'), customers: filtered, stats: stats[0], projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), members:members.filter(m=>!users||users.includes(m.user_id)), interactions, followUps };
+  const autoAssignAvailable = !ctx.owner && ctx.role==='company_admin' && hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage');
+  const routing = autoAssignAvailable ? (await sql`SELECT enabled FROM crm_lead_routing_settings WHERE company_id=${companyId}`)[0] : null;
+  return { ...ctx, can_write:projectAllowed(ctx,'leads.write'), auto_assign_available:autoAssignAvailable, auto_assign_enabled:routing?.enabled===true, customers: filtered, stats: stats[0], projects:projects.filter(p=>projectAllowed(ctx,'leads.read',p.id)), members:members.filter(m=>!users||users.includes(m.user_id)), interactions, followUps };
 }
 
 export async function createCustomer(sql: Sql, actor: Actor, input: unknown, asOwner = false) {
