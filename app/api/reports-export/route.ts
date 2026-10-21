@@ -16,12 +16,14 @@ export async function GET(request:Request){
   let label:string;
   if(report==='sales'){
    if(detail)throw new ServiceError('INVALID_EXPORT_KIND',400);
-   const data=await salesReports(sql,actor,company,filters,platform,true);
+   const data=(await salesReports(sql,actor,company,filters,platform,true)) as unknown as {rows:Parameters<typeof salesReportCsv>[0];can_read_commissions:boolean};
+   if(!Array.isArray(data.rows))throw new ServiceError('EXPORT_FAILED',503);
    output=salesReportCsv(data.rows,data.can_read_commissions);
    label='sales';
   }else if(report==='deals'){
    if(!['summary','projects','timeline'].includes(detail||''))throw new ServiceError('INVALID_EXPORT_KIND',400);
-   const data=await dealsInsights(sql,actor,company,filters,platform);
+   const data=(await dealsInsights(sql,actor,company,filters,platform)) as unknown as Parameters<typeof dealsReportCsv>[0];
+   if(!Array.isArray(data.projects)||!Array.isArray(data.trend)||!Array.isArray(data.money))throw new ServiceError('EXPORT_FAILED',503);
    if(data.projects.length>10000||data.trend.length>10000)throw new ServiceError('EXPORT_TOO_LARGE',413);
    output=dealsReportCsv(data,detail as DealsExportKind);
    label='deals-'+detail;
