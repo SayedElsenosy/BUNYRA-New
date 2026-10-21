@@ -4,7 +4,7 @@ export type PackageFeature='crm'|'inventory'|'floorplans'|'buyer_matching'|'adva
 /** Presentational screen filtering only; /api services MUST use requireEntitled.
  * Collections/contracts are core CRM workflow, not the future finance_erp add-on. */
 export const VIEW_ENTITLEMENTS:Partial<Record<string,PackageFeature>>={
- customers:'crm',pipeline:'crm',followups:'crm','sales-teams':'crm',stages:'crm',
+ targets:'crm',customers:'crm',pipeline:'crm',followups:'crm','sales-teams':'crm',stages:'crm',
  inventory:'inventory',import:'inventory',pricing:'inventory',
  plans:'floorplans',buyers:'buyer_matching',
  commissions:'commissions',reports:'advanced_reports','deals-insights':'advanced_reports'

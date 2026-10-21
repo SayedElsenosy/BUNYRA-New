@@ -1,5 +1,5 @@
 import {identity,json,failure,sameOrigin} from '../../../lib/bunyra/http';
-import {workspaceAlerts,readWorkspaceAlert} from '../../../lib/bunyra/workspace-alerts';
+import {workspaceAlerts,readWorkspaceAlert,readAllWorkspaceAlerts} from '../../../lib/bunyra/workspace-alerts';
 export const dynamic='force-dynamic';
 export async function GET(request:Request){
  try{
@@ -13,6 +13,7 @@ export async function POST(request:Request){
  try{
   sameOrigin(request);
   const {sql,actor}=await identity();
-  return json(await readWorkspaceAlert(sql,actor,await request.json(),new URL(request.url).searchParams.get('mode')==='platform'));
+  const input=await request.json(),platform=new URL(request.url).searchParams.get('mode')==='platform';
+  return json(await (input?.operation==='read_all'?readAllWorkspaceAlerts(sql,actor,input,platform):readWorkspaceAlert(sql,actor,input,platform)));
  }catch(error){return failure(error);}
 }

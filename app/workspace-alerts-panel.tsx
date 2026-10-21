@@ -32,7 +32,7 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
   if(!active)return;
   const abort=new AbortController();
   setLoading(true);setError('');
-  const query=new URLSearchParams({company:companyId,bucket:filter,page:String(page),...(asOwner?{mode:'platform'}:{})});
+  const query=new URLSearchParams({company:companyId,order:'recent',bucket:filter,page:String(page),...(asOwner?{mode:'platform'}:{})});
   void fetch('/api/alerts?'+query,{signal:abort.signal,cache:'no-store'})
    .then(async r=>{const j=await r.json();if(!r.ok)throw Error(j.error||'SERVICE_UNAVAILABLE');if(!abort.signal.aborted)setData(j);})
    .catch(e=>{if(!abort.signal.aborted){setData(null);setError(e.message||'SERVICE_UNAVAILABLE');}})
@@ -62,10 +62,12 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
   }catch(e){setError(e instanceof Error?e.message:'SERVICE_UNAVAILABLE');return false;}
   finally{setBusy('');}
  }
- function open(item:Alert){
+ async function open(item:Alert){
+  if(!item.is_read&&!await markRead(item))return;
   const view=['follow_up','lead_assignment'].includes(item.kind)?'customers':item.kind==='installment'?'collections':item.kind==='receipt_confirmation'?'receipts':'bookings';
   navigate({view,record:item.record_id||'',action:'',page:'',bucket:''});
  }
+ async function markAllRead(){if(busy)return;setBusy('all');setError('');try{const r=await fetch('/api/alerts'+(asOwner?'?mode=platform':''),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_id:companyId,operation:'read_all'})});if(!r.ok)throw Error('UNAVAILABLE');window.dispatchEvent(new Event('bunyra:alerts-changed'));}catch{setError('UNAVAILABLE');}finally{setBusy('');}}
  const choose=(value:Filter)=>{setFilter(value);setPage(0);};
  const number=(n:number)=>n.toLocaleString(en?'en-GB':'ar-EG');
  const tabs:[Filter,string,string][]=[
@@ -76,7 +78,7 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
  return <section className="panel workspace-alerts" aria-label={t('مركز التنبيهات','Alerts center')}>
   <div className="panel-heading"><div><div className="eyebrow">BUNYRA · ALERTS</div><h2><Bell size={19} aria-hidden="true"/>{t('مركز تنبيهات العمل','Work alerts center')}</h2>
    <p className="muted">{t('تنبيهات الليدز والمتابعات والمهام حسب دورك ومشروعاتك. تتحول لمقروءة لحسابك فقط، وتظهر مجددًا إذا تغير موعدها أو أولويتها.','Active work alerts scoped to your account and projects. Read status is personal and resets if an alert changes deadline or urgency.')}</p>
-  </div><button className="secondary" disabled={loading} onClick={()=>setRevision(v=>v+1)}><RefreshCw size={16}/>{t('تحديث','Refresh')}</button></div>
+  </div><div className="report-export-actions"><button className="secondary" disabled={!!busy||!data?.unread} onClick={()=>void markAllRead()}><Check size={15}/>{t('قراءة الكل','Mark all read')}</button><button className="secondary" disabled={loading} onClick={()=>setRevision(v=>v+1)}><RefreshCw size={16}/>{t('تحديث','Refresh')}</button></div></div>
   <div className="alerts-metrics" aria-live="polite">
    <div><span>{t('تنبيهات نشطة','Active alerts')}</span><strong>{number(data?.total||0)}</strong></div>
    <div><span>{t('غير مقروءة','Unread')}</span><strong>{number(data?.unread||0)}</strong></div>
@@ -97,7 +99,7 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
     </div>
     <div className="alerts-item-actions">
      {!item.is_read&&<button className="secondary" disabled={!!busy} onClick={()=>void markRead(item)}><Check size={15}/>{busy===item.kind+':'+item.id?t('جارٍ الحفظ…','Saving…'):t('تعليم كمقروء','Mark read')}</button>}
-     <button className="secondary" onClick={()=>open(item)}><ArrowUpLeft size={15}/>{t('فتح المهمة','Open task')}</button>
+     <button className="secondary" disabled={!!busy} onClick={()=>void open(item)}><ArrowUpLeft size={15}/>{t('فتح المهمة','Open task')}</button>
     </div>
    </article>
   )}</div>:<p className="sales-visual-empty">{t('مفيش تنبيهات مطابقة في النطاق ده.','No matching active alerts in this scope.')}</p>}

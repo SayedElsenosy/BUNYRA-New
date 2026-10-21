@@ -1,4 +1,7 @@
 'use client';
+import CrmInsightsPanel from './crm-insights-panel';
+import {reportWindow} from '../lib/bunyra/report-dates';
+import SalesTargetsPanel from './sales-targets-panel';
 import {useEffect,useState} from 'react';
 import {ArrowUpLeft,ArrowRight,BarChart3,BellRing,BriefcaseBusiness,CalendarClock,ChartNoAxesCombined,ClipboardList,FileCheck2,HandCoins,Layers3,RefreshCw,UsersRound,Wallet} from 'lucide-react';
 import {CartesianGrid,Legend,Line,LineChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts';
@@ -101,7 +104,7 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
   {error&&<div className="hub-error" role="alert">{error==='FORBIDDEN'?t('مش مسموح لحسابك بعرض بيانات الشركة الحالية.','You cannot access this company.'):t('تعذر تحميل لوحة التحكم. جرب التحديث.','Could not load dashboard. Please retry.')}</div>}
   {loading?<div role="status" className="loading">{t('جارٍ تحميل مؤشرات شغلك…','Loading your work metrics…')}</div>:data&&<>
   <div className="role-dashboard-kpis">{cards.map(card=><button type="button" key={card.id} className="role-dashboard-kpi" disabled={!can(card.view)} onClick={()=>go(card.view)}><span className="role-dashboard-kpi-top"><card.Icon size={19}/><ArrowUpLeft size={14}/></span><strong>{number(card.value)}</strong><span>{t(card.ar,card.en)}</span></button>)}</div>
-  <div className="role-dashboard-layout">
+  {data.capabilities.crm&&<SalesTargetsPanel companyId={companyId} en={en} asOwner={asOwner} active={active} compact/>}<div className="role-dashboard-layout">
    <div className="role-dashboard-primary">
     <section className="role-dashboard-surface">
      <div className="role-dashboard-section-title"><div><h2><BarChart3 size={19}/>{t('حركة النشاط في آخر 7 أيام','Activity over the last 7 days')}</h2><p>{t('مكالمات مسجلة وطلبات حجز وعقود موقعة ضمن صلاحياتك.','Logged calls, booking requests and signed contracts in your permitted scope.')}</p></div>{can('reports')&&<button type="button" onClick={()=>go('reports')} className="role-dashboard-link">{t('التقارير','Reports')}<ArrowRight size={14}/></button>}</div>
@@ -158,6 +161,6 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
      </div>
     </section>
    </div>
-  </div></>}
+  </div>{can('reports')&&<CrmInsightsPanel companyId={companyId} en={en} asOwner={asOwner} from={reportWindow('month',data.time_zone).from} to={reportWindow('today',data.time_zone).to} active={active} dashboard/>}</>}
  </section>;
 }

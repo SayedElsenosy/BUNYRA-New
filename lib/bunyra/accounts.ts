@@ -3,22 +3,29 @@ import { access,owner,ServiceError,newToken,tokenHash,uuid,type Sql,type Actor }
 import { bindTenant } from './tenant';
 import { passwordSchema,usernameSchema,hashPassword,verifyPassword,DUMMY_HASH } from './passwords';
 import { ROLES,hasPermission } from './permissions';
+import {targetSchema} from './sales-targets';
+import {requireFeature} from './subscriptions';
 export const accountFields=z.object({username:usernameSchema,display_name:z.string().trim().min(2).max(120),email:z.union([z.string().trim().toLowerCase().email().max(254),z.literal('')]).default(''),password:passwordSchema});
-const createSchema=accountFields.extend({company_id:uuid,role:z.enum(ROLES),custom_role_id:uuid.nullable().default(null)});
+const createSchema=accountFields.extend({company_id:uuid,role:z.enum(ROLES),custom_role_id:uuid.nullable().default(null),initial_target:targetSchema.pick({quarter_start:true,currency:true,target_minor:true}).optional()});
 async function manage(sql:Sql,actor:Actor,companyId:string,asOwner:boolean){await access(sql,actor,companyId,'members.manage',asOwner);bindTenant(sql,null);if(!(await sql`SELECT id FROM companies WHERE id=${companyId} AND status='active'`).length)throw new ServiceError('COMPANY_INACTIVE',409);}
 export async function accountSummary(sql:Sql,actor:Actor,companyId:string,asOwner=false){await access(sql,actor,companyId,'company.read',asOwner);const r=await sql`SELECT account_limit,(SELECT count(*)::int FROM memberships WHERE company_id=${companyId} AND active) AS used,
  (SELECT count(*)::int FROM invitations i WHERE i.company_id=${companyId} AND i.status='pending' AND i.expires_at>now()
  AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=i.company_id AND lower(m.email)=lower(i.email) AND m.active)) AS reserved
  FROM companies WHERE id=${companyId}`;return r[0];}
 export async function createAccount(sql:Sql,actor:Actor,input:unknown,asOwner=false){
- const c=createSchema.parse(input);await manage(sql,actor,c.company_id,asOwner);try {
+ const c=createSchema.parse(input);
+ if(c.initial_target){if(!['sales','sales_manager','sales_admin'].includes(c.role))throw new ServiceError('TARGET_REQUIRES_SALES_ACCOUNT');await access(sql,actor,c.company_id,'accounts.manage',asOwner);await requireFeature(sql,c.company_id,'crm',asOwner);}
+ await manage(sql,actor,c.company_id,asOwner);try {
  if(c.custom_role_id&&!(await sql`SELECT id FROM custom_roles WHERE company_id=${c.company_id} AND id=${c.custom_role_id}`).length)throw new ServiceError('INVALID_ROLE');
  const userId=crypto.randomUUID(),hash=await hashPassword(c.password),email=c.email||c.username;
  const r=await sql.transaction([
   sql`SELECT id FROM companies WHERE id=${c.company_id} AND status='active' FOR UPDATE`,
   sql`INSERT INTO memberships(company_id,user_id,email,role,custom_role_id) VALUES(${c.company_id},${userId},${email},${c.role},${c.custom_role_id})`,
   sql`INSERT INTO app_accounts(user_id,company_id,username,display_name,email,password_hash,created_by) VALUES(${userId},${c.company_id},${c.username},${c.display_name},${c.email},${hash},${actor.userId}) RETURNING user_id,username`,
-  sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'account.created',${JSON.stringify({user_id:userId,username:c.username,role:c.role,custom_role_id:c.custom_role_id})}::jsonb)`
+  sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'account.created',${JSON.stringify({user_id:userId,username:c.username,role:c.role,custom_role_id:c.custom_role_id})}::jsonb)`,
+  ...(c.initial_target?[
+   sql`WITH created AS(INSERT INTO quarterly_sales_targets(company_id,user_id,quarter_start,currency,target_minor) VALUES(${c.company_id},${userId},${c.initial_target.quarter_start}::date,${c.initial_target.currency},${c.initial_target.target_minor}::bigint) RETURNING *) INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT ${c.company_id},${actor.userId},${actor.email},'sales_target.saved',to_jsonb(created) FROM created`
+  ]:[])
  ]);return r[2][0];
 } finally { bindTenant(sql,c.company_id,actor.userId); }
 }
