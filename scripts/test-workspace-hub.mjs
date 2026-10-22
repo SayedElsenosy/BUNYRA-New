@@ -116,19 +116,19 @@ export async function runHubTests(raw){
  await check('Accounts receives pending receipts and overdue active installments',async()=>{const d=await get(fm,'tasks');assert.ok(d.items.some(x=>x.kind==='receipt_confirmation'&&x.id===b3.id));assert.ok(d.items.some(x=>x.kind==='installment'&&x.record_id===contract.id));assert.ok(!d.items.some(x=>x.kind==='follow_up'));});
  await check('Personal alert inbox counts only currently visible tasks',async()=>{
   const first=await workspaceAlerts(fresh(),s1,{company});
-  assert.equal(first.total,4);
-  assert.equal(first.unread,4);
-  assert.deepEqual(new Set(first.items.map(a=>a.id)),new Set(followIds));
+  assert.equal(first.total,6); // Four follow-ups plus two fresh-lead alerts.
+  assert.equal(first.unread,6);
+  assert.deepEqual(new Set(first.items.filter(a=>a.kind==='follow_up').map(a=>a.id)),new Set(followIds));
   const other=await workspaceAlerts(fresh(),s2,{company});
   assert.ok(other.items.some(a=>a.id===otherFollow));
   assert.ok(!other.items.some(a=>followIds.includes(a.id)));
   const managerial=await workspaceAlerts(fresh(),manager,{company});
-  assert.equal(managerial.total,4);
+  assert.equal(managerial.total,6);
   assert.ok(!managerial.items.some(a=>a.id===otherFollow));
  });
  await check('Operations and finance see their own authorization-scoped alert kinds',async()=>{
   const o=await workspaceAlerts(fresh(),ops,{company,bucket:'waiting'});
-  assert.equal(o.items.length,1);assert.equal(o.items[0].kind,'booking_approval');assert.equal(o.items[0].id,b2.id);
+  const approvals=o.items.filter(a=>a.kind==='booking_approval');assert.equal(approvals.length,1);assert.equal(approvals[0].id,b2.id);assert.equal(o.items.filter(a=>a.kind==='lead_assignment').length,4);
   const f=await workspaceAlerts(fresh(),fm,{company});
   assert.ok(f.items.some(a=>a.kind==='receipt_confirmation'&&a.id===b3.id));
   assert.ok(f.items.some(a=>a.kind==='installment'));
@@ -139,12 +139,12 @@ export async function runHubTests(raw){
   await readWorkspaceAlert(fresh(),s1,input);
   await readWorkspaceAlert(fresh(),s1,input);
   const own=await workspaceAlerts(fresh(),s1,{company});
-  assert.equal(own.unread,3);
+  assert.equal(own.unread,5);
   assert.equal(own.items.find(a=>a.id===followIds[0]).is_read,true);
   const other=await workspaceAlerts(fresh(),manager,{company});
   assert.ok(other.items.find(a=>a.id===followIds[0]).is_read===false);
   const unread=await workspaceAlerts(fresh(),s1,{company,bucket:'unread'});
-  assert.equal(unread.total,4);assert.equal(unread.filtered_total,3);
+  assert.equal(unread.total,6);assert.equal(unread.filtered_total,5);
   assert.ok(!unread.items.some(a=>a.id===followIds[0]));
   assert.equal((await raw`SELECT count(*)::int n FROM workspace_alert_reads WHERE company_id=${company} AND user_id=${s1.userId} AND source_id=${followIds[0]}`)[0].n,1);
  });
@@ -154,7 +154,7 @@ export async function runHubTests(raw){
   await raw`UPDATE crm_follow_ups SET title=${previous+' updated'} WHERE company_id=${company} AND id=${id}`;
   const next=await workspaceAlerts(fresh(),s1,{company});
   assert.equal(next.items.find(a=>a.id===id).is_read,false);
-  assert.equal(next.unread,4);
+  assert.equal(next.unread,6);
   await raw`UPDATE crm_follow_ups SET title=${previous} WHERE company_id=${company} AND id=${id}`;
  });
  await check('Forged employee, company or unrelated task cannot be marked read',async()=>{

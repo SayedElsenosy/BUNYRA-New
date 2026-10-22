@@ -7,7 +7,7 @@ export default function SalesInsights({data,en}:{data:SalesVisualData;en:boolean
  const t=(ar:string,eng:string)=>en?eng:ar;
  const chart=data.trend.map(row=>({date:row.period,calls:Number(row.calls),bookings:Number(row.bookings),sales:Number(row.sales)}));
  const top=data.representatives.slice(0,10);
- const count=(n:number)=>n.toLocaleString(en?'en-GB':'ar-EG');
+ const count=(n:number)=>n.toLocaleString(en?'en-GB':'ar-EG-u-nu-latn');
  return <div className="sales-visuals">
   <section className="sales-visual-card" aria-label={t('اتجاه نشاط المبيعات','Sales activity trend')}>
    <div className="sales-visual-heading"><div><h3>{t('حركة المبيعات خلال الفترة','Sales activity over time')}</h3><p>{t('المكالمات المسجلة وطلبات الحجز والعقود غير الملغاة، حسب التجميع المختار.','Recorded calls, booking requests and non-cancelled contracts by the selected period.')}</p></div><span className="sales-visual-note">{count(chart.length)} {t('فترة لها نشاط','active periods')}</span></div>

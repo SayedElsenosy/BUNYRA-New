@@ -28,7 +28,7 @@ export async function customerJourney(sql:Sql,actor:Actor,input:unknown,platform
  AND ($3::text[] IS NULL OR l.owner_user_id=ANY($3::text[])) AND (l.project_id IS NULL OR l.project_id=ANY($4::uuid[]))
  ), interactions AS (
  SELECT i.* FROM crm_interactions i WHERE i.company_id=$1 AND i.customer_id=$2
- AND (i.lead_id IN(SELECT id FROM leads) OR (i.lead_id IS NULL AND ($3::text[] IS NULL OR i.created_by=ANY($3::text[]))))
+ AND (i.lead_id IN(SELECT id FROM leads) OR (i.lead_id IS NULL AND ($3::text[] IS NULL OR i.created_by=ANY($3::text[]) OR EXISTS(SELECT 1 FROM leads l JOIN crm_lead_transfers h ON h.company_id=l.company_id AND h.lead_id=l.id AND h.to_user_id=l.owner_user_id))))
  ), followups AS (
  SELECT f.* FROM crm_follow_ups f WHERE f.company_id=$1 AND f.customer_id=$2 AND ($3::text[] IS NULL OR f.assigned_to=ANY($3::text[]))
  AND (f.lead_id IS NULL OR f.lead_id IN(SELECT id FROM leads))

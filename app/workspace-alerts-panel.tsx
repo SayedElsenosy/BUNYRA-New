@@ -1,4 +1,5 @@
 'use client';
+import {timeZoneLabel} from '../lib/bunyra/ui-labels';
 import {useEffect,useState} from 'react';
 import {Bell,Check,RefreshCw,ArrowUpLeft,CalendarClock} from 'lucide-react';
 import {useWorkspaceLocation} from './workspace-location';
@@ -69,15 +70,15 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
  }
  async function markAllRead(){if(busy)return;setBusy('all');setError('');try{const r=await fetch('/api/alerts'+(asOwner?'?mode=platform':''),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_id:companyId,operation:'read_all'})});if(!r.ok)throw Error('UNAVAILABLE');window.dispatchEvent(new Event('bunyra:alerts-changed'));}catch{setError('UNAVAILABLE');}finally{setBusy('');}}
  const choose=(value:Filter)=>{setFilter(value);setPage(0);};
- const number=(n:number)=>n.toLocaleString(en?'en-GB':'ar-EG');
+ const number=(n:number)=>n.toLocaleString(en?'en-GB':'ar-EG-u-nu-latn');
  const tabs:[Filter,string,string][]=[
   ['all','كل التنبيهات','All'],['unread','غير المقروءة','Unread'],
   ['overdue','المتأخرة','Overdue'],['today','اليوم','Today'],
   ['waiting','تنتظر إجراء','Waiting'],['tomorrow','غدًا','Tomorrow']
  ];
  return <section className="panel workspace-alerts" aria-label={t('مركز التنبيهات','Alerts center')}>
-  <div className="panel-heading"><div><div className="eyebrow">BUNYRA · ALERTS</div><h2><Bell size={19} aria-hidden="true"/>{t('مركز تنبيهات العمل','Work alerts center')}</h2>
-   <p className="muted">{t('تنبيهات الليدز والمتابعات والمهام حسب دورك ومشروعاتك. تتحول لمقروءة لحسابك فقط، وتظهر مجددًا إذا تغير موعدها أو أولويتها.','Active work alerts scoped to your account and projects. Read status is personal and resets if an alert changes deadline or urgency.')}</p>
+  <div className="panel-heading"><div><div className="eyebrow">{en?'BUNYRA · ALERTS':'الإشعارات'}</div><h2><Bell size={19} aria-hidden="true"/>{t('مركز تنبيهات العمل','Work alerts center')}</h2>
+   <p className="muted">{t('تنبيهات العملاء المحتملون والمتابعات والمهام حسب دورك ومشروعاتك. تتحول لمقروءة لحسابك فقط، وتظهر مجددًا إذا تغير موعدها أو أولويتها.','Active work alerts scoped to your account and projects. Read status is personal and resets if an alert changes deadline or urgency.')}</p>
   </div><div className="report-export-actions"><button className="secondary" disabled={!!busy||!data?.unread} onClick={()=>void markAllRead()}><Check size={15}/>{t('قراءة الكل','Mark all read')}</button><button className="secondary" disabled={loading} onClick={()=>setRevision(v=>v+1)}><RefreshCw size={16}/>{t('تحديث','Refresh')}</button></div></div>
   <div className="alerts-metrics" aria-live="polite">
    <div><span>{t('تنبيهات نشطة','Active alerts')}</span><strong>{number(data?.total||0)}</strong></div>
@@ -95,7 +96,7 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
     <span className={'hub-dot '+item.bucket} aria-hidden="true"/>
     <div className="alerts-item-content"><div className="alerts-item-top"><strong>{t(...labels[item.kind])}</strong><span className={'hub-bucket '+item.bucket}>{t(...stateNames[item.bucket])}</span></div>
      <p>{item.title||item.context}</p>{item.title&&item.context&&<small>{item.context}</small>}
-     <small>{item.due_at?<><CalendarClock size={13} aria-hidden="true"/> {new Intl.DateTimeFormat(en?'en-GB':'ar-EG',{timeZone:data.time_zone,dateStyle:'medium',timeStyle:'short'}).format(new Date(item.due_at))}</>:t('بانتظار إجراء بدون موعد محدد','Awaiting action, no due time')}</small>
+     <small>{item.due_at?<><CalendarClock size={13} aria-hidden="true"/> {new Intl.DateTimeFormat(en?'en-GB':'ar-EG-u-nu-latn',{timeZone:data.time_zone,dateStyle:'medium',timeStyle:'short'}).format(new Date(item.due_at))}</>:t('بانتظار إجراء بدون موعد محدد','Awaiting action, no due time')}</small>
     </div>
     <div className="alerts-item-actions">
      {!item.is_read&&<button className="secondary" disabled={!!busy} onClick={()=>void markRead(item)}><Check size={15}/>{busy===item.kind+':'+item.id?t('جارٍ الحفظ…','Saving…'):t('تعليم كمقروء','Mark read')}</button>}
@@ -104,7 +105,7 @@ export default function WorkspaceAlertsPanel({companyId,en=false,asOwner=false,a
    </article>
   )}</div>:<p className="sales-visual-empty">{t('مفيش تنبيهات مطابقة في النطاق ده.','No matching active alerts in this scope.')}</p>}
    {data.filtered_total>20&&<div className="hub-pagination"><button className="secondary" disabled={page===0} onClick={()=>setPage(p=>p-1)}>{t('السابق','Previous')}</button><span>{number(page+1)} / {number(Math.max(1,Math.ceil(data.filtered_total/20)))}</span><button className="secondary" disabled={(page+1)*20>=data.filtered_total} onClick={()=>setPage(p=>p+1)}>{t('التالي','Next')}</button></div>}
-   <p className="sales-visual-footnote">{t('يظهر هنا العمل المفتوح فقط؛ التنبيه يختفي بعد إنهاء المهمة أو إلغاء الحجز، من غير حذف سجل العمليات. هذه إشعارات داخل النظام وليست رسائل بريد أو واتساب أو Push.','Only outstanding tasks appear here; handled work leaves this active view while audit records remain. These are in-app alerts, not email, WhatsApp or push delivery.')} · {data.time_zone}</p>
+   <p className="sales-visual-footnote">{t('يظهر هنا العمل المفتوح فقط؛ التنبيه يختفي بعد إنهاء المهمة أو إلغاء الحجز، من غير حذف سجل العمليات. هذه إشعارات داخل النظام وليست رسائل بريد أو واتساب أو إشعارات فورية.','Only outstanding tasks appear here; handled work leaves this active view while audit records remain. These are in-app alerts, not email, WhatsApp or push delivery.')} · {timeZoneLabel(data.time_zone,en)}</p>
   </>}
  </section>;
 }

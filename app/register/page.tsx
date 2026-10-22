@@ -39,7 +39,7 @@ export default function Register() {
   return (
     <main className="public-page">
       <div className="top-actions public-actions">
-        <button className="icon-button" aria-label={t('تغيير اللغة', 'Change language')} onClick={() => setEn(!en)}><Globe size={18} /><span>{en ? 'ع' : 'EN'}</span></button>
+        <button className="icon-button" aria-label={t('تغيير اللغة', 'Change language')} onClick={() => setEn(!en)}><Globe size={18} /><span>{en ? 'Arabic' : 'الإنجليزية'}</span></button>
         <button className="icon-button" aria-label={t('تغيير المظهر', 'Change theme')} onClick={() => setDark(!dark)}>{dark ? <Sun size={19} /> : <Moon size={19} />}</button>
       </div>
       <section className="panel public-form modal">
