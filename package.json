@@ -46,7 +46,8 @@
     "test:lead-actions": "node scripts/prepare-identity-tests.mjs && node scripts/run-lead-actions-tests.mjs",
     "test:crm-experience": "node scripts/prepare-identity-tests.mjs && node scripts/run-crm-experience-tests.mjs",
     "test:assignment-history": "node scripts/prepare-identity-tests.mjs && node scripts/run-assignment-history-tests.mjs",
-    "test:tenant-client": "node scripts/test-tenant-client.mjs"
+    "test:tenant-client": "node scripts/test-tenant-client.mjs",
+    "test:record-scopes": "node scripts/test-record-scopes.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

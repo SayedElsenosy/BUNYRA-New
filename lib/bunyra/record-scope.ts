@@ -12,8 +12,11 @@ export async function salesScope(sql:Sql,actor:Actor,company:string,ctx:AccessCo
 }
 export async function bookingScope(sql:Sql,actor:Actor,company:string,action:Action,platform=false){
  const ctx=await access(sql,actor,company,action,platform),users=await salesScope(sql,actor,company,ctx);
- const records=await sql`SELECT id,project_id,sales_user_id,status FROM bookings WHERE company_id=${company}`;
- const ids=records.filter(b=>projectAllowed(ctx,action,b.project_id)&&(!users||users.includes(b.sales_user_id))).map(b=>b.id as string);
+ // Filter by authorized projects and seller inside SQL before materializing IDs.
+ const projects=await sql`SELECT id FROM projects WHERE company_id=${company}`;
+ const allowedProjects=projects.filter(p=>projectAllowed(ctx,action,p.id)).map(p=>p.id as string);
+ const records=allowedProjects.length?await sql`SELECT id FROM bookings WHERE company_id=${company} AND project_id=ANY(${allowedProjects}::uuid[]) AND (${users}::text[] IS NULL OR sales_user_id=ANY(${users}::text[]))`:[];
+ const ids=records.map(r=>r.id as string);
  return {ctx,ids};
 }
 export async function requireBooking(sql:Sql,actor:Actor,company:string,id:string,action:Action,platform=false){
