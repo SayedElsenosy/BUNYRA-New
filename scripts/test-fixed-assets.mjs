@@ -17,6 +17,6 @@ test('concurrent duplicate monthly journal is idempotent and sequential',()=>{
 });
 test('asset API role checks and forced RLS guard company and entity',()=>{
  const s=fs.readFileSync('db/044-fixed-asset-depreciation.sql','utf8');
- for(const clause of ['bunyra_tenant_company()','company_admin','finance_manager','FORCE ROW LEVEL SECURITY','FOREIGN KEY(company_id,entity_id,ledger_entry_id)','assetdepr:'])assert.ok(s.includes(clause),clause);
+ for(const clause of ['bunyra_tenant_company()','company_admin','finance_manager','FORCE ROW LEVEL SECURITY','FOREIGN KEY(company_id,entity_id,ledger_entry_id)','assetdep:'])assert.ok(s.includes(clause),clause);
 });
 console.log(JSON.stringify({passed:checks.length,checks}));
