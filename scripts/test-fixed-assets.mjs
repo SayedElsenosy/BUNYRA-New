@@ -19,4 +19,8 @@ test('asset API role checks and forced RLS guard company and entity',()=>{
  const s=fs.readFileSync('db/044-fixed-asset-depreciation.sql','utf8');
  for(const clause of ['bunyra_tenant_company()','company_admin','finance_manager','FORCE ROW LEVEL SECURITY','FOREIGN KEY(company_id,entity_id,ledger_entry_id)','assetdep:'])assert.ok(s.includes(clause),clause);
 });
+test('future depreciation cannot create a posted journal',()=>{
+ const s=fs.readFileSync('db/045-asset-future-period-guard.sql','utf8');
+ for(const phrase of ['BEFORE INSERT ON ledger_entries','ASSET_FUTURE_PERIOD',"AT TIME ZONE 'Africa/Cairo'",'depreciation_%'])assert.ok(s.includes(phrase),phrase);
+});
 console.log(JSON.stringify({passed:checks.length,checks}));
