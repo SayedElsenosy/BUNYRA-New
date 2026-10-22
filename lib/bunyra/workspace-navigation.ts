@@ -2,15 +2,15 @@ import {hasPermission,type Action,type Role,type PermissionOverride} from './per
 // Screen visibility is derived from effective server permissions. APIs remain authoritative.
 export const VIEW_RULES = {
  targets:{all:['company.read'],any:['accounts.manage']},home:{all:['company.read']},work:{all:['company.read']},search:{all:['company.read']},alerts:{all:['company.read']},
- projects:{all:['projects.read']}, inventory:{all:['projects.read','inventory.read'],project:true},
+ projects:{all:['projects.read'],project:true}, inventory:{all:['projects.read','inventory.read'],project:true},
  pricing:{all:['projects.read','inventory.read','pricing.read'],project:true},
  import:{all:['projects.read','inventory.read','inventory.write'],project:true},
  plans:{all:['projects.read','inventory.read'],project:true},
  offers:{all:['leads.read','projects.read','inventory.read','pricing.read'],project:true},customers:{all:['leads.read']},pipeline:{all:['leads.read']},followups:{all:['leads.read']},
- 'sales-teams':{all:['leads.read']},reports:{all:['reports.read']},'pipeline-reports':{all:['leads.read']},buyers:{all:['leads.read']},
- bookings:{all:['bookings.read']},contracts:{all:['bookings.read','finance.read']},
- collections:{all:['bookings.read','finance.read']},receipts:{all:['bookings.read','finance.read']},adjustments:{all:['bookings.read','finance.read']},
- 'deals-insights':{all:['reports.read','finance.read'],project:true},commissions:{all:['commissions.read']},structure:{all:['company.read'],any:['company.write','members.manage','accounts.manage']},placements:{all:['company.read','members.manage']},
+ 'sales-teams':{all:['leads.read']},reports:{all:['reports.read'],project:true},'pipeline-reports':{all:['leads.read']},buyers:{all:['leads.read']},
+ bookings:{all:['bookings.read'],project:true},contracts:{all:['bookings.read','finance.read'],project:true},
+ collections:{all:['bookings.read','finance.read'],project:true},receipts:{all:['bookings.read','finance.read'],project:true},adjustments:{all:['bookings.read','finance.read'],project:true},
+ 'deals-insights':{all:['reports.read','finance.read'],project:true},commissions:{all:['commissions.read'],project:true},structure:{all:['company.read'],any:['company.write','members.manage','accounts.manage']},placements:{all:['company.read','members.manage']},
  team:{all:['company.read'],any:['accounts.manage','members.manage']},roles:{all:['company.read','roles.manage']},
  permissions:{all:['company.read','roles.manage']},settings:{all:['company.write']},stages:{all:['leads.read','leads.write'],roles:['company_admin','operations','sales_manager','sales_admin']}
 } satisfies Record<string,{all:Action[];any?:Action[];project?:boolean;roles?:Role[]}>;

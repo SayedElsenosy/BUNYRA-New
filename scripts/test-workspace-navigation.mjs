@@ -44,4 +44,27 @@ test('Finance project deny hides deals insights when all projects denied',()=>{
 });
 test('Finance-only and CRM-only roles cannot open saved offers',()=>{assert.ok(!finance.includes('offers'));assert.ok(!allowedCompanyViews(ctx('sales',{'leads.read':true})).includes('offers'));});
 test('Project price denials hide saved offers when all projects are denied',()=>{const v=allowedCompanyViews(ctx('sales',null,[{action:'pricing.read',project_id:'p1',allowed:false}]),['p1']);assert.ok(!v.includes('offers'));});
+test('accountants cannot inherit all financial projects by default',()=>{
+ const a=allowedCompanyViews(ctx('accountant'),['p1','p2']);
+ assert.ok(['projects','reports','bookings','contracts','collections','receipts','adjustments','commissions','deals-insights'].every(x=>!a.includes(x)));
+});
+test('an explicit project grant enables only granted financial screens',()=>{
+ const o=['projects.read','bookings.read','finance.read','finance.write','commissions.read','commissions.pay','reports.read'].filter(x=>x!=='commissions.read'&&x!=='commissions.pay').map(action=>({action,project_id:'p1',allowed:true}));
+ const a=allowedCompanyViews(ctx('accountant',null,o),['p1','p2']);
+ assert.ok(['projects','reports','bookings','contracts','collections','receipts','adjustments'].every(x=>a.includes(x)));
+ assert.ok(!a.includes('commissions'));
+});
+test('explicit company denial wins over accountant project grant',()=>{
+ const o=[{action:'finance.read',project_id:'p1',allowed:true},{action:'finance.read',project_id:null,allowed:false}];
+ const a=allowedCompanyViews(ctx('accountant',null,o),['p1']);
+ assert.ok(!a.includes('collections'));
+});
+test('a custom accountant role needs its own project and action grants',()=>{
+ const o=[{action:'finance.read',project_id:'p1',allowed:true},{action:'bookings.read',project_id:'p1',allowed:true}];
+ assert.ok(!allowedCompanyViews(ctx('accountant',{},o),['p1']).includes('collections'));
+});
+test('finance managers continue to see all permitted project screens',()=>{
+ const a=allowedCompanyViews(ctx('finance_manager'),['p1','p2']);
+ assert.ok(['bookings','contracts','collections','receipts','adjustments','commissions'].every(x=>a.includes(x)));
+});
 console.log(JSON.stringify({passed:results.length,results},null,2));

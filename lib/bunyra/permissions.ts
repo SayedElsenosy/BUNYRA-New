@@ -12,10 +12,17 @@ const grants: Record<Role,readonly Action[]> = {
  accountant:['commissions.read','commissions.pay','reports.read','company.read','projects.read','finance.read','finance.write','bookings.read'],
 };
 export type PermissionOverride={action:string;project_id:string|null;allowed:boolean};
+// A company-level permission gives an accountant access to the module, not every project.
+const ACCOUNTANT_SCOPED_ACTIONS: ReadonlySet<Action> = new Set(['projects.read','bookings.read','finance.read','finance.write','commissions.read','commissions.pay','reports.read']);
 export function hasPermission(role:Role, custom:Record<string,boolean>|null, overrides:PermissionOverride[], action:Action, projectId?:string){
  const project=projectId?overrides.find(p=>p.action===action&&p.project_id===projectId):undefined;
- if(project)return project.allowed;
  const company=overrides.find(p=>p.action===action&&p.project_id===null);
+ if(role==='accountant'&&projectId&&ACCOUNTANT_SCOPED_ACTIONS.has(action)){
+  if(company?.allowed===false)return false;
+  const baseline=company?.allowed===true||(custom!==null?custom[action]===true:grants[role]?.includes(action)===true);
+  return baseline&&project?.allowed===true;
+ }
+ if(project)return project.allowed;
  if(company)return company.allowed;
  return custom!==null?custom[action]===true:grants[role]?.includes(action)===true;
 }
