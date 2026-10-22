@@ -14,6 +14,12 @@ const actor={userId:'identity-test-platform-owner',email:'platform-test@example.
 const company=crypto.randomUUID(),part=company.slice(0,8);
 const checks=[],check=async(name,fn)=>{await fn();checks.push(name);console.log('PASS '+name)};
 const deny=(fn,code)=>assert.rejects(fn,e=>e.code===code||e.message===code);
+await check('statement import guard can lock without granting tenant statement updates',async()=>{
+ const [privileges]=await raw`SELECT has_table_privilege('bunyra_tenant','treasury_bank_statements','UPDATE') AS can_update,
+  p.prosecdef AS protected_guard FROM pg_proc p WHERE p.oid='bunyra_bank_line_open()'::regprocedure`;
+ assert.equal(privileges.can_update,false);
+ assert.equal(privileges.protected_guard,true);
+});
 await raw`INSERT INTO companies(id,name) VALUES(${company},${'Treasury Tests '+part})`;
 const entity=(await raw`SELECT id FROM ledger_entities WHERE company_id=${company} AND is_default`)[0].id;
 let account,journal,entry,stmt,bankLine;

@@ -141,6 +141,15 @@ export async function purgeCompany(sql: Sql, actor: Actor, input: unknown, stora
   if (company.status !== 'deleted' || company.purged_at) throw new ServiceError('NOT_SCHEDULED', 409);
   if (new Date(company.purge_after) > new Date()) throw new ServiceError('RETENTION_ACTIVE', 409);
   if (c.confirm !== company.name) throw new ServiceError('CONFIRMATION_MISMATCH');
+  // Accounting documents retain immutable source dimensions. Keep the company
+  // archived instead of partially purging its customers/projects or stored files.
+  const [history] = await sql`SELECT
+    EXISTS(SELECT 1 FROM ledger_entries WHERE company_id=${c.id})
+    OR EXISTS(SELECT 1 FROM finance_vendor_bills WHERE company_id=${c.id})
+    OR EXISTS(SELECT 1 FROM treasury_bank_statements WHERE company_id=${c.id})
+    OR EXISTS(SELECT 1 FROM finance_fixed_assets WHERE company_id=${c.id})
+    OR EXISTS(SELECT 1 FROM finance_project_budgets WHERE company_id=${c.id}) AS retained`;
+  if (history.retained) throw new ServiceError('COMPANY_HAS_ACCOUNTING_HISTORY', 409);
   const keys = (await sql`SELECT object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL UNION SELECT object_key FROM booking_documents WHERE company_id=${c.id} UNION SELECT object_key FROM sales_offers WHERE company_id=${c.id}`).map(r => r.object_key as string);
   if (keys.length && !storage) throw new ServiceError('STORAGE_NOT_CONFIGURED', 503);
   const { counts } = await deletionImpact(sql, actor, c.id);
@@ -150,6 +159,9 @@ export async function purgeCompany(sql: Sql, actor: Actor, input: unknown, stora
     sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version + 1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
     sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM booking_documents WHERE company_id=${c.id} AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version+1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
     sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM sales_offers WHERE company_id=${c.id} AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version+1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
+    // Unposted captured events precede contracts/customers in child-first order.
+    sql.query(`DELETE FROM finance_events WHERE company_id=$1 AND status<>'posted' AND ${purged}`, [c.id]),
+    sql.query(`DELETE FROM ledger_cost_centers WHERE company_id=$1 AND ${purged}`, [c.id]),
     ...PURGE.map(t => sql.query(`DELETE FROM ${t} WHERE company_id=$1 AND ${purged}`, [c.id])),
     sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT ${c.id},${actor.userId},${actor.email},'company.purged',${JSON.stringify({ deleted: counts, files: keys.length })}::jsonb WHERE EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version + 1})`,
   ]);

@@ -12,7 +12,7 @@ export async function runCommissionTests(raw){
  delete process.env.BUNYRA_NOTIFICATION_WEBHOOK_URL;
  assert.equal((await raw`SELECT user_id FROM platform_owner`)[0].user_id,'identity-test-platform-owner','DEV ONLY');
  const checks=[],check=async(name,fn)=>{await fn();checks.push({name,passed:true});console.log('PASS '+name)},deny=(fn,code='FORBIDDEN')=>assert.rejects(fn,e=>e.code===code||e.message===code),fresh=()=>tenantSql(raw);
- const company=crypto.randomUUID(),project=crypto.randomUUID(),other=crypto.randomUUID(),otherProject=crypto.randomUUID(),u1=crypto.randomUUID(),u2=crypto.randomUUID(),tag=company.slice(0,8),today=new Date().toISOString().slice(0,10);
+ const company=crypto.randomUUID(),project=crypto.randomUUID(),other=crypto.randomUUID(),otherProject=crypto.randomUUID(),u1=crypto.randomUUID(),u2=crypto.randomUUID(),tag=company.slice(0,8),today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo'}).format(new Date());
  const actor=r=>({userId:'commission-'+tag+'-'+r,email:r+'-'+tag+'@example.com'}),admin=actor('admin'),ops=actor('ops'),s1=actor('sales1'),s2=actor('sales2'),fm=actor('finance'),manager=actor('manager');
  await raw.transaction([
  raw`INSERT INTO companies(id,name,account_limit) VALUES(${company},${'Commission QA '+tag},10),(${other},'Foreign commission fixture',10)`,

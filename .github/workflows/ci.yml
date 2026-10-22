@@ -27,6 +27,8 @@ jobs:
       - run: npm run test:supplier-payments
       - run: npm run test:fixed-assets
       - run: node --check scripts/run-fixed-assets-integration-tests.mjs
+      - run: node --check scripts/run-supplier-payments-integration-tests.mjs
+      - run: node --check scripts/run-project-budgets-integration-tests.mjs
       - run: npm run test:tenant-client
       - run: npm run test:record-scopes
       - run: npm run test:navigation

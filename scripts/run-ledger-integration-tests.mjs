@@ -92,4 +92,17 @@ await check('period locks prohibit backdated journal drafts',async()=>{
  assert.equal(lock.status,'locked');
  await deny(()=>ledger.ledgerCreateDraft(fresh(),actor,{...balanced,idempotency_key:'locked-period-'+suffix},true),'LEDGER_PERIOD_LOCKED');
 });
+await check('company purge preserves accounting records and never starts file cleanup',async()=>{
+ const lifecycle=await import('../.sites-runtime/tests/companies.mjs');
+ const company=(await raw`SELECT name,version FROM companies WHERE id=${testCompany}`)[0];
+ const scheduled=await lifecycle.scheduleCompanyDeletion(fresh(),actor,{id:testCompany,version:company.version,confirm:company.name});
+ await raw`UPDATE companies SET purge_after=now()-interval '1 minute' WHERE id=${testCompany}`;
+ const before=(await raw`SELECT count(*)::int n FROM ledger_entries WHERE company_id=${testCompany}`)[0].n;
+ let cleanup=0;
+ await deny(()=>lifecycle.purgeCompany(fresh(),actor,{id:testCompany,version:scheduled.company.version,confirm:company.name},
+  {remove:async()=>{cleanup++;}}),'COMPANY_HAS_ACCOUNTING_HISTORY');
+ assert.equal(cleanup,0);
+ assert.equal((await raw`SELECT count(*)::int n FROM ledger_entries WHERE company_id=${testCompany}`)[0].n,before);
+ assert.equal((await raw`SELECT purged_at FROM companies WHERE id=${testCompany}`)[0].purged_at,null);
+});
 console.log(JSON.stringify({passed:checks.length,checks,fixture_company:testCompany},null,2));
