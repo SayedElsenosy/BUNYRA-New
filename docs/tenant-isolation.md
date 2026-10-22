@@ -28,3 +28,9 @@ keep the server role and stay explicitly filtered in code.
 suspended companies, owner scope, append-only audit, and that every table with `company_id` has forced RLS and a tenant
 policy (new tables without RLS fail this test). Existing suites now call services through `tenantSql()` like the API.
 Run against a dedicated test database only (`BUNYRA_TEST_DATABASE_URL`, `BUNYRA_ALLOW_TEST_FIXTURES=1`).
+
+## Foundation batch A: HTTP client guard (2026-10-22)
+
+The request-scoped `tenantSql()` now explicitly rejects `unsafe()` calls instead of delegating them to the raw Neon client. Raw calls otherwise skip the wrapper's local tenant role and identity context. Normal tagged queries, parameterized text queries, and transactions are unchanged.
+
+`npm run test:tenant-client` provides database-free coverage in GitHub CI. It does not replace dedicated Neon branch integration tests or penetration testing.

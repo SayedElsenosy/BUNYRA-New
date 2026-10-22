@@ -35,7 +35,8 @@ export function tenantSql(base: Sql): Sql {
   const unwrap = (q: unknown) => ((q as Record<symbol, Query>)[RAW] ?? q) as Query;
   Object.assign(wrapped, {
     query: (text: string, params?: unknown[]) => lazy(base.query(text, params)),
-    unsafe: base.unsafe,
+    // Do not leak the raw Neon client: its queries bypass the tenant RLS role.
+    unsafe: () => { throw new Error('TENANT_UNSAFE_QUERY_BLOCKED'); },
     transaction: (queries: unknown, opts?: Parameters<Sql['transaction']>[1]) => {
       const list = (typeof queries === 'function' ? queries(wrapped) : queries) as unknown[];
       const raw = list.map(unwrap);

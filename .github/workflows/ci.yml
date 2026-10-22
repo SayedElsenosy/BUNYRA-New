@@ -17,6 +17,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: npm run test:tenant-client
       - run: npm run test:navigation
       - run: npm run test:report-dates
       - run: npm run test:report-csv
