@@ -60,7 +60,9 @@
     "test:fixed-assets": "node scripts/test-fixed-assets.mjs",
     "test:fixed-assets-integration": "node scripts/run-fixed-assets-integration-tests.mjs",
     "test:project-budgets": "node scripts/test-project-budgets.mjs",
-    "test:supplier-payments": "node scripts/test-supplier-payments.mjs"
+    "test:supplier-payments": "node scripts/test-supplier-payments.mjs",
+    "test:supplier-payments-integration": "node scripts/run-supplier-payments-integration-tests.mjs",
+    "test:project-budgets-integration": "node scripts/run-project-budgets-integration-tests.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

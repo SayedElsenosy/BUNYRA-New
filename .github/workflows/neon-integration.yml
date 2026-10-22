@@ -30,6 +30,10 @@ jobs:
         run: npm run -s test:payables-integration
       - name: Fixed asset depreciation, close controls and tenant isolation
         run: npm run -s test:fixed-assets-integration
+      - name: Supplier partial payments, supplier balances and rollback
+        run: npm run -s test:supplier-payments-integration
+      - name: Budget approval, immutable revisions and rollback
+        run: npm run -s test:project-budgets-integration
       - name: General ledger double-entry, immutability and RLS
         run: npm run -s test:ledger-integration
       - name: Database row-level tenant isolation
