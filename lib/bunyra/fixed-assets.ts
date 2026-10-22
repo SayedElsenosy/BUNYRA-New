@@ -31,7 +31,7 @@ export async function fixedAssetsOverview(sql:Sql,actor:Actor,company:string,pla
 export async function createFixedAsset(sql:Sql,actor:Actor,input:unknown,platform=false){
  const a=registry.parse(input);await manage(sql,actor,a.company_id,'finance.write',platform);
  const cost=BigInt(a.cost_minor),residual=BigInt(a.residual_minor);
- if(cost<=0n||cost-residual<BigInt(a.useful_life_months)||a.acquisition_date>a.service_date)
+ if(cost<=BigInt(0)||cost-residual<BigInt(a.useful_life_months)||a.acquisition_date>a.service_date)
   throw new ServiceError('ASSET_INVALID_COST_OR_DATES',422);
  const valid=(await sql`SELECT
   EXISTS(SELECT 1 FROM ledger_accounts WHERE company_id=${a.company_id} AND entity_id=${a.entity_id} AND id=${a.asset_account_id} AND kind='asset' AND active AND allow_posting) AS asset_ok,

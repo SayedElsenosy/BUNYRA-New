@@ -280,7 +280,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
     {key:'name',ar:'الأصل',english:'Asset'},
     {key:'cost_minor',ar:'التكلفة',english:'Cost',fmt:r=>showMoney(r.cost_minor,en)},
     {key:'accumulated_depreciation_minor',ar:'مجمع الإهلاك',english:'Accumulated',fmt:r=>showMoney(r.accumulated_depreciation_minor,en)},
-    {key:'cost_minor',ar:'القيمة الدفترية',english:'Book value',fmt:r=>showMoney((BigInt(r.cost_minor)-BigInt(r.accumulated_depreciation_minor)).toString(),en)},
+    {key:'book_value_minor',ar:'القيمة الدفترية',english:'Book value',fmt:r=>showMoney((BigInt(r.cost_minor)-BigInt(r.accumulated_depreciation_minor)).toString(),en)},
     {key:'posted_months',ar:'الأشهر المرحّلة',english:'Months posted',fmt:r=>String(r.posted_months)+' / '+String(r.useful_life_months)},
     {key:'id',ar:'القيد التالي',english:'Next posting',fmt:r=>{
      const next=nextAssetMonth(r.service_date,Number(r.posted_months));
