@@ -9,6 +9,12 @@ async function managerAccess(sql:Sql,actor:Actor,company:string,action:'finance.
  if(!ctx.owner&&!['company_admin','finance_manager'].includes(ctx.role))throw new ServiceError('FORBIDDEN',403);
 }
 const base=z.object({company_id:uuid,entity_id:uuid});
+const templateSchema=base.extend({language:z.enum(['ar','en'])}).strict();
+export async function initializeAccounting(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=templateSchema.parse(input);await managerAccess(sql,actor,c.company_id,'finance.approve',platform);
+ const [row]=await sql`SELECT bunyra_initialize_accounting(${c.company_id}::uuid,${c.entity_id}::uuid,${c.language}) AS result`;
+ return {setup:row.result};
+}
 const accountSchema=base.extend({
  code:z.string().trim().min(2).max(30),name:z.string().trim().min(2).max(160),
  kind:z.enum(['asset','liability','equity','income','expense']),
@@ -41,7 +47,9 @@ export async function ledgerOverview(sql:Sql,actor:Actor,company:string,platform
  await managerAccess(sql,actor,company,'finance.read',platform);
  const [entities,accounts,journals,centers,entries,projects]=await Promise.all([
   sql`SELECT id,code,name,is_default,active FROM ledger_entities WHERE company_id=${company} ORDER BY is_default DESC,code`,
-  sql`SELECT id,entity_id,code,name,kind,role,reconcilable,active FROM ledger_accounts WHERE company_id=${company} ORDER BY code LIMIT 1500`,
+  sql`SELECT a.id,a.entity_id,a.code,a.name,a.kind,a.role,a.reconcilable,a.active,
+    COALESCE((SELECT p.currency_code FROM company_payment_accounts p WHERE p.company_id=a.company_id AND p.account_id=a.id),'EGP') AS currency_code
+    FROM ledger_accounts a WHERE a.company_id=${company} ORDER BY a.code LIMIT 1500`,
   sql`SELECT id,entity_id,code,name,kind,active FROM ledger_journals WHERE company_id=${company} ORDER BY code LIMIT 500`,
   sql`SELECT id,entity_id,project_id,code,name,active FROM ledger_cost_centers WHERE company_id=${company} ORDER BY code LIMIT 1000`,
   sql`SELECT id,entity_id,journal_id,entry_date,reference,description,state,source_type,source_id,posted_at FROM ledger_entries WHERE company_id=${company} ORDER BY entry_date DESC,created_at DESC LIMIT 100`,

@@ -36,6 +36,10 @@ jobs:
         run: npm run -s test:project-budgets-integration
       - name: General ledger double-entry, immutability and RLS
         run: npm run -s test:ledger-integration
+      - name: Accounting setup, immediate posting, retry queue and concurrent processors
+        run: npm run -s test:finance-outbox-integration
+      - name: Per-receipt bank choice, foreign currency snapshots and native bank reconciliation
+        run: npm run -s test:payment-accounts-integration
       - name: Database row-level tenant isolation
         run: npm run -s test:tenancy
       - name: Receipts, adjustments and finance

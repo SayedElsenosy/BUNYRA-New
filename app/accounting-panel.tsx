@@ -19,14 +19,23 @@ const accountingLabels:Record<string,[string,string]>={
  booking_cancelled:['إلغاء الحجز','Booking cancelled'],contract_signed:['توقيع العقد','Contract signed'],
  collection_confirmed:['تأكيد التحصيل','Collection confirmed'],booking_receipt_allocated:['تخصيص عربون الحجز','Booking receipt allocated'],
  adjustment_refund_executed:['تنفيذ رد مبلغ','Refund executed'],adjustment_reversal_executed:['تنفيذ عكس تحصيل','Receipt reversal executed'],
- adjustment_settlement_executed:['تنفيذ تسوية','Settlement executed']
+ adjustment_settlement_executed:['تنفيذ تسوية','Settlement executed'],failed:['تعذرت المعالجة','Failed'],
+ FINANCE_MAPPING_REQUIRED:['لم يتم ربط حسابات التحصيل','Receipt account mapping is missing'],
+ FINANCE_MAPPING_INVALID:['ربط الحسابات غير صالح أو غير نشط','Account mapping is invalid or inactive'],
+ FINANCE_ENTITY_REQUIRED:['الكيان المحاسبي الافتراضي غير نشط','Default accounting entity is inactive'],
+ LEDGER_PERIOD_LOCKED:['الفترة المالية مقفلة','Accounting period is locked'],
+ LEDGER_ACCOUNT_INACTIVE:['الحساب المحاسبي غير نشط','Ledger account is inactive'],
+ LEDGER_JOURNAL_INACTIVE:['اليومية غير نشطة','Journal is inactive'],
+ FINANCE_EVENT_NOT_POSTABLE:['الحدث غير قابل للترحيل','Event cannot be posted'],
+ FINANCE_PROJECT_FORBIDDEN:['مسؤول الترحيل لا يملك اعتماد هذا المشروع','The posting authority cannot approve this project'],
+ POSTING_FAILED:['تعذر الترحيل؛ راجع الربط والمستند الأصلي','Posting failed; review mappings and the source document']
 };
 function accountingLabel(value:string,en:boolean){return accountingLabels[value]?.[en?1:0]||value;}
 type AssetData={assets:any[]};
 type ListData={entities:any[];accounts:any[];journals:any[];entries:any[];projects:{id:string;name:string}[]};
-type EventData={events:any[];mappings:any[]};
+type EventData={receipt_controls:any[];events:any[];mappings:any[];attempts:any[];queue:{waiting:number;retrying:number;blocked:number};automation:{enabled:boolean;last_run_at?:string;last_run_result?:{posted:number;failed:number}}};
 type VendorData={vendors:any[];bills:any[];mappings:any[];payments:any[]};
-type TreasuryData={statements:any[];lines:any[];matches:any[];candidates:any[]};
+type TreasuryData={payment_accounts:any[];balances:any[];statements:any[];lines:any[];matches:any[];candidates:any[]};
 type Report={summary:any;trial_balance:any[];project_analytics:any[];profit_and_loss:{lines:any[];income_minor:string;expenses_minor:string;net_profit_minor:string};balance_sheet:{lines:any[];assets_minor:string;liabilities_minor:string;equity_minor:string;accumulated_earnings_minor:string;total_liabilities_and_equity_minor:string;balanced:boolean}};
 function minor(value:string){const m=/^(-?)(\d{1,14})(?:\.(\d{1,2}))?$/.exec(value.trim());if(!m)throw Error('INVALID_AMOUNT');return (BigInt(m[1]+m[2])*BigInt(100)+(m[1]?BigInt(-1):BigInt(1))*BigInt((m[3]||'').padEnd(2,'0'))).toString();}
 function showMoney(value:unknown,en:boolean){try{const n=BigInt(String(value||0)),sign=n<BigInt(0)?'-':'',abs=n<BigInt(0)?-n:n;
@@ -46,6 +55,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
  const [payables,setPayables]=useState<VendorData|null>(null),[treasury,setTreasury]=useState<TreasuryData|null>(null);
  const [controls,setControls]=useState<{periods:any[];reversals:any[]}|null>(null);
  const [assetData,setAssetData]=useState<AssetData|null>(null);
+ const [paymentAccount,setPaymentAccount]=useState({code:'',name:'',kind:'bank',currency_code:'EGP'});
  const [assetForm,setAssetForm]=useState({code:'',name:'',project_id:'',acquisition_date:initialDate,service_date:initialDate,cost:'',residual:'0',life_months:'60',asset_account_id:'',accumulated_account_id:'',expense_account_id:'',journal_id:''});
  const [lockForm,setLockForm]=useState({from:initialDate.slice(0,7)+'-01',to:initialDate,reason:''}),[reverseForm,setReverseForm]=useState({entry_id:'',date:initialDate,reason:''});
  const [report,setReport]=useState<Report|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revision,setRevision]=useState(0);
@@ -99,7 +109,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
    });
    const response=await res.json();
    if(!res.ok)throw Error(response.error||'SAVE_FAILED');
-   setNotice(t('تم تنفيذ العملية بنجاح.','Operation completed.'));
+   setNotice(operation==='process_pending'?t('تم ترحيل ','Posted ')+response.result.posted+t(' حدث، وتعذرت معالجة ',' events; ')+response.result.failed+t(' حدث.',' events failed.'):t('تم تنفيذ العملية بنجاح.','Operation completed.'));
    setRevision(v=>v+1);
   }catch(e){setError(e instanceof Error?e.message:'SAVE_FAILED')}
   finally{setBusy(false)}
@@ -116,11 +126,18 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
   <div className={styles.header}><div><div className={styles.eyebrow}>BUNYRA · {t('الحسابات','Accounting')}</div><h2>{t(...labels[section])}</h2><p>{t('كل حركة مالية مرتبطة بمستندها الأصلي وتُرحّل إلى دفتر الأستاذ وفق صلاحيات الحسابات.','Financial records stay tied to their source documents and protected journal entries.')}</p></div>
    <button className="secondary" onClick={()=>setRevision(v=>v+1)}><RefreshCw size={16}/>{t('تحديث','Refresh')}</button>
   </div>
-  {error&&<div className={styles.error} role="alert">{error==='MIGRATIONS_PENDING'?t('قاعدة الشركة تحتاج تفعيل ترحيلات الحسابات 039–042 قبل استخدام هذه الشاشة. لم يتم تعديل بيانات الإنتاج.','Accounting database migrations 039–042 are not active for this company yet.'):t('تعذر إكمال الطلب: ','Request error: ')+error}</div>}
+  {error&&<div className={styles.error} role="alert">{error==='MIGRATIONS_PENDING'?t('قاعدة الشركة تحتاج تفعيل آخر ترحيلات الحسابات قبل استخدام هذه الشاشة.','The latest accounting migrations must be activated before using this screen.'):error==='ACCOUNTING_TEMPLATE_CODE_CONFLICT'?t('يوجد كود مستخدم بنوع مختلف. راجع شجرة الحسابات الحالية قبل التهيئة.','An existing code has a different purpose. Review your chart before initialization.'):error==='ACCOUNTING_TEMPLATE_MAPPING_CONFLICT'?t('الربط الحالي مختلف عن القالب. راجعه من إعدادات ربط الحسابات؛ لم يتم استبداله.','Existing mappings differ from the template. Review them in account mappings; they were preserved.'):t('تعذر إكمال الطلب: ','Request error: ')+error}</div>}
   {notice&&<div className={styles.notice} role="status">{notice}</div>}
   {loading&&<p className={styles.muted}>{t('جارٍ تحميل السجلات المحاسبية...','Loading accounting records...')}</p>}
   {ledger&&<div className={styles.toolbar}><label>{t('الكيان المحاسبي','Accounting entity')}<select value={entityId} onChange={e=>setEntity(e.target.value)}>{ledger.entities.map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select></label></div>}
   {section==='ledger'&&ledger&&<>
+   {!ledger.accounts.some(a=>a.entity_id===entityId)&&<form className={styles.card}
+    onSubmit={submit(()=>void action('ledger','initialize',{entity_id:entityId,language:en?'en':'ar'}))}>
+    <h3>{t('تهيئة شجرة الحسابات الأساسية','Initialize the base chart of accounts')}</h3>
+    <p>{t('إنشاء حسابات الصندوق والبنك والعملاء والموردين ومقدمات العملاء والمصروفات والأصول، مع اليوميات وربط التحصيل والموردين. لا ينشئ أرصدة افتتاحية أو حركات مالية.','Create cash, bank, customer, supplier, customer advance, expense and asset accounts, journals and receipt/payable mappings. No opening balances or financial transactions are created.')}</p>
+    <p>{t('تختار الحساب عند كل تحصيل. أضف حسابات البنوك والصناديق وعملاتها من الخزينة والبنوك.','Choose the account for each receipt. Add named bank and cash accounts and currencies under Treasury & banks.')}</p>
+    <button disabled={busy||!entityId}>{t('إنشاء الشجرة وربط الحسابات','Create chart and link accounts')}</button>
+   </form>}
    <div className={styles.metrics}>
     <div><BookOpen size={19}/><strong>{ledger.accounts.length}</strong><span>{t('حساب محاسبي','GL accounts')}</span></div>
     <div><Receipt size={19}/><strong>{ledger.entries.filter(e=>e.state==='posted').length}</strong><span>{t('قيود مرحّلة حديثة','Recent posted journals')}</span></div>
@@ -178,18 +195,40 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
    <h3>{t('آخر القيود','Recent journal entries')}</h3>
    {renderTable([{key:'reference',ar:'المرجع',english:'Reference'},{key:'entry_date',ar:'التاريخ',english:'Date'},{key:'state',ar:'الحالة',english:'State'},{key:'id',ar:'الإجراء',english:'Action',fmt:r=>r.state==='draft'?<button disabled={busy} onClick={()=>void action('ledger','post',{id:r.id})}>{t('ترحيل','Post')}</button>:t('مرحّل','Posted')}],ledger.entries.filter(x=>x.entity_id===entityId))}
    <div className={styles.columns}>
-    <form className={styles.card} onSubmit={submit(()=>void action('finance-events','configure_mapping',{entity_id:entityId,...mapping}))}>
+    {!events?.receipt_controls?.some(c=>c.entity_id===entityId)&&<form className={styles.card} onSubmit={submit(()=>void action('finance-events','configure_mapping',{entity_id:entityId,...mapping}))}>
      <h3>{t('ربط حسابات المقبوضات','Receipts GL mapping')}</h3>
      {chosenMapping&&<p className={styles.muted}>{t('يوجد ربط مالي محفوظ.','Mapping already configured.')}</p>}
      <select required value={mapping.journal_id} onChange={e=>setMapping({...mapping,journal_id:e.target.value})}><option value="">{t('يومية التحصيل','Receipt journal')}</option>{journals.map(j=><option key={j.id} value={j.id}>{j.name}</option>)}</select>
      <select required value={mapping.cash_account_id} onChange={e=>setMapping({...mapping,cash_account_id:e.target.value})}><option value="">{t('حساب البنك / الصندوق','Cash / bank account')}</option>{aOpts(['cash','bank']).map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select>
      <select required value={mapping.advance_account_id} onChange={e=>setMapping({...mapping,advance_account_id:e.target.value})}><option value="">{t('حساب مقدمات العملاء','Customer advances')}</option>{aOpts(['customer_advance']).map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select>
      <button className="primary" disabled={busy}>{t('حفظ الربط','Save mapping')}</button>
-    </form>
+    </form>}
     <div className={styles.card}>
      <h3>{t('أحداث مالية تحتاج اعتماد الترحيل','Financial events awaiting posting')}</h3>
-     {(events?.events||[]).filter(e=>e.status==='pending').slice(0,12).map(e=><div className={styles.compactRow} key={e.id}><span>{accountingLabel(e.event_type,en)} · {showMoney(e.amount_minor,en)}</span><button disabled={busy} onClick={()=>void action('finance-events','post_event',{event_id:e.id})}>{t('ترحيل','Post')}</button></div>)}
+     <p>{t('بانتظار المعالجة: ','Waiting: ')}{events?.queue?.waiting||0} · {t('إعادة المحاولة: ','Retrying: ')}{events?.queue?.retrying||0} · {t('تحتاج مراجعة: ','Needs review: ')}{events?.queue?.blocked||0}</p>
+     <p>{t('الترحيل التلقائي: ','Automatic posting: ')}{events?.automation.enabled?t('مفعّل','Enabled'):t('متوقف','Disabled')}
+      {' · '}{t('آخر دورة: ','Last cycle: ')}{events?.automation.last_run_at?.replace('T',' ').slice(0,19)||t('لم تعمل دورة بعد','No cycle yet')}</p>
+     <p className={styles.muted}>{t('ترحيل فوري مع الحركة للشركات المفعّل لها، ومراجعة احتياطية كل 30 دقيقة. تُفحص صلاحية المسؤول قبل كل معالجة. التحصيل يُسجّل مقدمات عملاء ولا يُعترف به كإيراد تلقائيًا. المحاولات الفاشلة تتباعد وتتوقف عند 8، مع حفظ السجل.','Immediate posting with the business event for enabled companies, plus recovery every 30 minutes. The authorizing manager is rechecked on every attempt. Receipts post as customer advances, not automatically as revenue. Failures back off and stop at 8, retaining history.')}</p>
+     <div className={styles.toolbar}>
+      <button disabled={busy||(!events?.automation.enabled&&!chosenMapping&&!events?.receipt_controls?.some(c=>c.entity_id===entityId))} onClick={()=>void action('finance-events','configure_automation',{enabled:!events?.automation.enabled})}>
+       {events?.automation.enabled?t('إيقاف الترحيل التلقائي','Disable automatic posting'):t('تشغيل الترحيل التلقائي','Enable automatic posting')}</button>
+      <button disabled={busy} onClick={()=>void action('finance-events','process_pending',{limit:10})}>{t('معالجة الدفعة الجاهزة الآن','Process due batch now')}</button>
+     </div>
+     {(events?.events||[]).filter(e=>e.status==='pending').slice(0,12).map(e=><div className={styles.compactRow} key={e.id}>
+      <span>{accountingLabel(e.event_type,en)} · {showMoney(e.amount_minor,en)}
+       {e.last_error_code&&<small>{' · '}{accountingLabel(e.last_error_code,en)}{' · '}{t('المحاولات: ','Attempts: ')}{e.processing_attempts}/8</small>}</span>
+      {e.last_error_code?<button disabled={busy} onClick={()=>void action('finance-events','retry_event',{event_id:e.id})}>{t('تجهيز إعادة المحاولة','Requeue for retry')}</button>:
+       <button disabled={busy} onClick={()=>void action('finance-events','post_event',{event_id:e.id})}>{t('ترحيل','Post')}</button>}
+     </div>)}
      {!events?.events.some(e=>e.status==='pending')&&<p className={styles.muted}>{t('لا توجد أحداث معلقة.','No pending events.')}</p>}
+     <details><summary>{t('سجل محاولات المعالجة','Processing attempt history')}</summary>
+      {renderTable([{key:'created_at',ar:'التاريخ',english:'Date',fmt:r=>String(r.created_at).replace('T',' ').slice(0,19)},
+       {key:'event_type',ar:'الحدث',english:'Event',fmt:r=>accountingLabel(r.event_type,en)},
+       {key:'attempt_number',ar:'المحاولة',english:'Attempt'},
+       {key:'outcome',ar:'النتيجة',english:'Outcome',fmt:r=>accountingLabel(r.outcome,en)},
+       {key:'automatic',ar:'طريقة المعالجة',english:'Mode',fmt:r=>r.automatic?t('تلقائي','Automatic'):t('يدوي','Manual')},
+       {key:'error_code',ar:'سبب التعذر',english:'Failure',fmt:r=>r.error_code?accountingLabel(r.error_code,en):'—'}],events?.attempts||[])}
+     </details>
     </div>
    </div>
   </>}
@@ -232,6 +271,18 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
     accounts={ledger.accounts} journals={ledger.journals} onChanged={()=>setRevision(v=>v+1)}/>
   </>}
   {section==='treasury'&&ledger&&treasury&&<>
+   <form className={styles.card} onSubmit={submit(()=>void action('treasury','create_account',{entity_id:entityId,...paymentAccount}))}>
+    <h3>{t('إضافة حساب بنكي أو صندوق','Add bank or cash account')}</h3>
+    <div className={styles.columns}>
+     <label>{t('كود الحساب','Account code')}<input required pattern="[A-Za-z0-9_-]{2,12}" maxLength={12} value={paymentAccount.code} onChange={e=>setPaymentAccount({...paymentAccount,code:e.target.value.toUpperCase()})}/></label>
+     <label>{t('اسم الحساب','Account name')}<input required minLength={2} maxLength={160} value={paymentAccount.name} onChange={e=>setPaymentAccount({...paymentAccount,name:e.target.value})}/></label>
+     <label>{t('النوع','Type')}<select value={paymentAccount.kind} onChange={e=>setPaymentAccount({...paymentAccount,kind:e.target.value})}><option value="bank">{t('حساب بنكي','Bank account')}</option><option value="cash">{t('صندوق','Cash account')}</option></select></label>
+     <label>{t('عملة الحساب','Account currency')}<select value={paymentAccount.currency_code} onChange={e=>setPaymentAccount({...paymentAccount,currency_code:e.target.value})}>{['EGP','USD','EUR','GBP','SAR','AED','QAR','CHF','CAD','AUD','CNY'].map(c=><option key={c}>{c}</option>)}</select></label>
+    </div><p>{t('لكل حساب دفتر مستقل وعملة ثابتة. لن يُختار تلقائيًا عند التحصيل.','Each account has its own ledger and fixed currency. Receipt destinations are never selected automatically.')}</p>
+    <button disabled={busy||!entityId}>{t('إضافة الحساب','Add account')}</button>
+   </form>
+   {renderTable([{key:'code',ar:'الكود',english:'Code'},{key:'name',ar:'الحساب',english:'Account'},{key:'currency_code',ar:'العملة',english:'Currency'},{key:'id',ar:'الرصيد بعملة الحساب',english:'Account currency balance',fmt:r=>{const b=treasury.balances?.find(x=>x.id===r.id);return showMoney(b?.native_balance_minor,en).replace(en?' EGP':' ج.م',' '+r.currency_code)}}],(treasury.payment_accounts||[]).filter(a=>a.entity_id===entityId))}
+
    <div className={styles.metrics}><div><Landmark size={19}/><strong>{treasury.statements.length}</strong><span>{t('كشف حساب بنكي','Statements')}</span></div><div><Receipt size={19}/><strong>{unMatched.length}</strong><span>{t('حركات لم تتطابق','Unreconciled movements')}</span></div></div>
    <div className={styles.columns}>
     <form className={styles.card} onSubmit={submit(()=>{try{void action('treasury','create_statement',{entity_id:entityId,bank_account_id:bank.bank_account_id,statement_ref:bank.statement_ref,date_from:bank.date_from,date_to:bank.date_to,opening_minor:minor(bank.opening),closing_minor:minor(bank.closing)})}catch{setError('INVALID_AMOUNT')}})}>
@@ -240,8 +291,8 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
      <input required value={bank.statement_ref} onChange={e=>setBank({...bank,statement_ref:e.target.value})} placeholder={t('مرجع الكشف','Statement reference')}/>
      <label>{t('من','From')}<input type="date" value={bank.date_from} onChange={e=>setBank({...bank,date_from:e.target.value})}/></label>
      <label>{t('إلى','To')}<input type="date" value={bank.date_to} onChange={e=>setBank({...bank,date_to:e.target.value})}/></label>
-     <input value={bank.opening} onChange={e=>setBank({...bank,opening:e.target.value})} placeholder={t('الرصيد الافتتاحي بالجنيه','Opening balance EGP')}/>
-     <input value={bank.closing} onChange={e=>setBank({...bank,closing:e.target.value})} placeholder={t('الرصيد الختامي بالجنيه','Closing balance EGP')}/>
+     <input value={bank.opening} onChange={e=>setBank({...bank,opening:e.target.value})} placeholder={t('الرصيد الافتتاحي بعملة الحساب','Opening balance in account currency')}/>
+     <input value={bank.closing} onChange={e=>setBank({...bank,closing:e.target.value})} placeholder={t('الرصيد الختامي بعملة الحساب','Closing balance in account currency')}/>
      <button className="primary" disabled={busy}>{t('إضافة الكشف','Create statement')}</button>
     </form>
     <form className={styles.card} onSubmit={submit(()=>{try{void action('treasury','import_lines',{statement_id:movement.statement_id,lines:[{external_ref:movement.external_ref,booked_on:movement.booked_on,signed_minor:minor(movement.signed_amount),description:movement.description}]})}catch{setError('INVALID_AMOUNT')}})}>
@@ -249,18 +300,18 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
      <select required value={movement.statement_id} onChange={e=>setMovement({...movement,statement_id:e.target.value})}><option value="">{t('اختار كشف مفتوح','Select open statement')}</option>{treasury.statements.filter(s=>s.status==='open').map(s=><option key={s.id} value={s.id}>{s.statement_ref}</option>)}</select>
      <input required value={movement.external_ref} onChange={e=>setMovement({...movement,external_ref:e.target.value})} placeholder={t('مرجع حركة البنك','Bank transaction reference')}/>
      <input type="date" value={movement.booked_on} onChange={e=>setMovement({...movement,booked_on:e.target.value})}/>
-     <input required value={movement.signed_amount} onChange={e=>setMovement({...movement,signed_amount:e.target.value})} placeholder={t('المبلغ (+ إيداع، - سحب)','Signed EGP (+deposit, -withdrawal)')}/>
+     <input required value={movement.signed_amount} onChange={e=>setMovement({...movement,signed_amount:e.target.value})} placeholder={t('المبلغ بعملة الحساب (+ إيداع، - سحب)','Account currency amount (+deposit, -withdrawal)')}/>
      <input value={movement.description} onChange={e=>setMovement({...movement,description:e.target.value})} placeholder={t('الوصف','Description')}/>
      <button className="primary" disabled={busy}>{t('إضافة الحركة','Add movement')}</button>
     </form>
    </div>
    <h3>{t('كشوف الحسابات','Bank statements')}</h3>
-   {renderTable([{key:'statement_ref',ar:'المرجع',english:'Reference'},{key:'date_to',ar:'نهاية الفترة',english:'Period end'},{key:'closing_minor',ar:'الرصيد الختامي',english:'Closing balance',fmt:r=>showMoney(r.closing_minor,en)},{key:'status',ar:'الحالة',english:'Status'},{key:'id',ar:'الإجراء',english:'Action',fmt:r=>r.status==='open'?<button disabled={busy} onClick={()=>void action('treasury','close_statement',{statement_id:r.id})}>{t('إقفال بعد المطابقة','Close when matched')}</button>:'—'}],treasury.statements.filter(s=>s.entity_id===entityId))}
+   {renderTable([{key:'statement_ref',ar:'المرجع',english:'Reference'},{key:'date_to',ar:'نهاية الفترة',english:'Period end'},{key:'closing_minor',ar:'الرصيد الختامي',english:'Closing balance',fmt:r=>showMoney(r.closing_minor,en).replace(en?' EGP':' ج.م',' '+r.currency_code)},{key:'status',ar:'الحالة',english:'Status'},{key:'id',ar:'الإجراء',english:'Action',fmt:r=>r.status==='open'?<button disabled={busy} onClick={()=>void action('treasury','close_statement',{statement_id:r.id})}>{t('إقفال بعد المطابقة','Close when matched')}</button>:'—'}],treasury.statements.filter(s=>s.entity_id===entityId))}
    <h3>{t('مطابقة الحركات البنكية مع القيود','Bank movement to posted GL matching')}</h3>
    {unMatched.filter(l=>l.entity_id===entityId).slice(0,100).map(l=>{
     const statement=treasury.statements.find(s=>s.id===l.statement_id);
-    const candidates=(treasury.candidates||[]).filter(c=>c.account_id===statement?.bank_account_id&&BigInt(c.debit_minor)-BigInt(c.credit_minor)===BigInt(l.signed_minor));
-    return <div className={styles.compactRow} key={l.id}><span>{l.external_ref} · {showMoney(l.signed_minor,en)}</span>
+    const candidates=(treasury.candidates||[]).filter(c=>c.account_id===statement?.bank_account_id&&(c.amount_currency_minor!==null?BigInt(c.amount_currency_minor):BigInt(c.debit_minor)-BigInt(c.credit_minor))===BigInt(l.signed_minor));
+    return <div className={styles.compactRow} key={l.id}><span>{l.external_ref} · {showMoney(l.signed_minor,en).replace(en?' EGP':' ج.م',' '+(statement?.currency_code||'EGP'))}</span>
       <select aria-label={t('القيد المقابل','Matching ledger entry')} value={matching[l.id]||''} onChange={e=>setMatching({...matching,[l.id]:e.target.value})}><option value="">{t('اختار بند قيد مطابق','Choose matching posted ledger line')}</option>{candidates.map(c=><option key={c.id} value={c.id}>{c.reference} · {c.account_code}</option>)}</select>
       <button disabled={busy||!matching[l.id]} onClick={()=>void action('treasury','match_line',{bank_line_id:l.id,ledger_line_id:matching[l.id]})}>{t('مطابقة','Match')}</button>
      </div>;

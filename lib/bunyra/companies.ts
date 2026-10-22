@@ -148,7 +148,8 @@ export async function purgeCompany(sql: Sql, actor: Actor, input: unknown, stora
     OR EXISTS(SELECT 1 FROM finance_vendor_bills WHERE company_id=${c.id})
     OR EXISTS(SELECT 1 FROM treasury_bank_statements WHERE company_id=${c.id})
     OR EXISTS(SELECT 1 FROM finance_fixed_assets WHERE company_id=${c.id})
-    OR EXISTS(SELECT 1 FROM finance_project_budgets WHERE company_id=${c.id}) AS retained`;
+    OR EXISTS(SELECT 1 FROM finance_project_budgets WHERE company_id=${c.id})
+    OR EXISTS(SELECT 1 FROM finance_event_attempts WHERE company_id=${c.id}) AS retained`;
   if (history.retained) throw new ServiceError('COMPANY_HAS_ACCOUNTING_HISTORY', 409);
   const keys = (await sql`SELECT object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL UNION SELECT object_key FROM booking_documents WHERE company_id=${c.id} UNION SELECT object_key FROM sales_offers WHERE company_id=${c.id}`).map(r => r.object_key as string);
   if (keys.length && !storage) throw new ServiceError('STORAGE_NOT_CONFIGURED', 503);
