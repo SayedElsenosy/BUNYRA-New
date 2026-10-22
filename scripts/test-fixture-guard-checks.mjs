@@ -20,7 +20,7 @@ await test('An uninitialized database is rejected',()=>deny({queryOwner:async()=
 await test('Multiple owner records are rejected',()=>deny({queryOwner:async()=>marker.concat(marker)},'owner marker'));
 await test('A verified isolated test database passes',async()=>assert.equal(await assertFixtureDatabaseTarget(opts),true));
 await test('Every database fixture runner is protected by the shared guard',async()=>{
- const names=readdirSync('scripts').filter(name=>/^run-.*-tests\\.mjs$/.test(name));
+ const names=readdirSync('scripts').filter(name=>/^run-.*-tests[.]mjs$/.test(name));
  assert.ok(names.length>=26, 'Expected all database integration runners');
  for(const name of names)assert.ok(readFileSync('scripts/'+name,'utf8').includes('await assertFixtureDatabaseTarget()'),name);
 });
