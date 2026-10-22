@@ -12,16 +12,16 @@ type ResponseData={rows:BudgetRow[];drafts:DraftRow[];totals:{budget_minor:strin
 type Props={companyId:string;entityId:string;projects:Project[];accounts:Account[];
  from:string;to:string;projectId:string;en:boolean;asOwner:boolean};
 const money=(value:string,en:boolean)=>{
- try{const cents=BigInt(value),negative=cents<0n,abs=negative?-cents:cents;
-  return (negative?'-':'')+(abs/100n).toLocaleString(en?'en-EG':'ar-EG')+'.'+
-   (abs%100n).toString().padStart(2,'0')+' EGP';
+ try{const cents=BigInt(value),negative=cents<BigInt(0),abs=negative?-cents:cents;
+  return (negative?'-':'')+(abs/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG')+'.'+
+   (abs%BigInt(100)).toString().padStart(2,'0')+' EGP';
  }catch{return '—';}
 };
 function parseMoney(value:string){
  const match=/^(\d{1,14})(?:\.(\d{1,2}))?$/.exec(value.trim());
  if(!match)throw Error('INVALID_AMOUNT');
- const cents=BigInt(match[1])*100n+BigInt((match[2]||'').padEnd(2,'0'));
- if(cents<=0n||cents>9223372036854775807n)throw Error('INVALID_AMOUNT');
+ const cents=BigInt(match[1])*BigInt(100)+BigInt((match[2]||'').padEnd(2,'0'));
+ if(cents<=BigInt(0)||cents>BigInt('9223372036854775807'))throw Error('INVALID_AMOUNT');
  return cents.toString();
 }
 export default function ProjectBudgetPanel({companyId,entityId,projects,accounts,from,to,projectId,en,asOwner}:Props){
