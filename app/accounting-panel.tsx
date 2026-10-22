@@ -19,6 +19,8 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
  const t=(ar:string,english:string)=>en?english:ar;
  const [ledger,setLedger]=useState<ListData|null>(null),[events,setEvents]=useState<EventData|null>(null);
  const [payables,setPayables]=useState<VendorData|null>(null),[treasury,setTreasury]=useState<TreasuryData|null>(null);
+ const [controls,setControls]=useState<{periods:any[];reversals:any[]}|null>(null);
+ const [lockForm,setLockForm]=useState({from:initialDate.slice(0,7)+'-01',to:initialDate,reason:''}),[reverseForm,setReverseForm]=useState({entry_id:'',date:initialDate,reason:''});
  const [report,setReport]=useState<Report|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revision,setRevision]=useState(0);
  const [entity,setEntity]=useState(''),[from,setFrom]=useState(initialDate.slice(0,4)+'-01-01'),[to,setTo]=useState(initialDate);
  const [account,setAccount]=useState({code:'',name:'',kind:'expense',role:'general'}),[journal,setJournal]=useState({code:'',name:'',kind:'general'});
@@ -41,8 +43,8 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
  useEffect(()=>{
   if(!active)return;
   let cancel=false;setLoading(true);setError('');
-  void Promise.all(['ledger','finance-events','vendor-payables','treasury'].map(key=>fetchJson(root+key+query)))
-    .then(([gl,ev,ap,bank])=>{if(cancel)return;setLedger(gl);setEvents(ev);setPayables(ap);setTreasury(bank);})
+  void Promise.all(['ledger','finance-events','vendor-payables','treasury','ledger/controls'].map(key=>fetchJson(root+key+query)))
+    .then(([gl,ev,ap,bank,ctrl])=>{if(cancel)return;setLedger(gl);setEvents(ev);setPayables(ap);setTreasury(bank);setControls(ctrl);})
     .catch(e=>{if(!cancel)setError(e instanceof Error?e.message:'LOAD_FAILED')})
     .finally(()=>{if(!cancel)setLoading(false)});
   return()=>{cancel=true};
@@ -120,6 +122,25 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
      <input value={voucher.amount} placeholder={t('المبلغ بالجنيه','Amount in EGP')} onChange={e=>setVoucher({...voucher,amount:e.target.value})} required/>
     </div><button className="primary" disabled={busy}>{t('إنشاء مسودة القيد','Create draft')}</button>
    </form>
+   <div className={styles.columns}>
+    <form className={styles.card} onSubmit={submit(()=>void action('ledger/controls','lock_period',{entity_id:entityId,...lockForm}))}>
+      <h3>{t('إقفال فترة مالية','Lock accounting period')}</h3>
+      <label>{t('من','From')}<input required type="date" value={lockForm.from} onChange={e=>setLockForm({...lockForm,from:e.target.value})}/></label>
+      <label>{t('إلى','To')}<input required type="date" value={lockForm.to} onChange={e=>setLockForm({...lockForm,to:e.target.value})}/></label>
+      <input required placeholder={t('سبب الإقفال','Reason for locking')} value={lockForm.reason} onChange={e=>setLockForm({...lockForm,reason:e.target.value})}/>
+      <button className="primary" disabled={busy}>{t('قفل الفترة بعد مراجعة القيود','Lock period')}</button>
+      <p className={styles.muted}>{t('يتم الرفض إذا كانت هناك قيود مسودة أو أحداث مالية لم تُرحّل.','Blocked if unposted drafts or pending events remain.')}</p>
+    </form>
+    <form className={styles.card} onSubmit={submit(()=>void action('ledger/controls','reverse_journal',{entry_id:reverseForm.entry_id,date:reverseForm.date,reason:reverseForm.reason}))}>
+      <h3>{t('عكس قيد يدوي مرحّل','Reverse a posted manual journal')}</h3>
+      <select required value={reverseForm.entry_id} onChange={e=>setReverseForm({...reverseForm,entry_id:e.target.value})}><option value="">{t('اختر قيدًا يدويًا','Choose manual journal')}</option>{ledger.entries.filter(e=>e.entity_id===entityId&&e.state==='posted'&&e.source_type==='manual').map(e=><option value={e.id} key={e.id}>{e.reference}</option>)}</select>
+      <input required type="date" value={reverseForm.date} onChange={e=>setReverseForm({...reverseForm,date:e.target.value})}/>
+      <input required placeholder={t('سبب القيد العكسي','Reversal reason')} value={reverseForm.reason} onChange={e=>setReverseForm({...reverseForm,reason:e.target.value})}/>
+      <button className="primary" disabled={busy}>{t('ترحيل قيد عكسي','Post reversal')}</button>
+      <p className={styles.muted}>{t('القيود الناتجة من العقود والتحصيلات لا تُعكس يدويًا؛ تُعالج من المستند الأصلي.','Source-linked entries must be corrected through their original commercial documents.')}</p>
+    </form>
+   </div>
+   {!!controls?.periods.length&&<p className={styles.muted}>{t('عدد الفترات المقفولة: ','Locked periods: ')+controls.periods.length}</p>}
    <h3>{t('آخر القيود','Recent journal entries')}</h3>
    {renderTable([{key:'reference',ar:'المرجع',english:'Reference'},{key:'entry_date',ar:'التاريخ',english:'Date'},{key:'state',ar:'الحالة',english:'State'},{key:'id',ar:'الإجراء',english:'Action',fmt:r=>r.state==='draft'?<button disabled={busy} onClick={()=>void action('ledger','post',{id:r.id})}>{t('ترحيل','Post')}</button>:t('مرحّل','Posted')}],ledger.entries.filter(x=>x.entity_id===entityId))}
    <div className={styles.columns}>

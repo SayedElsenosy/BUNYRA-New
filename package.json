@@ -55,7 +55,8 @@
     "test:payables-core": "node scripts/test-payables-core.mjs",
     "test:payables-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-payables-integration-tests.mjs",
     "test:treasury-core": "node scripts/test-treasury-core.mjs",
-    "test:treasury-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-treasury-integration-tests.mjs"
+    "test:treasury-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-treasury-integration-tests.mjs",
+    "test:ledger-controls": "node scripts/test-ledger-controls.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

@@ -74,4 +74,22 @@ await check('tenant RLS denies foreign-company access to posted ledger',async()=
  ]);
  assert.equal(rows[2][0].leaked,0);
 });
+await check('reversing a posted manual journal makes an exact counter-entry',async()=>{
+ const controls=await import('../.sites-runtime/tests/ledger-controls.mjs');
+ const rev=await controls.reverseLedgerJournal(fresh(),actor,{company_id:testCompany,entry_id:draft.id,date:'2026-10-23',reason:'Verified reversal rehearsal'},true);
+ assert.ok(rev.reversed_entry_id);
+ const orig=(await raw`SELECT sum(debit_minor)::text debit,sum(credit_minor)::text credit
+  FROM ledger_lines WHERE entry_id=${draft.id}`)[0];
+ const counterpart=(await raw`SELECT sum(debit_minor)::text debit,sum(credit_minor)::text credit
+  FROM ledger_lines WHERE entry_id=${rev.reversed_entry_id}`)[0];
+ assert.equal(orig.debit,counterpart.credit);assert.equal(orig.credit,counterpart.debit);
+ const repeat=await controls.reverseLedgerJournal(fresh(),actor,{company_id:testCompany,entry_id:draft.id,date:'2026-10-23',reason:'Verified reversal rehearsal'},true);
+ assert.equal(repeat.reversed_entry_id,rev.reversed_entry_id);
+});
+await check('period locks prohibit backdated journal drafts',async()=>{
+ const controls=await import('../.sites-runtime/tests/ledger-controls.mjs');
+ const lock=await controls.lockLedgerPeriod(fresh(),actor,{company_id:testCompany,entity_id:entity,from:'2026-10-22',to:'2026-10-22',reason:'Validated journal closing'},true);
+ assert.equal(lock.status,'locked');
+ await deny(()=>ledger.ledgerCreateDraft(fresh(),actor,{...balanced,idempotency_key:'locked-period-'+suffix},true),'LEDGER_PERIOD_LOCKED');
+});
 console.log(JSON.stringify({passed:checks.length,checks,fixture_company:testCompany},null,2));
