@@ -6,10 +6,10 @@ import type {CompanyView} from './company-navigation';
 const items:{view:CompanyView;ar:string;en:string;Icon:typeof Settings2}[]=[
  {view:'settings',ar:'الإعدادات العامة',en:'General',Icon:Settings2},
  {view:'team',ar:'الفريق والحسابات',en:'Team & accounts',Icon:Users},
- {view:'targets',ar:'المستهدف المبيعات',en:'Sales targets',Icon:Target},
+ {view:'targets',ar:'أهداف المبيعات',en:'Sales targets',Icon:Target},
  {view:'roles',ar:'الأدوار والصلاحيات',en:'Roles & permissions',Icon:ShieldCheck},
  {view:'permissions',ar:'صلاحيات المستخدمين',en:'Member permissions',Icon:LockKeyhole},
- {view:'sales-teams',ar:'الفرق وتوزيع العملاء المحتملون',en:'Teams & lead routing',Icon:Users},
+ {view:'sales-teams',ar:'الفرق وتوزيع العملاء المحتملين',en:'Teams & lead routing',Icon:Users},
  {view:'stages',ar:'مراحل البيع',en:'Sales stages',Icon:GitBranch},
  {view:'structure',ar:'الهيكل الإداري',en:'Organization',Icon:Building2},
  {view:'placements',ar:'ارتباطات الموظفين',en:'Staff assignments',Icon:Users}
