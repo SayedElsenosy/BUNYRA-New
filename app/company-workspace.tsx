@@ -20,6 +20,7 @@ import TeamPanel from './team-panel';
 import SavedOffersPanel from './saved-offers-panel';
 import CrmPanel from './crm-panel';
 import CommercialPanel from './commercial-panel';
+import AccountingPanel from './accounting-panel';
 import SalesPipelinePanel from './sales-pipeline-panel';
 import BuyerRequestPanel from './buyer-request-panel';
 import {moduleLabel,type CompanyView} from './company-navigation';
@@ -31,7 +32,7 @@ function ModuleContent({companyId,en,onChanged,view='home',asOwner=false,active=
  ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
  view==='offers'?<SavedOffersPanel {...props} active={active}/>:view==='customers'?<CrmPanel {...props}/>:
  view==='followups'?<FollowUpsPanel {...props} active={active}/>:view==='pipeline'?<CrmPanel {...props}/>:view==='sales-teams'?<><SalesPipelinePanel {...props} section="sales-teams"/><LeadRoutingPanel {...props} active={active}/></>:['pipeline','followups','reports','stages'].includes(view)?<SalesPipelinePanel {...props} section={view as 'pipeline'|'followups'|'sales-teams'|'reports'|'stages'}/>:
- view==='buyers'?<BuyerRequestPanel {...props}/>:
+ ['ledger','vendor-payables','treasury','accounting-reports'].includes(view)?<AccountingPanel {...props} section={view as 'ledger'|'vendor-payables'|'treasury'|'accounting-reports'} active={active}/>:view==='buyers'?<BuyerRequestPanel {...props}/>:
  ['bookings','contracts','collections','receipts','adjustments'].includes(view)?<CommercialPanel {...props} section={view as 'bookings'|'contracts'|'collections'|'receipts'|'adjustments'}/>:
  ['team','roles','permissions'].includes(view)?<TeamPanel {...props} canTarget={asOwner||allowedViews?.includes('targets')||false} section={view as 'team'|'roles'|'permissions'}/>:
  <OrganizationPanel {...props} section={view as 'settings'|'structure'|'placements'} onCompanyChanged={onChanged}/>

@@ -9,6 +9,7 @@ export const VIEW_RULES = {
  offers:{all:['leads.read','projects.read','inventory.read','pricing.read'],project:true},customers:{all:['leads.read']},pipeline:{all:['leads.read']},followups:{all:['leads.read']},
  'sales-teams':{all:['leads.read']},reports:{all:['reports.read'],project:true},'pipeline-reports':{all:['leads.read']},buyers:{all:['leads.read']},
  bookings:{all:['bookings.read'],project:true},contracts:{all:['bookings.read','finance.read'],project:true},
+ ledger:{all:['finance.read'],roles:['company_admin','finance_manager']},'vendor-payables':{all:['finance.read'],roles:['company_admin','finance_manager']},treasury:{all:['finance.read'],roles:['company_admin','finance_manager']},'accounting-reports':{all:['finance.read'],roles:['company_admin','finance_manager']},
  collections:{all:['bookings.read','finance.read'],project:true},receipts:{all:['bookings.read','finance.read'],project:true},adjustments:{all:['bookings.read','finance.read'],project:true},
  'deals-insights':{all:['reports.read','finance.read'],project:true},commissions:{all:['commissions.read'],project:true},structure:{all:['company.read'],any:['company.write','members.manage','accounts.manage']},placements:{all:['company.read','members.manage']},
  team:{all:['company.read'],any:['accounts.manage','members.manage']},roles:{all:['company.read','roles.manage']},

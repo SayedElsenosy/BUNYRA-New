@@ -22,16 +22,24 @@ const matchInput=z.object({company_id:uuid,bank_line_id:uuid,ledger_line_id:uuid
 
 export async function treasuryOverview(sql:Sql,actor:Actor,company:string,platform=false){
  await manager(sql,actor,company,'finance.read',platform);
- const [statements,lines,matches]=await Promise.all([
+ const [statements,lines,matches,candidates]=await Promise.all([
   sql`SELECT id,entity_id,bank_account_id,statement_ref,date_from,date_to,
     opening_minor::text,closing_minor::text,status,closed_at FROM treasury_bank_statements
     WHERE company_id=${company} ORDER BY date_to DESC LIMIT 200`,
   sql`SELECT id,entity_id,statement_id,external_ref,booked_on,signed_minor::text,description FROM treasury_bank_lines
     WHERE company_id=${company} ORDER BY booked_on DESC LIMIT 1000`,
   sql`SELECT id,entity_id,bank_line_id,ledger_line_id,matched_at FROM treasury_bank_matches
-    WHERE company_id=${company} ORDER BY matched_at DESC LIMIT 1000`
+    WHERE company_id=${company} ORDER BY matched_at DESC LIMIT 1000`,
+  sql`SELECT l.id,l.entity_id,l.account_id,a.code AS account_code,e.reference,
+     l.debit_minor::text,l.credit_minor::text,e.entry_date
+     FROM ledger_lines l
+     JOIN ledger_entries e ON e.company_id=l.company_id AND e.entity_id=l.entity_id AND e.id=l.entry_id
+     JOIN ledger_accounts a ON a.company_id=l.company_id AND a.entity_id=l.entity_id AND a.id=l.account_id
+     WHERE l.company_id=${company} AND a.role='bank' AND e.state='posted'
+       AND NOT EXISTS(SELECT 1 FROM treasury_bank_matches x WHERE x.ledger_line_id=l.id)
+     ORDER BY e.entry_date DESC LIMIT 500`
  ]);
- return {statements,lines,matches,matching_scope:'posted_bank_gl_lines_exact_amount'};
+ return {statements,lines,matches,candidates,matching_scope:'posted_bank_gl_lines_exact_amount'};
 }
 export async function createBankStatement(sql:Sql,actor:Actor,input:unknown,platform=false){
  const c=statement.parse(input);await manager(sql,actor,c.company_id,'finance.write',platform);
