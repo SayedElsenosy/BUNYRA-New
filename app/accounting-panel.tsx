@@ -8,7 +8,7 @@ type ListData={entities:any[];accounts:any[];journals:any[];entries:any[]};
 type EventData={events:any[];mappings:any[]};
 type VendorData={vendors:any[];bills:any[];mappings:any[]};
 type TreasuryData={statements:any[];lines:any[];matches:any[];candidates:any[]};
-type Report={summary:any;trial_balance:any[];project_analytics:any[]};
+type Report={summary:any;trial_balance:any[];project_analytics:any[];profit_and_loss:{lines:any[];income_minor:string;expenses_minor:string;net_profit_minor:string};balance_sheet:{lines:any[];assets_minor:string;liabilities_minor:string;equity_minor:string;accumulated_earnings_minor:string;total_liabilities_and_equity_minor:string;balanced:boolean}};
 function minor(value:string){const m=/^(-?)(\d{1,14})(?:\.(\d{1,2}))?$/.exec(value.trim());if(!m)throw Error('INVALID_AMOUNT');return (BigInt(m[1]+m[2])*BigInt(100)+(m[1]?BigInt(-1):BigInt(1))*BigInt((m[3]||'').padEnd(2,'0'))).toString();}
 function showMoney(value:unknown,en:boolean){try{const n=BigInt(String(value||0)),sign=n<BigInt(0)?'-':'',abs=n<BigInt(0)?-n:n;
  return sign+(abs/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG')+'.'+(abs%BigInt(100)).toString().padStart(2,'0')+' EGP';
@@ -239,9 +239,26 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
    <h3>{t('ميزان مراجعة حركة الفترة','Period activity trial balance')}</h3>
    <p className={styles.muted}>{report.summary.balanced?t('المدين يساوي الدائن.','Debit equals credit.'):t('يوجد عدم توازن يتطلب المراجعة!','Journal totals are not balanced!')}</p>
    {renderTable([{key:'code',ar:'الكود',english:'Code'},{key:'name',ar:'الحساب',english:'Account'},{key:'debit_minor',ar:'مدين',english:'Debit',fmt:r=>showMoney(r.debit_minor,en)},{key:'credit_minor',ar:'دائن',english:'Credit',fmt:r=>showMoney(r.credit_minor,en)}],report.trial_balance)}
+   <h3>{t('قائمة الأرباح والخسائر','Profit & loss statement')}</h3>
+   {renderTable([{key:'code',ar:'الكود',english:'Code'},{key:'name',ar:'الحساب',english:'Account'},{key:'kind',ar:'النوع',english:'Type',fmt:r=>r.kind==='income'?t('إيرادات','Income'):t('مصروفات','Expenses')},{key:'balance_minor',ar:'الرصيد',english:'Balance',fmt:r=>showMoney(r.balance_minor,en)}],report.profit_and_loss.lines)}
+   <div className={styles.metrics}>
+    <div><Receipt size={19}/><strong>{showMoney(report.profit_and_loss.income_minor,en)}</strong><span>{t('إيرادات الفترة','Period revenue')}</span></div>
+    <div><BookOpen size={19}/><strong>{showMoney(report.profit_and_loss.expenses_minor,en)}</strong><span>{t('مصروفات الفترة','Period expenses')}</span></div>
+    <div><Landmark size={19}/><strong>{showMoney(report.profit_and_loss.net_profit_minor,en)}</strong><span>{t('صافي الربح / الخسارة','Net profit / loss')}</span></div>
+   </div>
+   <h3>{t('الميزانية العمومية حتى تاريخ التقرير','Balance sheet as of report end date')}</h3>
+   <p className={styles.muted}>{report.balance_sheet.balanced?t('المعادلة المحاسبية متوازنة للبيانات المحددة.','Accounting equation balances for the selected data.'):t('تنبيه: الميزانية غير متوازنة؛ راجع الأرصدة الافتتاحية وتوزيع المشاريع.','Warning: balance sheet does not reconcile; review opening balances and project allocation.')}</p>
+   {renderTable([{key:'code',ar:'الكود',english:'Code'},{key:'name',ar:'الحساب',english:'Account'},{key:'kind',ar:'النوع',english:'Type',fmt:r=>r.kind==='asset'?t('أصول','Assets'):r.kind==='liability'?t('التزامات','Liabilities'):t('حقوق ملكية','Equity')},{key:'balance_minor',ar:'الرصيد التراكمي',english:'As-of balance',fmt:r=>showMoney(r.balance_minor,en)}],report.balance_sheet.lines)}
+   <div className={styles.metrics}>
+    <div><Landmark size={19}/><strong>{showMoney(report.balance_sheet.assets_minor,en)}</strong><span>{t('إجمالي الأصول','Total assets')}</span></div>
+    <div><Receipt size={19}/><strong>{showMoney(report.balance_sheet.liabilities_minor,en)}</strong><span>{t('إجمالي الالتزامات','Total liabilities')}</span></div>
+    <div><BookOpen size={19}/><strong>{showMoney(report.balance_sheet.equity_minor,en)}</strong><span>{t('حقوق الملكية المسجلة','Recorded equity')}</span></div>
+    <div><Receipt size={19}/><strong>{showMoney(report.balance_sheet.accumulated_earnings_minor,en)}</strong><span>{t('الأرباح التراكمية غير المقفلة','Cumulative unclosed earnings')}</span></div>
+    <div><Landmark size={19}/><strong>{showMoney(report.balance_sheet.total_liabilities_and_equity_minor,en)}</strong><span>{t('الالتزامات + حقوق الملكية + الأرباح','Liabilities + equity + earnings')}</span></div>
+   </div>
    <h3>{t('التوزيع على المشروعات','Project allocation')}</h3>
    {renderTable([{key:'project_name',ar:'المشروع',english:'Project'},{key:'income_minor',ar:'إيرادات',english:'Income',fmt:r=>showMoney(r.income_minor,en)},{key:'expenses_minor',ar:'مصروفات',english:'Expenses',fmt:r=>showMoney(r.expenses_minor,en)}],report.project_analytics)}
-   <p className={styles.muted}>{t('التقرير لحركة الفترة فقط، ولا يمثل ميزانية افتتاحية أو قوائم ختامية معتمدة.','This shows period activity, not approved opening balances or statutory year-end statements.')}</p>
+   <p className={styles.muted}>{t('قوائم غير معتمدة بالعملة المصرية: الأرصدة الافتتاحية ومطابقة التوزيع على المشروعات شرط لصحة النتائج، ولا تُستخدم كقوائم ختامية رسمية.','Unaudited EGP statements: complete opening balances and verify project allocation before relying on statutory year-end figures.')}</p>
    </>}
   </>}
  </section>;
