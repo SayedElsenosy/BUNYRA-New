@@ -1,6 +1,6 @@
 import {requireEntitled} from '../../../lib/bunyra/subscriptions';
 import { identity, sameOrigin, json, failure } from '../../../lib/bunyra/http';
-import { addFollowUp, addInteraction, createCustomer, crmOverview, updateLead, recordLeadAction } from '../../../lib/bunyra/crm';
+import { addFollowUp, addInteraction, createCustomer, crmOverview, recordLeadAction } from '../../../lib/bunyra/crm';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +44,7 @@ export async function PATCH(request: Request) {
   try {
     sameOrigin(request);
     const { sql, actor } = await identity();
-    const body=await request.json(),platform=new URL(request.url).searchParams.get('mode')==='platform';await requireEntitled(sql,actor,String(body.company_id||''),'crm',platform);return json(await updateLead(sql, actor, body, platform));
+    const body=await request.json(),platform=new URL(request.url).searchParams.get('mode')==='platform';await requireEntitled(sql,actor,String(body.company_id||''),'crm',platform);return json({error:'USE_CUSTOMER_ACTION'},410);
   } catch (error) {
     return failure(error);
   }

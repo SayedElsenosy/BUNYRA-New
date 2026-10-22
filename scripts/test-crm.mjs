@@ -46,5 +46,15 @@ export async function runCrmTests(sql) {
     const rows = await sql`SELECT action FROM audit_logs WHERE company_id=${a} AND action LIKE 'crm.%' ORDER BY id`;
     assert.deepEqual(rows.map(row => row.action), ['crm.customer_created', 'crm.lead_created', 'crm.interaction_added', 'crm.follow_up_created']);
   });
+  await check('creating a customer initializes exactly one Fresh stage without separate opportunity',async()=>{
+    const newCustomer=await crm.createCustomer(tenantSql(sql),sales,{company_id:a,full_name:'Unified Customer',phone:'+201012345999',email:''},false,true);
+    const rows=await sql`SELECT id,customer_id,stage_code,status,source,owner_user_id FROM crm_leads WHERE company_id=${a} AND customer_id=${newCustomer.id}`;
+    assert.equal(rows.length,1);
+    assert.equal(rows[0].customer_id,newCustomer.id);
+    assert.equal(rows[0].stage_code,'fresh');
+    assert.equal(rows[0].status,'new');
+    assert.equal(rows[0].source,'customer_record');
+    assert.equal(rows[0].owner_user_id,sales.userId);
+  });
   return { passed: checks.length, checks, fixture_companies: [a, b] };
 }
