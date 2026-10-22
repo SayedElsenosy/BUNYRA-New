@@ -128,7 +128,7 @@ export async function runHubTests(raw){
  });
  await check('Operations and finance see their own authorization-scoped alert kinds',async()=>{
   const o=await workspaceAlerts(fresh(),ops,{company,bucket:'waiting'});
-  const approvals=o.items.filter(a=>a.kind==='booking_approval');assert.equal(approvals.length,1);assert.equal(approvals[0].id,b2.id);assert.equal(o.items.filter(a=>a.kind==='fresh_lead').length,4);
+  const approvals=o.items.filter(a=>a.kind==='booking_approval');assert.equal(approvals.length,1);assert.equal(approvals[0].id,b2.id);assert.equal(o.items.filter(a=>a.kind==='lead_assignment').length,4);
   const f=await workspaceAlerts(fresh(),fm,{company});
   assert.ok(f.items.some(a=>a.kind==='receipt_confirmation'&&a.id===b3.id));
   assert.ok(f.items.some(a=>a.kind==='installment'));
