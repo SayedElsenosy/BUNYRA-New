@@ -8,7 +8,7 @@ import {salesReports} from '../.sites-runtime/tests/sales-reports.mjs';
 import {dealsInsights} from '../.sites-runtime/tests/deals-insights.mjs';
 export async function testReportBoundaries(raw,fixture){
  assert.equal((await raw`SELECT user_id FROM platform_owner`)[0].user_id,'identity-test-platform-owner','DEV ONLY');
- const checks=[],check=async(name,fn)=>{await fn();checks.push({name,passed:true});console.log('PASS '+name)},deny=(fn,code='FORBIDDEN')=>assert.rejects(fn,e=>e.code===code||e.message===code),fresh=()=>tenantSql(raw),company=fixture.company,tag=company.slice(0,8),actor=r=>({userId:'commission-'+tag+'-'+r,email:r+'-'+tag+'@example.com'}),admin=actor('admin'),ops=actor('ops'),sales=actor('sales1'),today=new Date().toISOString().slice(0,10),input={from:today,to:today,group:'day'};
+ const checks=[],check=async(name,fn)=>{await fn();checks.push({name,passed:true});console.log('PASS '+name)},deny=(fn,code='FORBIDDEN')=>assert.rejects(fn,e=>e.code===code||e.message===code),fresh=()=>tenantSql(raw),company=fixture.company,tag=company.slice(0,8),actor=r=>({userId:'commission-'+tag+'-'+r,email:r+'-'+tag+'@example.com'}),admin=actor('admin'),ops=actor('ops'),sales=actor('sales1'),today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo'}).format(new Date()),input={from:today,to:today,group:'day'};
  await check('Deals Insights requires financial plus reporting access; sales cannot use it',async()=>{
   await deny(()=>dealsInsights(fresh(),sales,company,input));
   const adminResult=await dealsInsights(fresh(),admin,company,input);
