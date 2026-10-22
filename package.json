@@ -51,7 +51,9 @@
     "test:fixture-guard": "node scripts/test-fixture-guard-checks.mjs",
     "test:ledger-core": "node scripts/test-ledger-foundation.mjs",
     "test:ledger-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-ledger-integration-tests.mjs",
-    "test:finance-events": "node scripts/test-finance-events-static.mjs"
+    "test:finance-events": "node scripts/test-finance-events-static.mjs",
+    "test:payables-core": "node scripts/test-payables-core.mjs",
+    "test:payables-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-payables-integration-tests.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
