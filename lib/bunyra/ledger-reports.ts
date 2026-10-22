@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {access,ServiceError,uuid,type Sql,type Actor} from './service';
-import {buildFinancialStatements,summarizeTrialBalance} from './ledger-report-utils';
+import {buildFinancialStatements,summarizeTrialBalance,type StatementAccount} from './ledger-report-utils';
 
 const query=z.object({company_id:uuid,entity_id:uuid,from:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
  to:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),project_id:uuid.nullable().default(null)}).strict();
@@ -45,10 +45,14 @@ export async function ledgerFinancialReport(sql:Sql,actor:Actor,input:unknown,pl
     AND (${c.project_id}::uuid IS NULL OR l.project_id=${c.project_id}::uuid)
    GROUP BY a.id,a.code,a.name,a.kind,a.role ORDER BY a.code`
  ]);
+ const statementLine=(r:Record<string,any>):StatementAccount=>({
+  id:String(r.id),code:String(r.code),name:String(r.name),kind:r.kind as StatementAccount['kind'],
+  debit_minor:String(r.debit_minor),credit_minor:String(r.credit_minor)
+ });
  const summary=summarizeTrialBalance(accounts.map(r=>({
   kind:r.kind,debit_minor:r.debit_minor,credit_minor:r.credit_minor
  })));
  return {company_id:c.company_id,entity_id:c.entity_id,from:c.from,to:c.to,project_id:c.project_id,
-  trial_balance:accounts,project_analytics:projects,summary,...buildFinancialStatements(accounts,asOfAccounts),
+  trial_balance:accounts,project_analytics:projects,summary,...buildFinancialStatements(accounts.map(statementLine),asOfAccounts.map(statementLine)),
   note:'Unaudited EGP statements from posted entries. Opening balances must be recorded; project-filtered statements can be non-balancing if journal legs lack project dimensions.'};
 }
