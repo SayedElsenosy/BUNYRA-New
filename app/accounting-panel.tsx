@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useState,type FormEvent,type ReactNode} from 'react';
 import ProjectBudgetPanel from './project-budget-panel';
+import VendorPaymentsPanel from './vendor-payments-panel';
 import {BookOpen,Building2,Landmark,Receipt,RefreshCw} from 'lucide-react';
 import styles from './accounting-panel.module.css';
 
@@ -8,7 +9,7 @@ type Section='ledger'|'vendor-payables'|'fixed-assets'|'treasury'|'accounting-re
 type AssetData={assets:any[]};
 type ListData={entities:any[];accounts:any[];journals:any[];entries:any[];projects:{id:string;name:string}[]};
 type EventData={events:any[];mappings:any[]};
-type VendorData={vendors:any[];bills:any[];mappings:any[]};
+type VendorData={vendors:any[];bills:any[];mappings:any[];payments:any[]};
 type TreasuryData={statements:any[];lines:any[];matches:any[];candidates:any[]};
 type Report={summary:any;trial_balance:any[];project_analytics:any[];profit_and_loss:{lines:any[];income_minor:string;expenses_minor:string;net_profit_minor:string};balance_sheet:{lines:any[];assets_minor:string;liabilities_minor:string;equity_minor:string;accumulated_earnings_minor:string;total_liabilities_and_equity_minor:string;balanced:boolean}};
 function minor(value:string){const m=/^(-?)(\d{1,14})(?:\.(\d{1,2}))?$/.exec(value.trim());if(!m)throw Error('INVALID_AMOUNT');return (BigInt(m[1]+m[2])*BigInt(100)+(m[1]?BigInt(-1):BigInt(1))*BigInt((m[3]||'').padEnd(2,'0'))).toString();}
@@ -209,7 +210,10 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
     </div><button className="primary" disabled={busy}>{t('إنشاء الفاتورة','Create bill')}</button>
    </form>
    <h3>{t('فواتير الموردين','Supplier bills')}</h3>
-   {renderTable([{key:'invoice_number',ar:'رقم الفاتورة',english:'Invoice'},{key:'total_minor',ar:'القيمة',english:'Amount',fmt:r=>showMoney(r.total_minor,en)},{key:'status',ar:'الحالة',english:'Status'},{key:'id',ar:'الإجراءات',english:'Actions',fmt:r=><div className={styles.actions}>{r.status==='draft'&&<button disabled={busy} onClick={()=>void action('vendor-payables','approve_bill',{bill_id:r.id})}>{t('اعتماد','Approve')}</button>}{r.status==='approved'&&<button disabled={busy} onClick={()=>void action('vendor-payables','post_bill',{bill_id:r.id})}>{t('ترحيل','Post')}</button>}</div>}],payables.bills.filter(b=>b.entity_id===entityId))}
+   {renderTable([{key:'invoice_number',ar:'رقم الفاتورة',english:'Invoice'},{key:'total_minor',ar:'القيمة',english:'Amount',fmt:r=>showMoney(r.total_minor,en)},{key:'paid_minor',ar:'المسدّد',english:'Paid',fmt:r=>showMoney(r.paid_minor,en)},{key:'remaining_minor',ar:'المتبقي',english:'Remaining',fmt:r=>showMoney(r.remaining_minor,en)},{key:'status',ar:'الحالة',english:'Status'},{key:'id',ar:'الإجراءات',english:'Actions',fmt:r=><div className={styles.actions}>{r.status==='draft'&&<button disabled={busy} onClick={()=>void action('vendor-payables','approve_bill',{bill_id:r.id})}>{t('اعتماد','Approve')}</button>}{r.status==='approved'&&<button disabled={busy} onClick={()=>void action('vendor-payables','post_bill',{bill_id:r.id})}>{t('ترحيل','Post')}</button>}</div>}],payables.bills.filter(b=>b.entity_id===entityId))}
+   <VendorPaymentsPanel companyId={companyId} entityId={entityId} en={en} asOwner={asOwner}
+    bills={payables.bills} payments={payables.payments||[]}
+    accounts={ledger.accounts} journals={ledger.journals} onChanged={()=>setRevision(v=>v+1)}/>
   </>}
   {section==='treasury'&&ledger&&treasury&&<>
    <div className={styles.metrics}><div><Landmark size={19}/><strong>{treasury.statements.length}</strong><span>{t('كشف حساب بنكي','Statements')}</span></div><div><Receipt size={19}/><strong>{unMatched.length}</strong><span>{t('حركات لم تتطابق','Unreconciled movements')}</span></div></div>
