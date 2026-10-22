@@ -1,1 +1,3 @@
+import {assertFixtureDatabaseTarget} from './test-fixture-guard.mjs';
+await assertFixtureDatabaseTarget();
 import {neon} from '@neondatabase/serverless';import {runPlanRevisionTests} from './test-plan-revisions.mjs';const url=process.env.BUNYRA_TEST_DATABASE_URL;if(!url||process.env.BUNYRA_ALLOW_TEST_FIXTURES!=='1')throw Error('Isolated database and fixture opt-in required');console.log(JSON.stringify(await runPlanRevisionTests(neon(url)),null,2));

@@ -1,3 +1,4 @@
+import {assertFixtureDatabaseTarget} from './test-fixture-guard.mjs';
 import fs from 'node:fs';
 import {neon} from '@neondatabase/serverless';
 import {planStorage} from '../.sites-runtime/tests/storage.mjs';
@@ -7,6 +8,7 @@ if(process.env.BUNYRA_ALLOW_TEST_FIXTURES!=='1')throw Error('Explicit isolated f
 const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 if(!config.AWS_ENDPOINT_URL_S3.includes('br-soft-wildflower-bafc3fd0'))throw Error('Isolated development storage required');
 Object.assign(process.env,config);
+await assertFixtureDatabaseTarget();
 const sql=neon(config.BUNYRA_TEST_DATABASE_URL),storage=planStorage();
 const regression=await runFileTests(sql,storage),large=await runLargePlanTests(sql,storage),report={passed:regression.passed+large.passed,regression,large};
 fs.writeFileSync('docs/large-plan-test-results.json',JSON.stringify(report,null,2)+'\n');

@@ -1,3 +1,5 @@
+import {assertFixtureDatabaseTarget} from './test-fixture-guard.mjs';
+await assertFixtureDatabaseTarget();
 import {neon} from '@neondatabase/serverless';
 import {runFileTests,testStorage} from './test-files.mjs';
 if(!process.env.BUNYRA_TEST_DATABASE_URL||process.env.BUNYRA_ALLOW_TEST_FIXTURES!=='1'||!process.env.BUNYRA_TEST_STORAGE_ENDPOINT)throw Error('Explicit isolated database/storage branches and fixture opt-in required. Never use production.');

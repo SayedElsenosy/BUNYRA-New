@@ -1,3 +1,5 @@
+import {assertFixtureDatabaseTarget} from './test-fixture-guard.mjs';
+await assertFixtureDatabaseTarget();
 import {neon} from '@neondatabase/serverless';
 import {runHubTests} from './test-workspace-hub.mjs';
 import {testCustomerJourney} from './test-customer-journey.mjs';

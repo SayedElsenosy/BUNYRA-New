@@ -17,6 +17,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: npm run test:fixture-guard
       - run: npm run test:tenant-client
       - run: npm run test:record-scopes
       - run: npm run test:navigation

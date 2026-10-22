@@ -1,1 +1,3 @@
+import {assertFixtureDatabaseTarget} from './test-fixture-guard.mjs';
+await assertFixtureDatabaseTarget();
 import {neon} from '@neondatabase/serverless';import {testFollowUpWorkflow} from './test-follow-up-workflow.mjs';if(!process.env.BUNYRA_TEST_DATABASE_URL||process.env.BUNYRA_ALLOW_TEST_FIXTURES!=='1')throw Error('Isolated DEV required');const {fixture,...result}=await testFollowUpWorkflow(neon(process.env.BUNYRA_TEST_DATABASE_URL));console.log(JSON.stringify({...result,fixture_company:fixture.company},null,2));

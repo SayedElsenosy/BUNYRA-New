@@ -1,3 +1,5 @@
+import {assertFixtureDatabaseTarget} from './test-fixture-guard.mjs';
+await assertFixtureDatabaseTarget();
 import {neon} from '@neondatabase/serverless';
 import {runPricingTests} from './test-pricing.mjs';
 const url=process.env.BUNYRA_TEST_DATABASE_URL;

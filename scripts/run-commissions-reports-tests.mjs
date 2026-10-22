@@ -1,3 +1,5 @@
+import {assertFixtureDatabaseTarget} from './test-fixture-guard.mjs';
+await assertFixtureDatabaseTarget();
 import {neon} from '@neondatabase/serverless';
 import {testReportBoundaries} from './test-commission-report-boundaries.mjs';
 import {runCommissionTests} from './test-commissions-reports.mjs';
