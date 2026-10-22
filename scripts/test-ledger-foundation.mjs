@@ -58,4 +58,43 @@ test('trial balance exposes unbalanced inputs and respects arbitrary precision',
  ]);
  assert.equal(x.balanced,false);assert.equal(x.accounting_equation_holds,false);
 });
+
+const {buildFinancialStatements}=await import('../'+dir+'/ledger-report-utils.mjs');
+test('income statement is period-only, balance sheet is cumulative',()=>{
+ const a=[
+  {id:'a',code:'101',name:'Bank',kind:'asset',debit_minor:'500000',credit_minor:'70000'},
+  {id:'e',code:'300',name:'Equity',kind:'equity',debit_minor:'0',credit_minor:'300000'},
+  {id:'i',code:'400',name:'Revenue',kind:'income',debit_minor:'0',credit_minor:'150000'},
+  {id:'x',code:'500',name:'Expense',kind:'expense',debit_minor:'20000',credit_minor:'0'}
+ ];
+ const p=[
+  {id:'a',code:'101',name:'Bank',kind:'asset',debit_minor:'100000',credit_minor:'50000'},
+  {id:'i',code:'400',name:'Revenue',kind:'income',debit_minor:'0',credit_minor:'80000'},
+  {id:'x',code:'500',name:'Expense',kind:'expense',debit_minor:'30000',credit_minor:'0'}
+ ];
+ const r=buildFinancialStatements(p,a);
+ assert.equal(r.profit_and_loss.net_profit_minor,'50000');
+ assert.equal(r.balance_sheet.assets_minor,'430000');
+ assert.equal(r.balance_sheet.accumulated_earnings_minor,'130000');
+ assert.equal(r.balance_sheet.balanced,true);
+});
+test('negative balances are preserved',()=>{
+ const r=buildFinancialStatements([],[
+  {id:'a',code:'1',name:'Overdraft',kind:'asset',debit_minor:'0',credit_minor:'100'},
+  {id:'l',code:'2',name:'Prepaid',kind:'liability',debit_minor:'100',credit_minor:'0'}
+ ]);
+ assert.deepEqual(r.balance_sheet.lines.map(x=>x.balance_minor),['-100','-100']);
+ assert.equal(r.balance_sheet.balanced,true);
+});
+test('unbalanced statement cannot be silently normalized',()=>{
+ const r=buildFinancialStatements([],[{id:'a',code:'1',name:'Bank',kind:'asset',debit_minor:'500',credit_minor:'0'},{id:'l',code:'2',name:'Payable',kind:'liability',debit_minor:'0',credit_minor:'300'}]);
+ assert.equal(r.balance_sheet.balanced,false);
+});
+const sqlReport=fs.readFileSync('lib/bunyra/ledger-reports.ts','utf8');
+test('cumulative and period SQL enforce tenant, entity, project and posted filters',()=>{
+ assert.match(sqlReport,/AND e.entry_date<=\$\{c.to\}::date/);
+ assert.match(sqlReport,/AND e.entry_date>=\$\{c.from\}::date AND e.entry_date<=\$\{c.to\}::date/);
+ for(const predicate of ['e.company_id=','e.entity_id=','e.state=','l.project_id='])
+  assert.equal(sqlReport.split(predicate).length-1,3,predicate);
+});
 console.log(JSON.stringify({passed}));
