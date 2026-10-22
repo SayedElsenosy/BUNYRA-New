@@ -13,8 +13,8 @@ type Props={companyId:string;entityId:string;projects:Project[];accounts:Account
  from:string;to:string;projectId:string;en:boolean;asOwner:boolean};
 const money=(value:string,en:boolean)=>{
  try{const cents=BigInt(value),negative=cents<BigInt(0),abs=negative?-cents:cents;
-  return (negative?'-':'')+(abs/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG')+'.'+
-   (abs%BigInt(100)).toString().padStart(2,'0')+' EGP';
+  return (negative?'-':'')+(abs/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG-u-nu-latn')+'.'+
+   (abs%BigInt(100)).toString().padStart(2,'0')+(en?' EGP':' ج.م');
  }catch{return '—';}
 };
 function parseMoney(value:string){

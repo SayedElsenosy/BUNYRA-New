@@ -6,6 +6,22 @@ import {BookOpen,Building2,Landmark,Receipt,RefreshCw} from 'lucide-react';
 import styles from './accounting-panel.module.css';
 
 type Section='ledger'|'vendor-payables'|'fixed-assets'|'treasury'|'accounting-reports';
+const accountingLabels:Record<string,[string,string]>={
+ general:['عام','General'],receivable:['ذمم العملاء','Receivables'],payable:['ذمم الموردين','Payables'],
+ cash:['نقدية','Cash'],bank:['بنك','Bank'],customer_advance:['دفعات مقدمة من العملاء','Customer advances'],
+ tax:['ضرائب','Tax'],clearing:['حساب وسيط','Clearing'],sales:['مبيعات','Sales'],purchase:['مشتريات','Purchases'],
+ payroll:['رواتب','Payroll'],adjustment:['تسويات','Adjustments'],asset:['أصل','Asset'],liability:['التزام','Liability'],
+ equity:['حقوق ملكية','Equity'],income:['إيراد','Income'],expense:['مصروف','Expense'],
+ draft:['مسودة','Draft'],posted:['مرحّل','Posted'],approved:['معتمد','Approved'],cancelled:['ملغي','Cancelled'],
+ open:['مفتوح','Open'],closed:['مقفل','Closed'],pending:['بانتظار الترحيل','Pending posting'],
+ informational:['للعلم','Informational'],superseded:['إصدار سابق','Superseded'],
+ booking_receipt_confirmed:['تأكيد تحصيل عربون الحجز','Booking receipt confirmed'],
+ booking_cancelled:['إلغاء الحجز','Booking cancelled'],contract_signed:['توقيع العقد','Contract signed'],
+ collection_confirmed:['تأكيد التحصيل','Collection confirmed'],booking_receipt_allocated:['تخصيص عربون الحجز','Booking receipt allocated'],
+ adjustment_refund_executed:['تنفيذ رد مبلغ','Refund executed'],adjustment_reversal_executed:['تنفيذ عكس تحصيل','Receipt reversal executed'],
+ adjustment_settlement_executed:['تنفيذ تسوية','Settlement executed']
+};
+function accountingLabel(value:string,en:boolean){return accountingLabels[value]?.[en?1:0]||value;}
 type AssetData={assets:any[]};
 type ListData={entities:any[];accounts:any[];journals:any[];entries:any[];projects:{id:string;name:string}[]};
 type EventData={events:any[];mappings:any[]};
@@ -14,7 +30,7 @@ type TreasuryData={statements:any[];lines:any[];matches:any[];candidates:any[]};
 type Report={summary:any;trial_balance:any[];project_analytics:any[];profit_and_loss:{lines:any[];income_minor:string;expenses_minor:string;net_profit_minor:string};balance_sheet:{lines:any[];assets_minor:string;liabilities_minor:string;equity_minor:string;accumulated_earnings_minor:string;total_liabilities_and_equity_minor:string;balanced:boolean}};
 function minor(value:string){const m=/^(-?)(\d{1,14})(?:\.(\d{1,2}))?$/.exec(value.trim());if(!m)throw Error('INVALID_AMOUNT');return (BigInt(m[1]+m[2])*BigInt(100)+(m[1]?BigInt(-1):BigInt(1))*BigInt((m[3]||'').padEnd(2,'0'))).toString();}
 function showMoney(value:unknown,en:boolean){try{const n=BigInt(String(value||0)),sign=n<BigInt(0)?'-':'',abs=n<BigInt(0)?-n:n;
- return sign+(abs/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG')+'.'+(abs%BigInt(100)).toString().padStart(2,'0')+' EGP';
+ return sign+(abs/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG-u-nu-latn')+'.'+(abs%BigInt(100)).toString().padStart(2,'0')+(en?' EGP':' ج.م');
  }catch{return '—';}}
 function today(){return new Date().toISOString().slice(0,10);}
 const initialDate=today();
@@ -89,7 +105,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
   finally{setBusy(false)}
  }
  const submit=(fn:()=>void)=>(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();fn()};
- const renderTable=(columns:{key:string;ar:string;english:string;fmt?:(r:any)=>ReactNode}[],rows:any[])=><div className={styles.tableWrap}><table className={styles.table}><thead><tr>{columns.map(c=><th key={c.key}>{t(c.ar,c.english)}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={r.id||r.code||i}>{columns.map(c=><td key={c.key}>{c.fmt?c.fmt(r):String(r[c.key]??'—')}</td>)}</tr>)}{!rows.length&&<tr><td colSpan={columns.length}>{t('لا توجد بيانات حتى الآن','No records yet')}</td></tr>}</tbody></table></div>;
+ const renderTable=(columns:{key:string;ar:string;english:string;fmt?:(r:any)=>ReactNode}[],rows:any[])=><div className={styles.tableWrap}><table className={styles.table}><thead><tr>{columns.map(c=><th key={c.key}>{t(c.ar,c.english)}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={r.id||r.code||i}>{columns.map(c=><td key={c.key}>{c.fmt?c.fmt(r):['kind','role','state','status'].includes(c.key)?accountingLabel(String(r[c.key]??'—'),en):String(r[c.key]??'—')}</td>)}</tr>)}{!rows.length&&<tr><td colSpan={columns.length}>{t('لا توجد بيانات حتى الآن','No records yet')}</td></tr>}</tbody></table></div>;
  const aOpts=(kinds:string[])=>(ledger?.accounts||[]).filter(a=>a.entity_id===entityId&&(kinds.includes(a.role)||kinds.includes(a.kind)));
  const journals=(ledger?.journals||[]).filter(j=>j.entity_id===entityId);
  const chosenMapping=events?.mappings?.find(m=>m.entity_id===entityId);
@@ -97,7 +113,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
  const unMatched=(treasury?.lines||[]).filter(l=>!treasury?.matches?.some(m=>m.bank_line_id===l.id));
  const labels:Record<Section,[string,string]>={ledger:['دفتر الأستاذ وشجرة الحسابات','General ledger & accounts'],'vendor-payables':['الموردون والفواتير المستحقة','Vendors & payables'],'fixed-assets':['الأصول الثابتة والإهلاك','Fixed assets & depreciation'],treasury:['الخزينة والمطابقة البنكية','Treasury & bank reconciliation'],'accounting-reports':['التقارير المالية','Financial reports']};
  return <section className={styles.root}>
-  <div className={styles.header}><div><div className={styles.eyebrow}>BUNYRA ERP · ACCOUNTING</div><h2>{t(...labels[section])}</h2><p>{t('كل حركة مالية مرتبطة بمستندها الأصلي وتُرحّل إلى دفتر الأستاذ وفق صلاحيات الحسابات.','Financial records stay tied to their source documents and protected journal entries.')}</p></div>
+  <div className={styles.header}><div><div className={styles.eyebrow}>BUNYRA · {t('الحسابات','Accounting')}</div><h2>{t(...labels[section])}</h2><p>{t('كل حركة مالية مرتبطة بمستندها الأصلي وتُرحّل إلى دفتر الأستاذ وفق صلاحيات الحسابات.','Financial records stay tied to their source documents and protected journal entries.')}</p></div>
    <button className="secondary" onClick={()=>setRevision(v=>v+1)}><RefreshCw size={16}/>{t('تحديث','Refresh')}</button>
   </div>
   {error&&<div className={styles.error} role="alert">{error==='MIGRATIONS_PENDING'?t('قاعدة الشركة تحتاج تفعيل ترحيلات الحسابات 039–042 قبل استخدام هذه الشاشة. لم يتم تعديل بيانات الإنتاج.','Accounting database migrations 039–042 are not active for this company yet.'):t('تعذر إكمال الطلب: ','Request error: ')+error}</div>}
@@ -116,14 +132,14 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
      <input placeholder={t('كود الحساب','Account code')} value={account.code} onChange={e=>setAccount({...account,code:e.target.value})} required/>
      <input placeholder={t('اسم الحساب','Account name')} value={account.name} onChange={e=>setAccount({...account,name:e.target.value})} required/>
      <select value={account.kind} onChange={e=>setAccount({...account,kind:e.target.value})}>{[['asset','أصل','Asset'],['liability','التزام','Liability'],['equity','حقوق ملكية','Equity'],['income','إيراد','Income'],['expense','مصروف','Expense']].map(x=><option key={x[0]} value={x[0]}>{en?x[2]:x[1]}</option>)}</select>
-     <select value={account.role} onChange={e=>setAccount({...account,role:e.target.value})}>{['general','receivable','payable','cash','bank','customer_advance','tax','clearing'].map(x=><option key={x} value={x}>{x}</option>)}</select>
+     <select value={account.role} onChange={e=>setAccount({...account,role:e.target.value})}>{['general','receivable','payable','cash','bank','customer_advance','tax','clearing'].map(x=><option key={x} value={x}>{accountingLabel(x,en)}</option>)}</select>
      <button className="primary" disabled={busy}>{t('حفظ الحساب','Save account')}</button>
     </form>
     <form className={styles.card} onSubmit={submit(()=>void action('ledger','journal',{entity_id:entityId,...journal}))}>
      <h3>{t('إضافة يومية محاسبية','Add journal')}</h3>
      <input placeholder={t('كود اليومية','Journal code')} value={journal.code} onChange={e=>setJournal({...journal,code:e.target.value})} required/>
      <input placeholder={t('اسم اليومية','Journal name')} value={journal.name} onChange={e=>setJournal({...journal,name:e.target.value})} required/>
-     <select value={journal.kind} onChange={e=>setJournal({...journal,kind:e.target.value})}>{['general','sales','purchase','cash','bank','payroll','adjustment'].map(x=><option key={x} value={x}>{x}</option>)}</select>
+     <select value={journal.kind} onChange={e=>setJournal({...journal,kind:e.target.value})}>{['general','sales','purchase','cash','bank','payroll','adjustment'].map(x=><option key={x} value={x}>{accountingLabel(x,en)}</option>)}</select>
      <button className="primary" disabled={busy}>{t('حفظ اليومية','Save journal')}</button>
     </form>
    </div>
@@ -172,7 +188,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
     </form>
     <div className={styles.card}>
      <h3>{t('أحداث مالية تحتاج اعتماد الترحيل','Financial events awaiting posting')}</h3>
-     {(events?.events||[]).filter(e=>e.status==='pending').slice(0,12).map(e=><div className={styles.compactRow} key={e.id}><span>{e.event_type} · {showMoney(e.amount_minor,en)}</span><button disabled={busy} onClick={()=>void action('finance-events','post_event',{event_id:e.id})}>{t('ترحيل','Post')}</button></div>)}
+     {(events?.events||[]).filter(e=>e.status==='pending').slice(0,12).map(e=><div className={styles.compactRow} key={e.id}><span>{accountingLabel(e.event_type,en)} · {showMoney(e.amount_minor,en)}</span><button disabled={busy} onClick={()=>void action('finance-events','post_event',{event_id:e.id})}>{t('ترحيل','Post')}</button></div>)}
      {!events?.events.some(e=>e.status==='pending')&&<p className={styles.muted}>{t('لا توجد أحداث معلقة.','No pending events.')}</p>}
     </div>
    </div>

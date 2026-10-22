@@ -17,8 +17,8 @@ const toMinor=(v:string)=>{
 };
 const money=(minor:string,en:boolean)=>{
  try{const n=BigInt(minor),neg=n<BigInt(0),v=neg?-n:n;
-  return (neg?'-':'')+(v/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG')+
-    '.'+(v%BigInt(100)).toString().padStart(2,'0')+' EGP';
+  return (neg?'-':'')+(v/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG-u-nu-latn')+
+    '.'+(v%BigInt(100)).toString().padStart(2,'0')+(en?' EGP':' ج.م');
  }catch{return '—';}
 };
 export default function VendorPaymentsPanel({companyId,entityId,en,asOwner,bills,payments,accounts,journals,onChanged}:Props){
