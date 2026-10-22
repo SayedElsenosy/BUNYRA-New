@@ -57,7 +57,8 @@
     "test:treasury-core": "node scripts/test-treasury-core.mjs",
     "test:treasury-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-treasury-integration-tests.mjs",
     "test:ledger-controls": "node scripts/test-ledger-controls.mjs",
-    "test:fixed-assets": "node scripts/test-fixed-assets.mjs"
+    "test:fixed-assets": "node scripts/test-fixed-assets.mjs",
+    "test:fixed-assets-integration": "node scripts/run-fixed-assets-integration-tests.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
