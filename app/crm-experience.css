@@ -27,3 +27,5 @@
 .has-workspace>.topbar .tenant-brand{display:none}.has-workspace>.topbar{height:50px;min-height:50px;justify-content:flex-end}.has-workspace>.topbar .top-actions{margin-inline-start:auto}
 
 .lead-assignment-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0}.lead-assignment-toolbar small{flex-basis:100%;color:var(--muted)}.lead-table input[type=checkbox]{width:18px;height:18px;accent-color:var(--primary)}
+
+.lead-assignment-form{display:grid;gap:18px}.lead-assignment-form>p{margin:0;line-height:1.8}.lead-assignment-form label{display:grid;gap:8px;font-size:14px}.lead-assignment-form select{width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit}.lead-assignment-form .lead-answer{display:flex;align-items:flex-start;gap:10px;line-height:1.6}.lead-assignment-form input[type=checkbox]{flex:0 0 18px;width:18px;height:18px;margin-top:3px;accent-color:var(--primary)}.lead-assignment-form>.primary{justify-self:start;min-height:44px;padding:10px 22px}.lead-assignment-form select:focus-visible{outline:2px solid var(--gold,#b88c3e);outline-offset:2px}
