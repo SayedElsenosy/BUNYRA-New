@@ -21,3 +21,13 @@ Date: 2026-10-22. Repository: SayedElsenosy/BUNYRA-New. This is a safety runbook
 - Approve retention targets and costs, scheduled snapshots/backups, recovery key custodians, disaster recovery contacts, and recurring rehearsal cadence.
 - Keep DB secrets, storage credentials and Cloudflare tokens out of GitHub code and audit notes.
 - Never claim automatic backups, recovery points, or production deploys based on successful CI or a read-only check.
+
+## 2026-10-22 executed non-destructive branch recovery drill
+- Attempted snapshot creation on `dev-foundation` (`br-soft-wildflower-bafc3fd0`). Neon rejected the operation with `not allowed to snapshot non-root branch`. **No snapshot was created.**
+- Created a fresh branch `recovery-drill-dev-foundation-20261022` (`br-muddy-dream-ba8sj5z6`) parented to `dev-foundation`. Production `main` was never changed.
+- Compared full-table row counts and deterministic row-content fingerprints: **54/54 tables match**, zero mismatches. Major row counts: 391 companies, 256 projects, 2,915 customers, 70 bookings, 43 contracts, 40 collections, 2,843 audit entries and 38 migrations.
+- Compared catalog fingerprints with the source: 580 columns, 155 indexes, 52 RLS policies, 856 constraints, 28 non-internal triggers, 37 functions, RLS flags on 54 tables; all seven catalog components match.
+- Verified tenant role on the copied branch: a matching member can see exactly their own company/project, zero foreign projects; a foreign-company member who claims the first company's context gets zero companies and projects.
+- This is a successful **branch-copy disaster recovery rehearsal**, not a restore from a persisted snapshot and not an independent object-storage restoration.
+- Snapshot/PITR restoration from the production root branch remains untested and should be separately approved; Neon snapshot capability on non-root branches is restricted.
+- The recovery drill branch is intentionally retained for inspection; Neon storage/compute usage could incur costs. Do not delete without explicit approval.
