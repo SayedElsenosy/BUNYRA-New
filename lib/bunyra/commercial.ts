@@ -76,7 +76,7 @@ export async function createBooking(sql: Sql, actor: Actor, input: unknown, plat
   if(c.lead_id){
     const leadCtx=await access(sql,actor,c.company_id,'leads.read',platform);
     const leadUsers=await salesScope(sql,actor,c.company_id,leadCtx);
-    const lead=(await sql`SELECT customer_id,project_id,owner_user_id FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.lead_id}`)[0];
+    const lead=(await sql`SELECT customer_id,project_id,owner_user_id FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.lead_id}`)[0] as {customer_id:string;project_id:string|null;owner_user_id:string}|undefined;
     if(!lead||!bookingLeadMatches(lead,c,leadUsers)||!projectAllowed(leadCtx,'leads.read',lead.project_id))throw new ServiceError('INVALID_JOURNEY_SOURCE',403);
   }
   if(c.source_request_id)await requireBuyerSource(sql,actor,c.company_id,c.source_request_id,c.customer_id,c.project_id,platform);
