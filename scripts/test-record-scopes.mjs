@@ -10,6 +10,8 @@ fs.writeFileSync(dir+'/service.mjs', 'export async function access(sql){return s
 const source=ts.transpileModule(fs.readFileSync('lib/bunyra/record-scope.ts','utf8'),{compilerOptions:options}).outputText.replaceAll("from './service'","from './service.mjs'").replaceAll("from './permissions'","from './permissions.mjs'");
 fs.writeFileSync(dir+'/record-scope.mjs',source);
 const {bookingScope,requireBooking,requireContract}=await import('../'+dir+'/record-scope.mjs');
+fs.writeFileSync(dir+'/booking-lead-source.mjs',ts.transpileModule(fs.readFileSync('lib/bunyra/booking-lead-source.ts','utf8'),{compilerOptions:options}).outputText);
+const {bookingLeadMatches}=await import('../'+dir+'/booking-lead-source.mjs');
 const actor={userId:'seller-1',email:'seller-1@example.com'};
 const projects=['p1','p2'];
 const bookings=[{id:'b1',project_id:'p1',sales_user_id:'seller-1',status:'approved'}, {id:'b2',project_id:'p2',sales_user_id:'seller-2',status:'approved'}];
@@ -71,5 +73,21 @@ await check('Finance manager retains broad project access',async()=>{
 await check('Verified platform owner remains unrestricted in its selected company',async()=>{
  const sql=sqlFor('company_admin',[],true);
  assert.deepEqual((await bookingScope(sql,actor,'company1','bookings.read')).ids,['b1','b2']);
+});
+await check('matching sales lead links to a booking',async()=>{
+ assert.equal(bookingLeadMatches({customer_id:'c1',project_id:'p1',owner_user_id:'s1'},{customer_id:'c1',project_id:'p1'},['s1']),true);
+});
+await check('projectless customer lead can be converted to a unit booking',async()=>{
+ assert.equal(bookingLeadMatches({customer_id:'c1',project_id:null,owner_user_id:'s1'},{customer_id:'c1',project_id:'p1'},['s1']),true);
+});
+await check('lead from another buyer or project cannot be linked',async()=>{
+ const lead={customer_id:'c2',project_id:'p2',owner_user_id:'s1'};
+ assert.equal(bookingLeadMatches(lead,{customer_id:'c1',project_id:'p2'},['s1']),false);
+ assert.equal(bookingLeadMatches(lead,{customer_id:'c2',project_id:'p1'},['s1']),false);
+});
+await check('another salesperson lead is private to its owner/team',async()=>{
+ const lead={customer_id:'c1',project_id:'p1',owner_user_id:'s2'};
+ assert.equal(bookingLeadMatches(lead,{customer_id:'c1',project_id:'p1'},['s1']),false);
+ assert.equal(bookingLeadMatches(lead,{customer_id:'c1',project_id:'p1'},null),true);
 });
 console.log(JSON.stringify({passed:checks.length,checks},null,2));

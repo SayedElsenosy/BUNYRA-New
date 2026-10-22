@@ -6,7 +6,8 @@ import { unitPricing } from './pricing';
 import {requireOffer,requireBuyerSource} from './offer-scope';
 import {bindTenant} from './tenant';
 import {hasPermission} from './permissions';
-import {bookingScope,requireBooking,requireContract,projectAllowed} from './record-scope';
+import {bookingScope,requireBooking,requireContract,projectAllowed,salesScope} from './record-scope';
+import {bookingLeadMatches} from './booking-lead-source';
 
 const bookingInput = z.object({ company_id: uuid, project_id: uuid, unit_id: uuid, customer_id: uuid, source_offer_id:uuid.nullable().optional(),source_request_id:uuid.nullable().optional(), lead_id: uuid.nullable().optional(), plan_id: uuid, customer_name: z.string().trim().min(2).max(200), customer_phone: z.string().trim().min(3).max(50), customer_email: z.string().trim().email().or(z.literal('')).default(''), correspondence_address: z.string().trim().max(500).default(''), id_document_key: z.string().trim().max(500).default(''), payment_proof_key: z.string().trim().max(500).default(''), reservation_amount: z.string().regex(/^\d{1,14}(\.\d{1,2})?$/), notes: z.string().trim().max(2000).default(''), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();
 const offerInput = z.object({ company_id: uuid, project_id: uuid, unit_id: uuid, plan_id: uuid, customer_id: uuid.nullable().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), language: z.enum(['ar', 'en']).default('ar') }).strict();
@@ -71,6 +72,13 @@ export async function createBooking(sql: Sql, actor: Actor, input: unknown, plat
   const c = bookingInput.parse(input); const ctx = await roleAccess(sql, actor, c.company_id, 'bookings.create', platform,c.project_id); if (!ctx.owner && !['sales','sales_manager','sales_admin','company_admin'].includes(ctx.role)) throw new ServiceError('FORBIDDEN',403);
   const quote = await approvedQuote(sql, actor, c, platform);
   const customer = await sql`SELECT id FROM crm_customers WHERE company_id=${c.company_id} AND id=${c.customer_id}`; if (!customer.length) throw new ServiceError('INVALID_CUSTOMER',400);
+  // The company FK alone cannot prove buyer, project or seller ownership.
+  if(c.lead_id){
+    const leadCtx=await access(sql,actor,c.company_id,'leads.read',platform);
+    const leadUsers=await salesScope(sql,actor,c.company_id,leadCtx);
+    const lead=(await sql`SELECT customer_id,project_id,owner_user_id FROM crm_leads WHERE company_id=${c.company_id} AND id=${c.lead_id}`)[0];
+    if(!lead||!bookingLeadMatches(lead,c,leadUsers)||!projectAllowed(leadCtx,'leads.read',lead.project_id))throw new ServiceError('INVALID_JOURNEY_SOURCE',403);
+  }
   if(c.source_request_id)await requireBuyerSource(sql,actor,c.company_id,c.source_request_id,c.customer_id,c.project_id,platform);
   if(c.source_offer_id){const offer=await requireOffer(sql,actor,c.company_id,c.source_offer_id,platform);if(offer.customer_id!==c.customer_id||offer.project_id!==c.project_id||offer.unit_id!==c.unit_id||offer.plan_id!==c.plan_id||(offer.source_request_id||null)!==(c.source_request_id||null))throw new ServiceError('INVALID_JOURNEY_SOURCE',403);const same=(await sql`SELECT snapshot->'quote'->'calculation'=${JSON.stringify(quote.calculation)}::jsonb AS matches FROM sales_offers WHERE company_id=${c.company_id} AND id=${c.source_offer_id}`)[0]?.matches;if(!same||offer.book_id!==quote.book?.id||offer.source_unit_version!==quote.unit?.version)throw new ServiceError('OFFER_PRICE_CHANGED',409);}
   const reservation = minorUnits(c.reservation_amount).toString();if(BigInt(reservation)<=BigInt(0)||BigInt(reservation)>BigInt(quote.calculation.down_payment_minor))throw new ServiceError('INVALID_AMOUNT',400);

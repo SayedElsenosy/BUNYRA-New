@@ -46,7 +46,31 @@ export async function runCommercialIntegrityTests(raw){
  const permission=(user,action,allowed)=>svc.setPermission(fresh(),admin,{company_id:company,user_id:user.userId,project_id:project,action,allowed});
  await permission(s2,'inventory.read',false);await permission(s2,'pricing.read',false);
  await check('buyer matching respects denied inventory and price access',async()=>{const r=await buyer.createBuyerRequest(fresh(),s2,{company_id:company,customer_id:customer.id,project_id:project,max_budget:'3000.00'});assert.equal(r.matches.length,0)});
- const booking=(await commercial.createBooking(fresh(),s1,{...data,lead_id:lead.id,customer_name:'عميل تجريبي',customer_phone:'+201001234567',reservation_amount:'200.00'})).booking;
+ const bookingInput={...data,customer_name:'عميل تجريبي',customer_phone:'+201001234567',reservation_amount:'200.00'};
+ await check('booking refuses another seller lead',async()=>{
+  const privateLead=await crm.createLead(fresh(),s2,{company_id:company,customer_id:customer.id,source:'Private seller',project_id:project});
+  await deny(()=>commercial.createBooking(fresh(),s1,{...bookingInput,lead_id:privateLead.id}),'INVALID_JOURNEY_SOURCE');
+ });
+ await check('booking refuses a different customer lead',async()=>{
+  const otherCustomer=await crm.createCustomer(fresh(),s1,{company_id:company,full_name:'Other buyer',phone:'+201001234568',email:''});
+  const otherLead=await crm.createLead(fresh(),s1,{company_id:company,customer_id:otherCustomer.id,source:'Other buyer',project_id:project});
+  await deny(()=>commercial.createBooking(fresh(),s1,{...bookingInput,lead_id:otherLead.id}),'INVALID_JOURNEY_SOURCE');
+ });
+ await check('booking refuses a different project lead',async()=>{
+  const anotherProject=crypto.randomUUID();
+  await raw`INSERT INTO projects(id,company_id,name) VALUES(${anotherProject},${company},'Unrelated project')`;
+  const otherLead=await crm.createLead(fresh(),s1,{company_id:company,customer_id:customer.id,source:'Other project',project_id:anotherProject});
+  await deny(()=>commercial.createBooking(fresh(),s1,{...bookingInput,lead_id:otherLead.id}),'INVALID_JOURNEY_SOURCE');
+ });
+ await check('booking refuses an unknown lead without creating a reservation',async()=>{
+  await deny(()=>commercial.createBooking(fresh(),s1,{...bookingInput,lead_id:crypto.randomUUID()}),'INVALID_JOURNEY_SOURCE');
+  assert.equal((await raw`SELECT count(*)::int AS n FROM bookings WHERE company_id=${company}`)[0].n,0);
+ });
+ const booking=(await commercial.createBooking(fresh(),s1,{...bookingInput,lead_id:lead.id})).booking;
+ await check('booking preserves only the validated lead and buyer relationship',async()=>{
+  const row=(await raw`SELECT customer_id,project_id,lead_id FROM bookings WHERE company_id=${company} AND id=${booking.id}`)[0];
+  assert.equal(row.customer_id,customer.id);assert.equal(row.project_id,project);assert.equal(row.lead_id,lead.id);
+ });
  await check('booking preserves approved price and unit snapshots',async()=>{const b=(await raw`SELECT quote_snapshot FROM bookings WHERE id=${booking.id}`)[0];assert.equal(b.quote_snapshot.calculation.total_minor,'200000');assert.equal(b.quote_snapshot.unit.id,unit)});
  await check('sales cannot see other bookings or financial records',async()=>{const d=await commercial.commercialOverview(fresh(),s2,company);assert.equal(d.bookings.length,0);assert.equal(d.contracts.length,0);assert.equal(d.due.length,0)});
  const objects=new Map(),storage={put:async(k,b)=>objects.set(k,new Uint8Array(b)),get:async k=>objects.get(k),remove:async k=>objects.delete(k)};
