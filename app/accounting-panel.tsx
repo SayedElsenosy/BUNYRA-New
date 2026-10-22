@@ -3,7 +3,8 @@ import {useEffect,useState,type FormEvent,type ReactNode} from 'react';
 import {BookOpen,Building2,Landmark,Receipt,RefreshCw} from 'lucide-react';
 import styles from './accounting-panel.module.css';
 
-type Section='ledger'|'vendor-payables'|'treasury'|'accounting-reports';
+type Section='ledger'|'vendor-payables'|'fixed-assets'|'treasury'|'accounting-reports';
+type AssetData={assets:any[]};
 type ListData={entities:any[];accounts:any[];journals:any[];entries:any[];projects:{id:string;name:string}[]};
 type EventData={events:any[];mappings:any[]};
 type VendorData={vendors:any[];bills:any[];mappings:any[]};
@@ -15,11 +16,19 @@ function showMoney(value:unknown,en:boolean){try{const n=BigInt(String(value||0)
  }catch{return '—';}}
 function today(){return new Date().toISOString().slice(0,10);}
 const initialDate=today();
+function nextAssetMonth(start:string,postedMonths:number){
+ const d=new Date(start.slice(0,7)+'-01T00:00:00Z');
+ if(!Number.isFinite(d.getTime())||!Number.isInteger(postedMonths))return '';
+ d.setUTCMonth(d.getUTCMonth()+postedMonths);
+ return d.toISOString().slice(0,10);
+}
 export default function AccountingPanel({companyId,en=false,asOwner=false,section='ledger',active=true}:{companyId:string;en?:boolean;asOwner?:boolean;section?:Section;active?:boolean}){
  const t=(ar:string,english:string)=>en?english:ar;
  const [ledger,setLedger]=useState<ListData|null>(null),[events,setEvents]=useState<EventData|null>(null);
  const [payables,setPayables]=useState<VendorData|null>(null),[treasury,setTreasury]=useState<TreasuryData|null>(null);
  const [controls,setControls]=useState<{periods:any[];reversals:any[]}|null>(null);
+ const [assetData,setAssetData]=useState<AssetData|null>(null);
+ const [assetForm,setAssetForm]=useState({code:'',name:'',project_id:'',acquisition_date:initialDate,service_date:initialDate,cost:'',residual:'0',life_months:'60',asset_account_id:'',accumulated_account_id:'',expense_account_id:'',journal_id:''});
  const [lockForm,setLockForm]=useState({from:initialDate.slice(0,7)+'-01',to:initialDate,reason:''}),[reverseForm,setReverseForm]=useState({entry_id:'',date:initialDate,reason:''});
  const [report,setReport]=useState<Report|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revision,setRevision]=useState(0);
  const [entity,setEntity]=useState(''),[from,setFrom]=useState(initialDate.slice(0,4)+'-01-01'),[to,setTo]=useState(initialDate),[reportProject,setReportProject]=useState('');
@@ -50,6 +59,13 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
   return()=>{cancel=true};
  },[companyId,asOwner,revision,active]);
  useEffect(()=>{
+  if(!active||section!=='fixed-assets')return;
+  let cancel=false;setAssetData(null);
+  void fetchJson(root+'fixed-assets'+query).then(data=>{if(!cancel){setAssetData(data);setError('')}})
+   .catch(e=>{if(!cancel)setError(e instanceof Error?e.message:'ASSET_LOAD_FAILED')});
+  return()=>{cancel=true};
+ },[companyId,asOwner,section,revision,active]);
+ useEffect(()=>{
   if(!active||section!=='accounting-reports'||!entityId)return;
   let cancel=false;setReport(null);
   const url=root+'ledger/reports'+query+'&entity='+encodeURIComponent(entityId)+'&from='+from+'&to='+to+(reportProject?'&project='+encodeURIComponent(reportProject):'');
@@ -77,7 +93,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
  const chosenMapping=events?.mappings?.find(m=>m.entity_id===entityId);
  const chosenAPMapping=payables?.mappings?.find(m=>m.entity_id===entityId);
  const unMatched=(treasury?.lines||[]).filter(l=>!treasury?.matches?.some(m=>m.bank_line_id===l.id));
- const labels:Record<Section,[string,string]>={ledger:['دفتر الأستاذ وشجرة الحسابات','General ledger & accounts'],'vendor-payables':['الموردون والفواتير المستحقة','Vendors & payables'],treasury:['الخزينة والمطابقة البنكية','Treasury & bank reconciliation'],'accounting-reports':['التقارير المالية','Financial reports']};
+ const labels:Record<Section,[string,string]>={ledger:['دفتر الأستاذ وشجرة الحسابات','General ledger & accounts'],'vendor-payables':['الموردون والفواتير المستحقة','Vendors & payables'],'fixed-assets':['الأصول الثابتة والإهلاك','Fixed assets & depreciation'],treasury:['الخزينة والمطابقة البنكية','Treasury & bank reconciliation'],'accounting-reports':['التقارير المالية','Financial reports']};
  return <section className={styles.root}>
   <div className={styles.header}><div><div className={styles.eyebrow}>BUNYRA ERP · ACCOUNTING</div><h2>{t(...labels[section])}</h2><p>{t('كل حركة مالية مرتبطة بمستندها الأصلي وتُرحّل إلى دفتر الأستاذ وفق صلاحيات الحسابات.','Financial records stay tied to their source documents and protected journal entries.')}</p></div>
    <button className="secondary" onClick={()=>setRevision(v=>v+1)}><RefreshCw size={16}/>{t('تحديث','Refresh')}</button>
@@ -228,6 +244,52 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
       <button disabled={busy||!matching[l.id]} onClick={()=>void action('treasury','match_line',{bank_line_id:l.id,ledger_line_id:matching[l.id]})}>{t('مطابقة','Match')}</button>
      </div>;
    })}
+  </>}
+  {section==='fixed-assets'&&ledger&&<>
+   <div className={styles.columns}>
+    <form className={styles.card} onSubmit={submit(()=>void action('fixed-assets','create',{
+     entity_id:entityId,project_id:assetForm.project_id||null,
+     code:assetForm.code,name:assetForm.name,acquisition_date:assetForm.acquisition_date,service_date:assetForm.service_date,
+     cost_minor:minor(assetForm.cost),residual_minor:minor(assetForm.residual),
+     useful_life_months:Number(assetForm.life_months),
+     asset_account_id:assetForm.asset_account_id,accumulated_account_id:assetForm.accumulated_account_id,
+     expense_account_id:assetForm.expense_account_id,journal_id:assetForm.journal_id
+    }))}>
+     <h3>{t('تسجيل أصل ثابت','Register fixed asset')}</h3>
+     <div className={styles.fields}>
+      <label>{t('كود الأصل','Asset code')}<input required value={assetForm.code} onChange={e=>setAssetForm({...assetForm,code:e.target.value})}/></label>
+      <label>{t('اسم الأصل','Asset name')}<input required value={assetForm.name} onChange={e=>setAssetForm({...assetForm,name:e.target.value})}/></label>
+      <label>{t('تاريخ الشراء','Purchase date')}<input required type="date" value={assetForm.acquisition_date} onChange={e=>setAssetForm({...assetForm,acquisition_date:e.target.value})}/></label>
+      <label>{t('تاريخ بدء الاستخدام','In-service date')}<input required type="date" value={assetForm.service_date} onChange={e=>setAssetForm({...assetForm,service_date:e.target.value})}/></label>
+      <label>{t('تكلفة الأصل (جنيه)','Cost (EGP)')}<input required type="number" min="0.01" step="0.01" value={assetForm.cost} onChange={e=>setAssetForm({...assetForm,cost:e.target.value})}/></label>
+      <label>{t('القيمة المتبقية (جنيه)','Residual value (EGP)')}<input required type="number" min="0" step="0.01" value={assetForm.residual} onChange={e=>setAssetForm({...assetForm,residual:e.target.value})}/></label>
+      <label>{t('العمر الإنتاجي بالشهور','Useful life (months)')}<input required type="number" min="1" max="600" value={assetForm.life_months} onChange={e=>setAssetForm({...assetForm,life_months:e.target.value})}/></label>
+      <label>{t('المشروع (اختياري)','Project (optional)')}<select value={assetForm.project_id} onChange={e=>setAssetForm({...assetForm,project_id:e.target.value})}><option value="">{t('أصل على مستوى الشركة','Company-level asset')}</option>{ledger.projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+      {([['asset_account_id','حساب تكلفة الأصل','Asset cost account','asset'],['accumulated_account_id','حساب مجمع الإهلاك','Accumulated depreciation account','asset'],['expense_account_id','حساب مصروف الإهلاك','Depreciation expense account','expense']] as const).map(([key,ar,english,kind])=>
+       <label key={key}>{t(ar,english)}<select required value={assetForm[key]} onChange={e=>setAssetForm({...assetForm,[key]:e.target.value})}><option value="">{t('اختر حسابًا','Select account')}</option>{ledger.accounts.filter(a=>a.entity_id===entityId&&a.kind===kind&&a.active).map(a=><option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}</select></label>
+      )}
+      <label>{t('دفتر اليومية','Journal')}<select required value={assetForm.journal_id} onChange={e=>setAssetForm({...assetForm,journal_id:e.target.value})}><option value="">{t('اختر دفترًا','Select journal')}</option>{journals.filter(j=>j.active).map(j=><option key={j.id} value={j.id}>{j.code} — {j.name}</option>)}</select></label>
+     </div>
+     <button disabled={busy||!entityId}>{t('تسجيل الأصل','Register asset')}</button>
+     <p className={styles.muted}>{t('تسجيل الأصل لا يُسجّل شراءه أو يسحب من الخزينة تلقائيًا. سجّل فاتورة الشراء أو قيد الاقتناء منفصلًا لمنع ازدواج التكلفة.','Registration does not create a purchase or cash journal. Record acquisition separately through an approved bill or journal to prevent double posting.')}</p>
+    </form>
+   </div>
+   <h3>{t('سجل الأصول وجدول الإهلاك','Asset register and depreciation')}</h3>
+   {assetData&&renderTable([
+    {key:'code',ar:'الكود',english:'Code'},
+    {key:'name',ar:'الأصل',english:'Asset'},
+    {key:'cost_minor',ar:'التكلفة',english:'Cost',fmt:r=>showMoney(r.cost_minor,en)},
+    {key:'accumulated_depreciation_minor',ar:'مجمع الإهلاك',english:'Accumulated',fmt:r=>showMoney(r.accumulated_depreciation_minor,en)},
+    {key:'cost_minor',ar:'القيمة الدفترية',english:'Book value',fmt:r=>showMoney((BigInt(r.cost_minor)-BigInt(r.accumulated_depreciation_minor)).toString(),en)},
+    {key:'posted_months',ar:'الأشهر المرحّلة',english:'Months posted',fmt:r=>String(r.posted_months)+' / '+String(r.useful_life_months)},
+    {key:'id',ar:'القيد التالي',english:'Next posting',fmt:r=>{
+     const next=nextAssetMonth(r.service_date,Number(r.posted_months));
+     const completed=Number(r.posted_months)>=Number(r.useful_life_months);
+     return <button disabled={busy||completed||!next||next.slice(0,7)>initialDate.slice(0,7)}
+      onClick={()=>void action('fixed-assets','post_depreciation',{asset_id:r.id,period_month:next})}>
+      {completed?t('مكتمل','Complete'):t('ترحيل إهلاك ','Post depreciation ')+next.slice(0,7)}</button>;
+    }}
+   ],assetData.assets.filter(a=>a.entity_id===entityId))}
   </>}
   {section==='accounting-reports'&&ledger&&<>
    <div className={styles.toolbar}><label>{t('من تاريخ','From')}<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>{t('إلى تاريخ','To')}<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><label>{t('المشروع','Project')}<select value={reportProject} onChange={e=>setReportProject(e.target.value)}><option value="">{t('كل المشاريع / الشركة','All projects / company')}</option>{ledger.projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label></div>
