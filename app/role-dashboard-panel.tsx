@@ -1,4 +1,6 @@
 'use client';
+import {timeZoneLabel} from '../lib/bunyra/ui-labels';
+import {currencyLabel} from '../lib/bunyra/ui-labels';
 import CrmInsightsPanel from './crm-insights-panel';
 import {reportWindow} from '../lib/bunyra/report-dates';
 import SalesTargetsPanel from './sales-targets-panel';
@@ -67,7 +69,7 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
  const role=data?.owner?'company_admin':data?.role||'sales';
  const isSales=role==='sales'||role==='sales_manager'||role==='sales_admin';
  const isOps=role==='operations',isFinance=role==='finance_manager'||role==='accountant';
- const number=(v:number)=>Number(v||0).toLocaleString(en?'en-GB':'ar-EG');
+ const number=(v:number)=>Number(v||0).toLocaleString(en?'en-GB':'ar-EG-u-nu-latn');
  const headline=isSales?t('مبيعاتك تحت السيطرة','Your sales at a glance'):isOps?t('كل قرارات العمليات في مكان واحد','Your operations command center'):isFinance?t('موقف التحصيل والعقود','Collections and contracts overview'):t('نظرة شاملة على أداء الشركة','Company performance overview');
  const subtitle=isSales?t('عملاؤك ومهامك ونتائج مبيعاتك حسب صلاحياتك.','Your clients, tasks and sales results within your access.'):isOps?t('الحجوزات المنتظرة والوحدات والمهام المفتوحة.','Pending approvals, inventory and open tasks.'):isFinance?t('أرقام مالية مؤكدة بعملاتها ومن واقع العقود والتحصيلات.','Confirmed financial figures separated by currency and source records.'):t('المبيعات والعمليات والتحصيل والقرارات المنتظرة في لوحة واحدة.','Sales, operations, collections and pending decisions in one place.');
  const cards:{id:string;ar:string;en:string;value:number;view:string;Icon:typeof UsersRound}[]=[];
@@ -90,14 +92,14 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
   cards.push({id:'overdue',ar:'مهام متأخرة',en:'Overdue tasks',value:m.overdue,view:'work',Icon:CalendarClock});
  }
  const selected=data?.money.find(m=>m.currency===currency);
- const formatDay=(v:string)=>new Intl.DateTimeFormat(en?'en-GB':'ar-EG',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric'}).format(new Date(v+'T00:00:00Z'));
+ const formatDay=(v:string)=>new Intl.DateTimeFormat(en?'en-GB':'ar-EG-u-nu-latn',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric'}).format(new Date(v+'T00:00:00Z'));
  const taskLink=(item:Urgent)=>item.kind==='follow_up'&&can('followups')?'followups':can(item.view)?item.view:'work';
  return <section className="role-dashboard">
   <div className="role-dashboard-hero">
    <div><span className="eyebrow">BUNYRA · {t('لوحة التحكم','DASHBOARD')}</span>
     <span className="role-dashboard-role">{data?.owner?t('مدير الشركة','Company administrator'):t(...(roleNames[role]||roleNames.company_admin))}</span>
     <h1>{headline}</h1><p>{subtitle}</p>
-    {data&&<small>{t('بيانات محدثة بتاريخ','Snapshot at')} {new Intl.DateTimeFormat(en?'en-GB':'ar-EG',{timeZone:data.time_zone,dateStyle:'medium',timeStyle:'short'}).format(new Date(data.as_of))} · <bdi>{data.time_zone}</bdi></small>}
+    {data&&<small>{t('بيانات محدثة بتاريخ','Snapshot at')} {new Intl.DateTimeFormat(en?'en-GB':'ar-EG-u-nu-latn',{timeZone:data.time_zone,dateStyle:'medium',timeStyle:'short'}).format(new Date(data.as_of))} · <bdi>{timeZoneLabel(data.time_zone,en)}</bdi></small>}
    </div>
    <button type="button" className="role-dashboard-refresh" disabled={loading} onClick={()=>setRevision(v=>v+1)}><RefreshCw size={17}/>{t('تحديث اللوحة','Refresh dashboard')}</button>
   </div>
@@ -135,11 +137,11 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
    <div className="role-dashboard-secondary">
     {data.money.length>0&&<section className="role-dashboard-surface">
      <div className="role-dashboard-section-title"><h2><HandCoins size={19}/>{data.capabilities.finance?t('العقود والتحصيل','Contracts & collections'):t('قيمة العقود والعمولات','Contract value & commissions')}</h2></div>
-     <div className="role-dashboard-currency" role="group" aria-label={t('اختيار العملة','Select currency')}>{data.money.map(m=><button type="button" className={currency===m.currency?'selected':''} key={m.currency} aria-pressed={currency===m.currency} onClick={()=>setCurrency(m.currency)}>{m.currency}</button>)}</div>
+     <div className="role-dashboard-currency" role="group" aria-label={t('اختيار العملة','Select currency')}>{data.money.map(m=><button type="button" className={currency===m.currency?'selected':''} key={m.currency} aria-pressed={currency===m.currency} onClick={()=>setCurrency(m.currency)}>{currencyLabel(m.currency,en)}</button>)}</div>
      {selected&&<div className="role-dashboard-money">
-      <div><span>{t('قيمة العقود','Contract value')}</span><strong dir="ltr">{moneyField(selected.contract_value_minor)} <small>{selected.currency}</small></strong></div>
-      {data.capabilities.finance&&selected.net_collected_minor!==null&&<><div><span>{t('صافي التحصيل المؤكد','Confirmed net receipts')}</span><strong dir="ltr">{moneyField(selected.net_collected_minor)} <small>{selected.currency}</small></strong></div><div><span>{t('المتبقي من العقود','Contract value outstanding')}</span><strong dir="ltr">{moneyField(selected.outstanding_minor||'0')} <small>{selected.currency}</small></strong></div></>}
-      {data.capabilities.commissions&&selected.commissions_minor!==null&&<><div><span>{t('العمولات المحسوبة','Calculated commissions')}</span><strong dir="ltr">{moneyField(selected.commissions_minor)} <small>{selected.currency}</small></strong></div><div><span>{t('العمولات المستحقة','Earned commissions')}</span><strong dir="ltr">{moneyField(selected.earned_minor||'0')} <small>{selected.currency}</small></strong></div></>}
+      <div><span>{t('قيمة العقود','Contract value')}</span><strong dir="ltr">{moneyField(selected.contract_value_minor)} <small>{currencyLabel(selected.currency,en)}</small></strong></div>
+      {data.capabilities.finance&&selected.net_collected_minor!==null&&<><div><span>{t('صافي التحصيل المؤكد','Confirmed net receipts')}</span><strong dir="ltr">{moneyField(selected.net_collected_minor)} <small>{currencyLabel(selected.currency,en)}</small></strong></div><div><span>{t('المتبقي من العقود','Contract value outstanding')}</span><strong dir="ltr">{moneyField(selected.outstanding_minor||'0')} <small>{currencyLabel(selected.currency,en)}</small></strong></div></>}
+      {data.capabilities.commissions&&selected.commissions_minor!==null&&<><div><span>{t('العمولات المحسوبة','Calculated commissions')}</span><strong dir="ltr">{moneyField(selected.commissions_minor)} <small>{currencyLabel(selected.currency,en)}</small></strong></div><div><span>{t('العمولات المستحقة','Earned commissions')}</span><strong dir="ltr">{moneyField(selected.earned_minor||'0')} <small>{currencyLabel(selected.currency,en)}</small></strong></div></>}
      </div>}
      {data.capabilities.finance&&can('deals-insights')&&<button type="button" className="role-dashboard-link" onClick={()=>go('deals-insights')}>{t('تحليل الصفقات الكامل','Full Deals Insights')}<ArrowRight size={15}/></button>}
      {!data.capabilities.finance&&can('commissions')&&<button type="button" className="role-dashboard-link" onClick={()=>go('commissions')}>{t('تفاصيل العمولات','Commission details')}<ArrowRight size={15}/></button>}

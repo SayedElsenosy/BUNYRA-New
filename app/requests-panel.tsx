@@ -46,7 +46,7 @@ export default function RequestsPanel({ en, onChanged }: { en: boolean; onChange
   }
 
   const status = (s: Request['status']) => (s === 'pending' ? t('قيد المراجعة', 'Pending') : s === 'approved' ? t('مقبول', 'Approved') : t('مرفوض', 'Rejected'));
-  const date = (v: string) => new Intl.DateTimeFormat(en ? 'en-GB' : 'ar-EG', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(v));
+  const date = (v: string) => new Intl.DateTimeFormat(en ? 'en-GB' : 'ar-EG-u-nu-latn', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(v));
 
   return (
     <section className="panel companies-panel">

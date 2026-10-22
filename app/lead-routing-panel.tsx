@@ -58,8 +58,8 @@ export default function LeadRoutingPanel({companyId,en=false,asOwner=false,activ
  if(denied)return null;
  return <section className="panel" aria-label={t('التوزيع الآلي للعملاء','Automatic lead assignment')} style={{marginTop:16}}>
   <div className="panel-heading">
-   <div><span className="eyebrow">BUNYRA · LEAD ROUTING</span><h3><Shuffle size={17} style={{verticalAlign:'middle',marginInlineEnd:8}}/>{t('توزيع الفرص تلقائيًا','Automatic lead distribution')}</h3>
-    <p className="muted">{t('اختار فريق المبيعات وشغّل توزيع Round Robin للفرص الجديدة. الإعداد مقفول افتراضيًا.','Choose a team and opt in to round-robin distribution for new leads. Off by default.')}</p>
+   <div><span className="eyebrow">{en?'BUNYRA · LEAD ROUTING':'توزيع العملاء'}</span><h3><Shuffle size={17} style={{verticalAlign:'middle',marginInlineEnd:8}}/>{t('توزيع الفرص تلقائيًا','Automatic lead distribution')}</h3>
+    <p className="muted">{t('اختر فريق المبيعات وشغّل التوزيع بالتناوب للفرص الجديدة. الإعداد مغلق افتراضيًا.','Choose a team and opt in to round-robin distribution for new leads. Off by default.')}</p>
    </div><ShieldCheck size={20}/>
   </div>
   {error&&<p className="crm-message" role="alert">{error}</p>}

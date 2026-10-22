@@ -1,4 +1,5 @@
 'use client';
+import {currencyLabel} from '../lib/bunyra/ui-labels';
 import {useEffect,useState,type FormEvent} from 'react';
 import {Layers3,RefreshCw,ShieldCheck,Users,CheckCircle2} from 'lucide-react';
 type Feature='crm'|'inventory'|'floorplans'|'buyer_matching'|'advanced_reports'|'commissions'|'finance_erp'|'whatsapp';
@@ -122,11 +123,11 @@ export default function SaaSPlansPanel({en=false}:{en?:boolean}){
  }
  const selected=data?.companies.find(c=>c.id===selectedCompany);
  return <div className="saas-plans">
-  <div className="panel-heading"><div><div className="eyebrow">BUNYRA · SUBSCRIPTIONS</div><h2>{t('الباقات واشتراكات الشركات','Packages & company subscriptions')}</h2><p className="muted">{t('حدد المميزات والحدود والسعر لكل باقة، وبعدها اربط الشركات بالعقود المناسبة. لا يوجد خصم أو تحصيل تلقائي في هذه المرحلة.','Define package features, limits and prices, then assign the right company contract. No automatic payment or renewal in this phase.')}</p></div><button className="secondary" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={17}/>{t('تحديث','Refresh')}</button></div>
+  <div className="panel-heading"><div><div className="eyebrow">{en?'BUNYRA · SUBSCRIPTIONS':'الباقات والاشتراكات'}</div><h2>{t('الباقات واشتراكات الشركات','Packages & company subscriptions')}</h2><p className="muted">{t('حدد المميزات والحدود والسعر لكل باقة، وبعدها اربط الشركات بالعقود المناسبة. لا يوجد خصم أو تحصيل تلقائي في هذه المرحلة.','Define package features, limits and prices, then assign the right company contract. No automatic payment or renewal in this phase.')}</p></div><button className="secondary" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={17}/>{t('تحديث','Refresh')}</button></div>
   {error&&<p role="alert" className="hub-error">{error}</p>}{message&&<p role="status" className="saas-success">{message}</p>}
   <section className="saas-columns">
    <div className="panel"><div className="panel-heading"><h3><Layers3 size={18}/>{t('كتالوج الباقات','Package catalog')}</h3><span className="count">{data?.plans.length||0}</span></div>
-    <div className="saas-plan-list">{data?.plans.map(p=><button className="saas-plan-card" key={p.id} onClick={()=>choosePlan(p)}><strong>{en?p.name_en:p.name_ar}</strong><span>{p.code} · {p.currency} · {p.billing_period==='month'?t('شهري','monthly'):t('سنوي','yearly')}</span><small>{p.included_seats} {t('موظفين','seats')} · {p.included_projects} {t('مشروعات','projects')} · {displayPrice(p.price_minor)||t('سعر تعاقدي','Contract price')}</small><em>{p.active?t('متاحة','Active'):t('غير متاحة','Inactive')}</em></button>)}</div>
+    <div className="saas-plan-list">{data?.plans.map(p=><button className="saas-plan-card" key={p.id} onClick={()=>choosePlan(p)}><strong>{en?p.name_en:p.name_ar}</strong><span>{p.code} · {currencyLabel(p.currency,en)} · {p.billing_period==='month'?t('شهري','monthly'):t('سنوي','yearly')}</span><small>{p.included_seats} {t('موظفين','seats')} · {p.included_projects} {t('مشروعات','projects')} · {displayPrice(p.price_minor)||t('سعر تعاقدي','Contract price')}</small><em>{p.active?t('متاحة','Active'):t('غير متاحة','Inactive')}</em></button>)}</div>
     {!data?.plans.length&&<p className="muted">{t('لسه مفيش باقات. أنشئ أول باقة بالحدود والمميزات اللي تناسبك.','No plans yet. Create your first package with your selected features and limits.')}</p>}
     <button type="button" className="secondary" onClick={()=>choosePlan(null)}>{t('باقة جديدة','New package')}</button>
    </div>
