@@ -24,16 +24,24 @@ const payableMapping=z.object({company_id:uuid,entity_id:uuid,journal_id:uuid,pa
 const billAction=z.object({company_id:uuid,bill_id:uuid}).strict();
 export async function vendorPayablesOverview(sql:Sql,actor:Actor,company:string,platform=false){
  await manager(sql,actor,company,'finance.read',platform);
- const [vendors,bills,mappings]=await Promise.all([
+ const [vendors,bills,mappings,payments]=await Promise.all([
   sql`SELECT id,code,name,tax_registration,active,created_at
      FROM finance_vendors WHERE company_id=${company} ORDER BY code LIMIT 500`,
-  sql`SELECT id,entity_id,vendor_id,invoice_number,invoice_date,due_date,total_minor::text,
-    status,posted_entry_id,approved_at FROM finance_vendor_bills WHERE company_id=${company}
-    ORDER BY created_at DESC LIMIT 300`,
+  sql`SELECT b.id,b.entity_id,b.vendor_id,b.invoice_number,b.invoice_date,b.due_date,b.total_minor::text,
+    b.status,b.posted_entry_id,b.approved_at,
+    COALESCE((SELECT sum(p.amount_minor::numeric) FROM finance_vendor_payments p
+       WHERE p.company_id=b.company_id AND p.entity_id=b.entity_id AND p.bill_id=b.id),0)::text AS paid_minor,
+    (b.total_minor::numeric-COALESCE((SELECT sum(p.amount_minor::numeric) FROM finance_vendor_payments p
+       WHERE p.company_id=b.company_id AND p.entity_id=b.entity_id AND p.bill_id=b.id),0))::text AS remaining_minor
+    FROM finance_vendor_bills b WHERE b.company_id=${company}
+    ORDER BY b.created_at DESC LIMIT 300`,
   sql`SELECT company_id,entity_id,journal_id,payable_account_id FROM finance_payable_mappings
-    WHERE company_id=${company}`
+    WHERE company_id=${company}`,
+  sql`SELECT id,bill_id,entity_id,journal_id,cash_account_id,paid_on,amount_minor::text,
+    posted_entry_id,created_at FROM finance_vendor_payments WHERE company_id=${company}
+    ORDER BY created_at DESC LIMIT 500`
  ]);
- return {vendors,bills,mappings,implemented_scope:'vendor_bills_and_gl_posting'};
+ return {vendors,bills,mappings,payments,implemented_scope:'vendor_bills_and_gl_posting'};
 }
 export async function createFinanceVendor(sql:Sql,actor:Actor,input:unknown,platform=false){
  const c=vendorInput.parse(input);await manager(sql,actor,c.company_id,'finance.write',platform);
@@ -101,4 +109,18 @@ export async function postVendorBill(sql:Sql,actor:Actor,input:unknown,platform=
  const c=billAction.parse(input);await manager(sql,actor,c.company_id,'finance.approve',platform);
  const row=(await sql`SELECT bunyra_post_vendor_bill(${c.company_id}::uuid,${c.bill_id}::uuid) AS entry_id`)[0];
  return {entry_id:row.entry_id,state:'posted'};
+}
+
+const vendorPaymentInput=z.object({
+ company_id:uuid,bill_id:uuid,journal_id:uuid,cash_account_id:uuid,
+ paid_on:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+ amount_minor:z.string().regex(/^[1-9]\d{0,17}$/),
+ idempotency_key:z.string().min(8).max(100)
+}).strict();
+export async function payVendorBill(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=vendorPaymentInput.parse(input);await manager(sql,actor,c.company_id,'finance.approve',platform);
+ const row=(await sql`SELECT bunyra_pay_vendor_bill(
+  ${c.company_id}::uuid,${c.bill_id}::uuid,${c.journal_id}::uuid,${c.cash_account_id}::uuid,
+  ${c.paid_on}::date,${c.amount_minor}::bigint,${c.idempotency_key}::text) AS payment_id`)[0];
+ return {payment_id:row.payment_id,status:'posted'};
 }
