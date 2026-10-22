@@ -20,7 +20,7 @@ export async function customerJourney(sql:Sql,actor:Actor,input:unknown,platform
  const leadProjects=permitted('leads.read'),bookProjects=permitted('bookings.read');
  const financeProjects=permitted('finance.read').filter(id=>bookProjects.includes(id));
  const offerProjects=permitted('pricing.read').filter(id=>permitted('inventory.read').includes(id)&&permitted('projects.read').includes(id));
- const tabs=['activity','leads','followups','requests',...(offerProjects.length?['offers']:[]),...(can('bookings.read')?['bookings']:[]),...(can('bookings.read')&&can('finance.read')?['contracts','collections']:[])];
+ const tabs=['activity','followups','requests',...(offerProjects.length?['offers']:[]),...(can('bookings.read')?['bookings']:[]),...(can('bookings.read')&&can('finance.read')?['contracts','collections']:[])];
  if(!tabs.includes(q.tab))throw new ServiceError('FORBIDDEN',403);
  const params=[q.company,q.customer,users,leadProjects,bookProjects,financeProjects,ctx.role==='sales_admin'&&!ctx.owner?[actor.userId]:users,offerProjects];
  const ctes=`WITH leads AS (

@@ -9,8 +9,8 @@ const items:{view:CompanyView;ar:string;en:string;Icon:typeof Settings2}[]=[
  {view:'targets',ar:'أهداف المبيعات',en:'Sales targets',Icon:Target},
  {view:'roles',ar:'الأدوار والصلاحيات',en:'Roles & permissions',Icon:ShieldCheck},
  {view:'permissions',ar:'صلاحيات المستخدمين',en:'Member permissions',Icon:LockKeyhole},
- {view:'sales-teams',ar:'الفرق وتوزيع العملاء المحتملين',en:'Teams & lead routing',Icon:Users},
- {view:'stages',ar:'مراحل البيع',en:'Sales stages',Icon:GitBranch},
+ {view:'sales-teams',ar:'الفرق وتوزيع العملاء',en:'Teams & customer routing',Icon:Users},
+ {view:'stages',ar:'مراحل العملاء',en:'Customer stages',Icon:GitBranch},
  {view:'structure',ar:'الهيكل الإداري',en:'Organization',Icon:Building2},
  {view:'placements',ar:'ارتباطات الموظفين',en:'Staff assignments',Icon:Users}
 ];

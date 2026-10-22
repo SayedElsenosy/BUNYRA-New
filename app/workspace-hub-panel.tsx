@@ -64,7 +64,7 @@ export default function WorkspaceHubPanel({companyId,en,asOwner=false,section,ac
   {section==='work'&&<div className="hub-tabs" role="group" aria-label={t('تصفية مهامي','Filter my work')}>{Object.keys(buckets).map(key=><button key={key} className={bucket===key?'selected':''} aria-pressed={bucket===key} onClick={()=>navigate({bucket:key,page:'',record:''})}>{label(buckets,key)}{data?.summary&&<b>{count(key==='all'?data.summary.total:data.summary[key as keyof Summary])}</b>}</button>)}</div>}
   {loading?<div className="loading" role="status">{t('جارٍ تحميل بياناتك…','Loading your workspace…')}</div>:data&&section==='home'&&data.metrics?<>
    <div className="hub-metrics">{[
-    ...(data.capabilities.crm?[{id:'customers',ar:'العملاء في نطاقك',en:'Customers in scope',value:data.metrics.customers,view:'customers'},{id:'leads',ar:'فرص بيع مفتوحة',en:'Open leads',value:data.metrics.open_leads,view:'pipeline'}]:[]),
+    ...(data.capabilities.crm?[{id:'customers',ar:'العملاء في نطاقك',en:'Customers in scope',value:data.metrics.customers,view:'customers'},{id:'leads',ar:'عملاء قيد المتابعة',en:'Customers in progress',value:data.metrics.open_leads,view:'customers'}]:[]),
     ...(data.capabilities.inventory?[{id:'units',ar:'وحدات متاحة',en:'Available units',value:data.metrics.available_units,view:'inventory'}]:[]),
     ...(data.capabilities.bookings?[{id:'bookings',ar:'حجوزات تنتظر العمليات',en:'Bookings awaiting Operations',value:data.metrics.pending_bookings,view:'bookings'}]:[]),
     ...(data.capabilities.finance?[{id:'contracts',ar:'عقود نشطة',en:'Active contracts',value:data.metrics.active_contracts,view:'contracts'}]:[])

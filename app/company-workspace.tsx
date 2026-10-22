@@ -3,7 +3,6 @@ import SettingsWorkspace,{SETTINGS_VIEWS} from './settings-workspace';
 import SalesTargetsPanel from './sales-targets-panel';
 import NotificationBell from './notification-bell';
 import FollowUpsPanel from './follow-ups-panel';
-import PipelineBoard from './pipeline-board';
 import LeadRoutingPanel from './lead-routing-panel';
 import {useEffect,useState} from 'react';
 import WorkspaceHubPanel from './workspace-hub-panel';
@@ -27,11 +26,11 @@ import {moduleLabel,type CompanyView} from './company-navigation';
 function ModuleContent({companyId,en,onChanged,view='home',asOwner=false,active=true,allowedViews}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean;active?:boolean;allowedViews?:readonly CompanyView[]}){
  const props={companyId,en,asOwner};
  return <section className="company-module-workspace" aria-label={moduleLabel(view,en)}>{!['home','work','search'].includes(view)&&<h2 className="module-title">{moduleLabel(view,en)}</h2>}{
- view==='targets'?<SalesTargetsPanel {...props} active={active}/>:view==='home'?<RoleDashboardPanel {...props} active={active}/>:view==='alerts'?<WorkspaceAlertsPanel {...props} active={active}/>:['work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='deals-insights'?<DealsInsightsPanel {...props} active={active}/>:view==='pipeline-reports'?<SalesPipelinePanel {...props} section="reports"/>:
+ view==='targets'?<SalesTargetsPanel {...props} active={active}/>:view==='home'?<RoleDashboardPanel {...props} active={active}/>:view==='alerts'?<WorkspaceAlertsPanel {...props} active={active}/>:['work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='deals-insights'?<DealsInsightsPanel {...props} active={active}/>:view==='pipeline-reports'?<CrmPanel {...props}/>:
  view==='projects'?<ProjectWizard {...props} onChanged={onChanged}/>:
  ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
  view==='offers'?<SavedOffersPanel {...props} active={active}/>:view==='customers'?<CrmPanel {...props}/>:
- view==='followups'?<FollowUpsPanel {...props} active={active}/>:view==='pipeline'?<PipelineBoard {...props} active={active}/>:view==='sales-teams'?<><SalesPipelinePanel {...props} section="sales-teams"/><LeadRoutingPanel {...props} active={active}/></>:['pipeline','followups','reports','stages'].includes(view)?<SalesPipelinePanel {...props} section={view as 'pipeline'|'followups'|'sales-teams'|'reports'|'stages'}/>:
+ view==='followups'?<FollowUpsPanel {...props} active={active}/>:view==='pipeline'?<CrmPanel {...props}/>:view==='sales-teams'?<><SalesPipelinePanel {...props} section="sales-teams"/><LeadRoutingPanel {...props} active={active}/></>:['pipeline','followups','reports','stages'].includes(view)?<SalesPipelinePanel {...props} section={view as 'pipeline'|'followups'|'sales-teams'|'reports'|'stages'}/>:
  view==='buyers'?<BuyerRequestPanel {...props}/>:
  ['bookings','contracts','collections','receipts','adjustments'].includes(view)?<CommercialPanel {...props} section={view as 'bookings'|'contracts'|'collections'|'receipts'|'adjustments'}/>:
  ['team','roles','permissions'].includes(view)?<TeamPanel {...props} canTarget={asOwner||allowedViews?.includes('targets')||false} section={view as 'team'|'roles'|'permissions'}/>:

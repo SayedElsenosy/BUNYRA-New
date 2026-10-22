@@ -9,14 +9,14 @@ test('Every company member with company.read sees alerts but no hidden data',()=
  const v=allowedCompanyViews(ctx('sales'));assert.ok(v.includes('alerts'));
  assert.ok(!allowedCompanyViews(ctx('sales',{'leads.read':true})).includes('alerts'));
 });
-test('Sales can access customer and booking screens',()=>assert.ok(['customers','pipeline','followups','inventory','bookings','reports','commissions'].every(v=>sales.includes(v))));
+test('Sales can access customer and booking screens',()=>assert.ok(['customers','followups','inventory','bookings','reports','commissions'].every(v=>sales.includes(v))));
 test('Sales cannot access company administration or finance screens',()=>assert.ok(['team','roles','permissions','settings','placements','import','collections','receipts','contracts','structure','stages'].every(v=>!sales.includes(v))));
 const finance=allowedCompanyViews(ctx('accountant'));
 test('Accountants see collection and receipt work',()=>assert.ok(['collections','receipts','adjustments','contracts'].every(v=>finance.includes(v))));
-test('Accountants cannot enter sales or inventory screens',()=>assert.ok(['customers','pipeline','buyers','inventory','import','pricing'].every(v=>!finance.includes(v))));
+test('Accountants cannot enter sales or inventory screens',()=>assert.ok(['customers','buyers','inventory','import','pricing'].every(v=>!finance.includes(v))));
 test('Operations can manage accounts without editing roles',()=>{const v=allowedCompanyViews(ctx('operations'));assert.ok(v.includes('team'));assert.ok(!v.includes('roles')&&!v.includes('permissions'));});
-test('Admin has every screen',()=>assert.deepEqual(allowedCompanyViews(ctx('company_admin')),COMPANY_VIEWS));
-test('Verified owner retains all screens',()=>assert.deepEqual(allowedCompanyViews({...ctx('sales',{}),owner:true}),COMPANY_VIEWS));
+test('Admin has every screen',()=>assert.deepEqual(allowedCompanyViews(ctx('company_admin')),COMPANY_VIEWS.filter(v=>!['pipeline','pipeline-reports'].includes(v))));
+test('Verified owner retains all screens',()=>assert.deepEqual(allowedCompanyViews({...ctx('sales',{}),owner:true}),COMPANY_VIEWS.filter(v=>!['pipeline','pipeline-reports'].includes(v))));
 test('Custom roles never inherit base-role privileges',()=>assert.deepEqual(allowedCompanyViews(ctx('company_admin',{})),[]));
 test('Minimal custom role only sees its own CRM screens',()=>{const v=allowedCompanyViews(ctx('sales',{'leads.read':true}));assert.ok(v.includes('customers'));assert.ok(!v.includes('reports')&&!v.includes('stages')&&!v.includes('projects'));});
 test('Company deny removes administration even for built-in admin',()=>assert.ok(!allowedCompanyViews(ctx('company_admin',null,[{action:'roles.manage',project_id:null,allowed:false}])).includes('roles')));
@@ -30,6 +30,12 @@ test('Empty grants produce no mounted screen',()=>assert.equal(resolveCompanyVie
 test('Valid deep link remains selected',()=>assert.equal(resolveCompanyView('followups',sales),'followups'));
 test('Prototype properties are never valid views',()=>assert.equal(isCompanyView('__proto__'),false));
 test('Executable URL text is never accepted as a view',()=>assert.equal(isCompanyView('javascript:alert(1)'),false));
+test('Only the customer directory remains and deprecated pipeline URLs resolve to it',()=>{
+ assert.ok(sales.includes('customers'));
+ assert.ok(!sales.includes('pipeline')&&!sales.includes('pipeline-reports'));
+ assert.equal(resolveCompanyView('pipeline',sales),'customers');
+ assert.equal(resolveCompanyView('pipeline-reports',sales),'customers');
+});
 test('Sales can open saved offer history',()=>assert.ok(sales.includes('offers')));
 test('Deals insights needs finance and reports permissions, not just sales reports',()=>{
  const salesView=allowedCompanyViews(ctx('sales'));

@@ -84,7 +84,7 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
    if(can('contracts'))cards.push({id:'contracts',ar:'عقود غير ملغاة',en:'Non-cancelled contracts',value:m.active_contracts,view:'contracts',Icon:BriefcaseBusiness});
    cards.push({id:'work',ar:'مهام مالية مفتوحة',en:'Financial work items',value:m.tasks,view:'work',Icon:ClipboardList});
   }else{
-   if(data.capabilities.crm&&can('pipeline'))cards.push({id:'leads',ar:'فرص بيع مفتوحة',en:'Open opportunities',value:m.open_leads,view:'pipeline',Icon:ChartNoAxesCombined});
+   if(data.capabilities.crm&&can('customers'))cards.push({id:'leads',ar:'عملاء قيد المتابعة',en:'Customers in progress',value:m.open_leads,view:'customers',Icon:ChartNoAxesCombined});
    if(data.capabilities.crm&&can('customers'))cards.push({id:'customers',ar:'العملاء المسموحون',en:'Customers in scope',value:m.customers,view:'customers',Icon:UsersRound});
    if(data.capabilities.bookings&&can('bookings'))cards.push({id:'bookings',ar:'حجوزات تنتظر العمليات',en:'Pending bookings',value:m.bookings_pending,view:'bookings',Icon:FileCheck2});
    if(data.capabilities.inventory&&can('inventory')&&!isSales)cards.push({id:'inventory',ar:'الوحدات المتاحة',en:'Available units',value:m.available_units,view:'inventory',Icon:Layers3});
@@ -126,11 +126,11 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
      <p className="role-dashboard-caption">{t('كل نقطة مبنية على سجل حقيقي، بدون احتساب عروض الأسعار كمبيعات. أيام عدم النشاط قيمتها صفر.','Every point comes from recorded activity; offers are never counted as sales. Inactive days show zero.')}</p>
     </section>
     {data.capabilities.crm&&data.pipeline.length>0&&<section className="role-dashboard-surface">
-     <div className="role-dashboard-section-title"><div><h2><Layers3 size={19}/>{t('توزيع الفرص حسب المرحلة','Opportunities by status')}</h2><p>{t('كل فرص البيع المسموح لك برؤيتها.','All opportunities you are authorized to see.')}</p></div>{can('pipeline')&&<button className="role-dashboard-link" onClick={()=>go('pipeline')}>{t('مسار البيع','Pipeline')}<ArrowRight size={14}/></button>}</div>
+     <div className="role-dashboard-section-title"><div><h2><Layers3 size={19}/>{t('العملاء حسب المرحلة','Customers by stage')}</h2><p>{t('العملاء الظاهرون حسب صلاحياتك.','Customers visible under your permissions.')}</p></div>{can('customers')&&<button className="role-dashboard-link" onClick={()=>go('customers')}>{t('العملاء','Customers')}<ArrowRight size={14}/></button>}</div>
      <div className="role-dashboard-stages">{data.pipeline.map(x=><div key={x.status}><div><span>{t(...(stageNames[x.status]||[x.status,x.status]))}</span><strong>{number(x.total)}</strong></div><div className="role-dashboard-track"><span style={{width:`${Math.max(0,Math.min(100,(x.total/Math.max(1,...data.pipeline.map(p=>p.total)))*100))}%`}}/></div></div>)}</div>
     </section>}
     {data.capabilities.team&&data.capabilities.crm&&data.team.length>0&&<section className="role-dashboard-surface">
-     <div className="role-dashboard-section-title"><div><h2><UsersRound size={19}/>{t('نشاط فريق المبيعات','Sales team activity')}</h2><p>{t('أفراد فريقك فقط، وعدد الفرص المسجلة لكل منهم.','Only people in your authorized scope and their opportunity counts.')}</p></div>{can('sales-teams')&&<button className="role-dashboard-link" onClick={()=>go('sales-teams')}>{t('الفرق','Teams')}<ArrowRight size={14}/></button>}</div>
+     <div className="role-dashboard-section-title"><div><h2><UsersRound size={19}/>{t('نشاط فريق المبيعات','Sales team activity')}</h2><p>{t('أفراد فريقك فقط، وعدد العملاء المسجلين لكل منهم.','Your authorized team members and their customer counts.')}</p></div>{can('sales-teams')&&<button className="role-dashboard-link" onClick={()=>go('sales-teams')}>{t('الفرق','Teams')}<ArrowRight size={14}/></button>}</div>
      <div className="table-scroll"><table className="sales-visual-table role-dashboard-table"><thead><tr><th>{t('الموظف','Representative')}</th><th>{t('المفتوحة','Open')}</th><th>{t('مكتملة بنجاح','Won')}</th></tr></thead><tbody>{data.team.map(x=><tr key={x.user_id}><td><bdi>{x.label}</bdi></td><td>{number(x.open)}</td><td>{number(x.won)}</td></tr>)}</tbody></table></div>
     </section>}
    </div>

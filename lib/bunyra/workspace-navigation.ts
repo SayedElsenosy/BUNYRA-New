@@ -18,9 +18,10 @@ export type CompanyView=keyof typeof VIEW_RULES;
 export const COMPANY_VIEWS=Object.keys(VIEW_RULES) as CompanyView[];
 export function isCompanyView(value:unknown):value is CompanyView{return typeof value==='string'&&Object.hasOwn(VIEW_RULES,value);}
 export function allowedCompanyViews(ctx:{owner?:boolean;role:Role;custom:Record<string,boolean>|null;overrides:PermissionOverride[]},projects:readonly string[]=[]):CompanyView[]{
- if(ctx.owner)return [...COMPANY_VIEWS];
+ if(ctx.owner)return COMPANY_VIEWS.filter(v=>v!=='pipeline'&&v!=='pipeline-reports');
  const permitted=(action:Action,project?:string)=>hasPermission(ctx.role,ctx.custom,ctx.overrides,action,project);
  return COMPANY_VIEWS.filter(view=>{
+  if(view==='pipeline'||view==='pipeline-reports')return false;
   const rule: {all:Action[];any?:Action[];project?:boolean;roles?:Role[]}=VIEW_RULES[view];
   if(rule.roles&&!rule.roles.includes(ctx.role))return false;
   if(!rule.all.every(a=>permitted(a))||rule.any&&!rule.any.some(a=>permitted(a)))return false;
@@ -28,5 +29,6 @@ export function allowedCompanyViews(ctx:{owner?:boolean;role:Role;custom:Record<
  });
 }
 export function resolveCompanyView(requested:unknown,allowed:readonly CompanyView[]):CompanyView|null{
+ if((requested==='pipeline'||requested==='pipeline-reports')&&allowed.includes('customers'))return 'customers';
  return isCompanyView(requested)&&allowed.includes(requested)?requested:allowed[0]||null;
 }
