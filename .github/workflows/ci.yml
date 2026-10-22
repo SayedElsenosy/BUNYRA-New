@@ -23,6 +23,7 @@ jobs:
       - run: npm run test:payables-core
       - run: npm run test:treasury-core
       - run: npm run test:ledger-controls
+      - run: npm run test:project-budgets
       - run: npm run test:fixed-assets
       - run: npm run test:tenant-client
       - run: npm run test:record-scopes
