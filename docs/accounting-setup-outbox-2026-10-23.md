@@ -3,7 +3,7 @@
 ## Company setup
 
 Migration 050 adds opt-in initialization of the default legal entity: 11 chart
-accounts and five journals. Migrations 056–058 supersede the public initialization
+accounts and five journals. Migrations 056–059 supersede the public initialization
 with customer-advance controls and supplier payable mapping, without a default
 receipt destination. The user explicitly selects a named account for each receipt.
 This creates no opening

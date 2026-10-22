@@ -20,6 +20,7 @@ const accountingLabels:Record<string,[string,string]>={
  collection_confirmed:['تأكيد التحصيل','Collection confirmed'],booking_receipt_allocated:['تخصيص عربون الحجز','Booking receipt allocated'],
  adjustment_refund_executed:['تنفيذ رد مبلغ','Refund executed'],adjustment_reversal_executed:['تنفيذ عكس تحصيل','Receipt reversal executed'],
  adjustment_settlement_executed:['تنفيذ تسوية','Settlement executed'],failed:['تعذرت المعالجة','Failed'],
+ PAYMENT_ACCOUNT_REQUIRED:['اختَر حساب التحصيل في المستند الأصلي','Choose a receipt account on the source document'],
  FINANCE_MAPPING_REQUIRED:['لم يتم ربط حسابات التحصيل','Receipt account mapping is missing'],
  FINANCE_MAPPING_INVALID:['ربط الحسابات غير صالح أو غير نشط','Account mapping is invalid or inactive'],
  FINANCE_ENTITY_REQUIRED:['الكيان المحاسبي الافتراضي غير نشط','Default accounting entity is inactive'],
@@ -168,8 +169,8 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
      <input placeholder={t('مرجع القيد','Journal reference')} value={voucher.reference} onChange={e=>setVoucher({...voucher,reference:e.target.value})} required/>
      <input type="date" value={voucher.entry_date} onChange={e=>setVoucher({...voucher,entry_date:e.target.value})}/>
      <select value={voucher.journal_id} onChange={e=>setVoucher({...voucher,journal_id:e.target.value})} required><option value="">{t('اختر اليومية','Select journal')}</option>{journals.map(j=><option key={j.id} value={j.id}>{j.code} — {j.name}</option>)}</select>
-     <select value={voucher.debit_id} onChange={e=>setVoucher({...voucher,debit_id:e.target.value})} required><option value="">{t('الحساب المدين','Debit account')}</option>{ledger.accounts.filter(x=>x.entity_id===entityId).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select>
-     <select value={voucher.credit_id} onChange={e=>setVoucher({...voucher,credit_id:e.target.value})} required><option value="">{t('الحساب الدائن','Credit account')}</option>{ledger.accounts.filter(x=>x.entity_id===entityId).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select>
+     <select value={voucher.debit_id} onChange={e=>setVoucher({...voucher,debit_id:e.target.value})} required><option value="">{t('الحساب المدين','Debit account')}</option>{ledger.accounts.filter(x=>x.entity_id===entityId&&(x.currency_code||'EGP')==='EGP').map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select>
+     <select value={voucher.credit_id} onChange={e=>setVoucher({...voucher,credit_id:e.target.value})} required><option value="">{t('الحساب الدائن','Credit account')}</option>{ledger.accounts.filter(x=>x.entity_id===entityId&&(x.currency_code||'EGP')==='EGP').map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select>
      <input value={voucher.amount} placeholder={t('المبلغ بالجنيه','Amount in EGP')} onChange={e=>setVoucher({...voucher,amount:e.target.value})} required/>
     </div><button className="primary" disabled={busy}>{t('إنشاء مسودة القيد','Create draft')}</button>
    </form>
@@ -287,7 +288,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
    <div className={styles.columns}>
     <form className={styles.card} onSubmit={submit(()=>{try{void action('treasury','create_statement',{entity_id:entityId,bank_account_id:bank.bank_account_id,statement_ref:bank.statement_ref,date_from:bank.date_from,date_to:bank.date_to,opening_minor:minor(bank.opening),closing_minor:minor(bank.closing)})}catch{setError('INVALID_AMOUNT')}})}>
      <h3>{t('إضافة كشف بنك','Create bank statement')}</h3>
-     <select required value={bank.bank_account_id} onChange={e=>setBank({...bank,bank_account_id:e.target.value})}><option value="">{t('الحساب البنكي','Bank GL account')}</option>{aOpts(['bank']).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select>
+     <select required value={bank.bank_account_id} onChange={e=>setBank({...bank,bank_account_id:e.target.value})}><option value="">{t('الحساب البنكي','Bank GL account')}</option>{aOpts(['bank']).map(x=><option key={x.id} value={x.id}>{x.code} — {x.name} · {x.currency_code}</option>)}</select>
      <input required value={bank.statement_ref} onChange={e=>setBank({...bank,statement_ref:e.target.value})} placeholder={t('مرجع الكشف','Statement reference')}/>
      <label>{t('من','From')}<input type="date" value={bank.date_from} onChange={e=>setBank({...bank,date_from:e.target.value})}/></label>
      <label>{t('إلى','To')}<input type="date" value={bank.date_to} onChange={e=>setBank({...bank,date_to:e.target.value})}/></label>
