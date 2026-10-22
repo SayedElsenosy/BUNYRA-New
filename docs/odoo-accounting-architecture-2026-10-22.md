@@ -30,3 +30,14 @@ Scope: Full standalone SaaS for real-estate developers. Source inspiration: Odoo
 - Monetary values are **EGP integer minor units** in the initial slice. Other currencies require explicit FX and reporting-currency accounting before activation.
 - CI tests cover exact arithmetic, invalid entry shapes, static RLS and protected posting invariants.
 - **The migration is committed but is not applied automatically to Neon production.** No general-ledger UI or automatic sales postings are claimed at this stage. Apply and test on an isolated Neon branch before rolling out; full accounting is not complete.
+
+## Verified ledger execution on isolated Neon — 2026-10-22
+- Migration 039 was applied and confirmed only on test branches `recovery-drill-dev-foundation-20261022` and `dev-foundation`; **no Neon production migration**.
+- All six ledger tables have forced tenant RLS on the isolated branch; the 039 schema version is registered.
+- An authorized company-admin ledger posted a balanced entry of 150,000 EGP minor units on each side; posting actor and timestamp were persisted.
+- Repeating the same posting returned the same entry and left a single posting audit event.
+- Tampering with a posted ledger line was blocked, as was an unbalanced entry; the unsuccessful transaction rolled back without leaving a draft.
+- An actor from another company impersonating the first company context saw zero ledger entries and ledger lines.
+- Secured `GET /api/ledger` and `POST /api/ledger` support listing, chart-of-account setup, journals, cost centers, manual draft entries and posted journals. They require company-admin or finance-manager credentials or the authenticated platform owner.
+- Standard CI verifies exact ledger arithmetic and static schema invariants. The manual protected Neon Integration workflow now includes a dedicated real-DB ledger test runner; it must be run and checked before we claim the automated integration suite passed.
+- Automatic posting from bookings, signed contracts, receipts, collections, expenses or commissions; AR/AP reconciliation; taxes, payroll, assets and accounting reports remain future separate phases. Do not mark the whole accounting system complete.
