@@ -8,6 +8,8 @@ This opt-in workflow runs the existing BUNYRA integration suites against a fixtu
 2. In GitHub, open the repository's **Settings → Secrets and variables → Actions**, add a repository secret named `BUNYRA_TEST_DATABASE_URL`. Paste the connection string for the Neon **dev-foundation** branch into GitHub secret settings only; never commit the value, paste it in a chat, or use the production URL.
 3. Open **Actions → BUNYRA Neon Integration (isolated) → Run workflow** and select `main` as the code version.
 
+The fixture target is also pinned to the verified `dev-foundation` Neon endpoint (ep-jolly-resonance-bap4jor5.c-8.eu-central-1.aws.neon.tech), with the pooled alias supported. If Neon rotates or recreates the compute endpoint, this intentionally fails closed. Recheck the Neon branch compute host and change the reviewed pin in `scripts/test-fixture-guard.mjs`; do not work around the check by using production.
+
 The workflow first runs the central safety preflight. It refuses missing opt-in, non-PostgreSQL URLs, and a database whose only platform-owner record is not exactly `identity-test-platform-owner`. The marker has been checked on dev-foundation; it is absent on production main. Failure of the preflight stops the run before fixture creation.
 
 ## Included suites
