@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
-const migration=fs.readFileSync('db/045-project-budgets.sql','utf8');
+const migration=fs.readFileSync('db/046-project-budgets.sql','utf8');
 const api=fs.readFileSync('lib/bunyra/project-budgets.ts','utf8');
 const route=fs.readFileSync('app/api/ledger/budgets/route.ts','utf8');
 let passed=0;function check(label,fn){fn();passed++;console.log('PASS '+label);}

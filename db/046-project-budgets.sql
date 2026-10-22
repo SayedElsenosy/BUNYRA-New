@@ -93,5 +93,5 @@ CREATE POLICY tenant_scope ON finance_project_budgets TO bunyra_tenant
  USING(company_id=(SELECT bunyra_tenant_company()))
  WITH CHECK(company_id=(SELECT bunyra_tenant_company()));
 GRANT SELECT,INSERT ON finance_project_budgets TO bunyra_tenant;
-INSERT INTO schema_migrations(version) VALUES('045-project-budgets');
+INSERT INTO schema_migrations(version) VALUES('046-project-budgets');
 COMMIT;

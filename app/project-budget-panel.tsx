@@ -74,7 +74,7 @@ export default function ProjectBudgetPanel({companyId,entityId,projects,accounts
  return <div className={styles.root}>
   <h3>{t('موازنة مصروفات المشاريع مقابل الفعلي','Project expense budgets vs actuals')}</h3>
   <p className={styles.muted}>{t('الموازنة لكل مشروع وحساب مصروف وشهر. الفعلي يُحتسب من القيود المُرحّلة فقط.','Monthly budgets per project and expense account, compared only with posted GL entries.')}</p>
-  {error&&<div className={styles.error} role="alert">{error==='42P01'?t('ترحيل الموازنة 045 غير مُفعّل على هذه القاعدة.','Budget migration 045 is not installed on this database.'):error}</div>}
+  {error&&<div className={styles.error} role="alert">{error==='42P01'?t('ترحيل الموازنة 046 غير مُفعّل على هذه القاعدة.','Budget migration 046 is not installed on this database.'):error}</div>}
   {notice&&<div className={styles.notice} role="status">{notice}</div>}
   {data&&<div className={styles.metrics}>
    <div><strong>{money(data.totals.budget_minor,en)}</strong><span>{t('الموازنة المعتمدة','Approved budget')}</span></div>
