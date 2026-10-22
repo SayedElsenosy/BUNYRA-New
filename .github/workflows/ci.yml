@@ -21,6 +21,7 @@ jobs:
       - run: npm run test:ledger-core
       - run: npm run test:finance-events
       - run: npm run test:payables-core
+      - run: npm run test:treasury-core
       - run: npm run test:tenant-client
       - run: npm run test:record-scopes
       - run: npm run test:navigation

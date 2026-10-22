@@ -24,6 +24,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Verify isolated Neon fixture database before any writes
         run: node --input-type=module -e "import {assertFixtureDatabaseTarget} from './scripts/test-fixture-guard.mjs'; await assertFixtureDatabaseTarget(); console.log('Safe fixture branch verified')"
+      - name: Bank statement reconciliation and closing
+        run: npm run -s test:treasury-integration
       - name: Supplier bills and payable ledger integration
         run: npm run -s test:payables-integration
       - name: General ledger double-entry, immutability and RLS
