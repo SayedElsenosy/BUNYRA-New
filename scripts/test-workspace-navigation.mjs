@@ -14,7 +14,7 @@ test('Sales cannot access company administration or finance screens',()=>assert.
 const finance=allowedCompanyViews(ctx('accountant'));
 test('Accountants see collection and receipt work',()=>assert.ok(['collections','receipts','adjustments','contracts'].every(v=>finance.includes(v))));
 test('Finance ledgers require finance manager or company administrator, never sales or scoped accountants',()=>{
- const views=['ledger','vendor-payables','treasury','accounting-reports'];
+ const views=['ledger','vendor-payables','fixed-assets','treasury','accounting-reports'];
  for(const view of views){
   assert.ok(allowedCompanyViews(ctx('finance_manager')).includes(view));
   assert.ok(allowedCompanyViews(ctx('company_admin')).includes(view));
