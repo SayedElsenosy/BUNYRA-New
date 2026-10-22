@@ -14,7 +14,7 @@ type TreasuryData={statements:any[];lines:any[];matches:any[];candidates:any[]};
 type Report={summary:any;trial_balance:any[];project_analytics:any[];profit_and_loss:{lines:any[];income_minor:string;expenses_minor:string;net_profit_minor:string};balance_sheet:{lines:any[];assets_minor:string;liabilities_minor:string;equity_minor:string;accumulated_earnings_minor:string;total_liabilities_and_equity_minor:string;balanced:boolean}};
 function minor(value:string){const m=/^(-?)(\d{1,14})(?:\.(\d{1,2}))?$/.exec(value.trim());if(!m)throw Error('INVALID_AMOUNT');return (BigInt(m[1]+m[2])*BigInt(100)+(m[1]?BigInt(-1):BigInt(1))*BigInt((m[3]||'').padEnd(2,'0'))).toString();}
 function showMoney(value:unknown,en:boolean){try{const n=BigInt(String(value||0)),sign=n<BigInt(0)?'-':'',abs=n<BigInt(0)?-n:n;
- return sign+(abs/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG')+'.'+(abs%BigInt(100)).toString().padStart(2,'0')+' EGP';
+ return sign+(abs/BigInt(100)).toLocaleString(en?'en-EG':'ar-EG-u-nu-latn')+'.'+(abs%BigInt(100)).toString().padStart(2,'0')+(en?' EGP':' ج.م');
  }catch{return '—';}}
 function today(){return new Date().toISOString().slice(0,10);}
 const initialDate=today();

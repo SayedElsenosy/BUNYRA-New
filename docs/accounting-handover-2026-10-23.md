@@ -54,20 +54,28 @@ On the guarded `dev-foundation` branch (fixture identity verified):
 
 ## Production boundary and next work
 
-Read-only production inspection during takeover found schema 038. Migrations
-039–049 have **not** been applied to production by this continuation. Source-code
-deployment alone does not activate the accounting schema.
+Production inspection during takeover found schema 038. After the complete
+protected integration run passed **182 checks**, PR #28 was merged and tracked
+migrations 039–049 were applied to production. The isolated production-data
+rehearsal and before/after production comparison preserved all rows in ten
+business tables, including 147 inventory units and 101 plan shapes. Activation
+created the default legal entity, zero journals and zero finance events; it did
+not fabricate or replay financial transactions.
+
+- Integration evidence: https://github.com/SayedElsenosy/BUNYRA-New/actions/runs/39855833691
+- Isolated rehearsal branch: `br-young-glade-bas8qs8o`.
+- Retained pre-activation production copy: `br-aged-wind-baixc6wq` (no compute).
+- Current tracked production migration: `049-treasury-import-lock-permission`.
+- Accounting, budget and supplier payment amounts use Latin digits in both
+  languages, with Arabic/English currency labels appropriate to the interface.
 
 Next dependency order:
 
-1. Run the complete protected integration workflow, then rehearse pending tracked
-   migrations on an isolated production-data branch and verify unchanged business
-   counts before a controlled production accounting activation.
-2. Implement reliable finance-event outbox execution/retry and its operational
+1. Implement reliable finance-event outbox execution/retry and its operational
    visibility; current events require explicit posting and configured mappings.
-3. Complete supplier credit notes/refunds/payment reversal and bank matching;
+2. Complete supplier credit notes/refunds/payment reversal and bank matching;
    preserve immutable originals and closed-period controls.
-4. Complete AR recognition policies, cash-flow reports, payroll/expense integration,
+3. Complete AR recognition policies, cash-flow reports, payroll/expense integration,
    currency and tax/e-invoicing requirements after the associated business rules.
 
 Refer to `odoo-accounting-architecture-2026-10-22.md` for the original roadmap.
