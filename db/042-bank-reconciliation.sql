@@ -55,7 +55,7 @@ CREATE INDEX treasury_bank_by_period ON treasury_bank_statements(company_id,enti
 CREATE INDEX treasury_bank_unmatched ON treasury_bank_lines(company_id,entity_id,statement_id,booked_on);
 
 -- Keep a close operation serialized with new lines; closed statements cannot be amended.
-CREATE FUNCTION bunyra_bank_line_open() RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $
+CREATE FUNCTION bunyra_bank_line_open() RETURNS trigger LANGUAGE plpgsql SET search_path=public,pg_temp AS $treasuryguard$
 DECLARE stmt_status text;
 BEGIN
  SELECT status INTO stmt_status FROM treasury_bank_statements
@@ -64,7 +64,7 @@ BEGIN
   RAISE EXCEPTION 'TREASURY_STATEMENT_CLOSED' USING ERRCODE='P0001';
  END IF;
  RETURN NEW;
-END $;
+END $treasuryguard$;
 CREATE TRIGGER treasury_line_only_when_open BEFORE INSERT ON treasury_bank_lines
  FOR EACH ROW EXECUTE FUNCTION bunyra_bank_line_open();
 
