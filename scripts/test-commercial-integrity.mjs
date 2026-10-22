@@ -29,6 +29,16 @@ export async function runCommercialIntegrityTests(raw){
  await check('accountant cannot enumerate unrestricted CRM customers',async()=>{const r=await commercial.commercialOverview(fresh(),accountant,company);assert.deepEqual(r.customers,[])});
  const lead=await crm.createLead(fresh(),s1,{company_id:company,customer_id:customer.id,source:'fixture',project_id:project});
  await check('sales cannot read another representative lead',async()=>{const view=await crm.crmOverview(fresh(),s2,company);assert.equal(view.customers.flatMap(c=>c.leads).length,0)});
+ await check('booking source dropdown lists only the current seller CRM lead',async()=>{
+   const own=await commercial.commercialOverview(fresh(),s1,company);
+   const other=await commercial.commercialOverview(fresh(),s2,company);
+   assert.ok(own.leads.some(l=>l.id===lead.id));
+   assert.ok(!other.leads.some(l=>l.id===lead.id));
+ });
+ await check('accountant cannot retrieve CRM leads from commercial overview',async()=>{
+   const financeView=await commercial.commercialOverview(fresh(),accountant,company);
+   assert.deepEqual(financeView.leads,[]);
+ });
  await check('sales cannot hijack or edit another lead',()=>deny(()=>crm.updateLead(fresh(),s2,{company_id:company,id:lead.id,version:1,owner_user_id:s2.userId})));
  await check('a manager outside the team cannot transfer the lead',()=>deny(()=>sales.transferLead(fresh(),salesManager,{company_id:company,lead_id:lead.id,to_user_id:salesManager.userId,reason:'Forbidden transfer'})));
  await check('a manager cannot expand their own team to access outside leads',async()=>{const team=await sales.saveSalesTeam(fresh(),salesManager,{company_id:company,name:'Scoped team',manager_user_id:salesManager.userId});await deny(()=>sales.addTeamMember(fresh(),salesManager,{company_id:company,team_id:team.id,user_id:s1.userId}));assert.equal((await sales.salesOverview(fresh(),salesManager,company)).leads.length,0)});
