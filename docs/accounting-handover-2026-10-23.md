@@ -33,6 +33,14 @@ that trigger function (with fixed search path and no public execute privilege).
 It does not grant direct statement UPDATE. The service integration verifies this
 privilege boundary plus import, matching and close behavior.
 
+Protected commercial suites exposed two additional integration gaps. Their build
+harness omitted the new `booking-lead-source` dependency; it now compiles and
+resolves the exact source. Company purge also did not account for captured finance
+events. A company with accounting documents is now retained in archived state
+with an explicit bilingual error, before any file cleanup. A company without
+accounting documents can still be purged after retention; unposted captured events
+and unused cost centers are removed before their commercial/project parents.
+
 On the guarded `dev-foundation` branch (fixture identity verified):
 
 - Supplier-payment runner: 15 assertions, including partial/full settlement,
