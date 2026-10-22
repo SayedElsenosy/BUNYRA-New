@@ -4,7 +4,7 @@ import {BookOpen,Building2,Landmark,Receipt,RefreshCw} from 'lucide-react';
 import styles from './accounting-panel.module.css';
 
 type Section='ledger'|'vendor-payables'|'treasury'|'accounting-reports';
-type ListData={entities:any[];accounts:any[];journals:any[];entries:any[]};
+type ListData={entities:any[];accounts:any[];journals:any[];entries:any[];projects:{id:string;name:string}[]};
 type EventData={events:any[];mappings:any[]};
 type VendorData={vendors:any[];bills:any[];mappings:any[]};
 type TreasuryData={statements:any[];lines:any[];matches:any[];candidates:any[]};
@@ -22,7 +22,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
  const [controls,setControls]=useState<{periods:any[];reversals:any[]}|null>(null);
  const [lockForm,setLockForm]=useState({from:initialDate.slice(0,7)+'-01',to:initialDate,reason:''}),[reverseForm,setReverseForm]=useState({entry_id:'',date:initialDate,reason:''});
  const [report,setReport]=useState<Report|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revision,setRevision]=useState(0);
- const [entity,setEntity]=useState(''),[from,setFrom]=useState(initialDate.slice(0,4)+'-01-01'),[to,setTo]=useState(initialDate);
+ const [entity,setEntity]=useState(''),[from,setFrom]=useState(initialDate.slice(0,4)+'-01-01'),[to,setTo]=useState(initialDate),[reportProject,setReportProject]=useState('');
  const [account,setAccount]=useState({code:'',name:'',kind:'expense',role:'general'}),[journal,setJournal]=useState({code:'',name:'',kind:'general'});
  const [voucher,setVoucher]=useState({reference:'',journal_id:'',debit_id:'',credit_id:'',amount:'',entry_date:initialDate});
  const [mapping,setMapping]=useState({journal_id:'',cash_account_id:'',advance_account_id:''});
@@ -51,11 +51,11 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
  },[companyId,asOwner,revision,active]);
  useEffect(()=>{
   if(!active||section!=='accounting-reports'||!entityId)return;
-  let cancel=false;
-  const url=root+'ledger/reports'+query+'&entity='+encodeURIComponent(entityId)+'&from='+from+'&to='+to;
+  let cancel=false;setReport(null);
+  const url=root+'ledger/reports'+query+'&entity='+encodeURIComponent(entityId)+'&from='+from+'&to='+to+(reportProject?'&project='+encodeURIComponent(reportProject):'');
   void fetchJson(url).then(x=>{if(!cancel){setReport(x);setError('')}}).catch(e=>{if(!cancel)setError(e instanceof Error?e.message:'REPORT_FAILED')});
   return()=>{cancel=true};
- },[companyId,asOwner,section,entityId,from,to,revision,active]);
+ },[companyId,asOwner,section,entityId,from,to,reportProject,revision,active]);
  async function action(endpoint:string,operation:string,payload:Record<string,unknown>){
   if(busy)return;setBusy(true);setError('');setNotice('');
   try{
@@ -230,7 +230,8 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
    })}
   </>}
   {section==='accounting-reports'&&ledger&&<>
-   <div className={styles.toolbar}><label>{t('من تاريخ','From')}<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>{t('إلى تاريخ','To')}<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label></div>
+   <div className={styles.toolbar}><label>{t('من تاريخ','From')}<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>{t('إلى تاريخ','To')}<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><label>{t('المشروع','Project')}<select value={reportProject} onChange={e=>setReportProject(e.target.value)}><option value="">{t('كل المشاريع / الشركة','All projects / company')}</option>{ledger.projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label></div>
+   {reportProject&&<p className={styles.muted}>{t('تقرير المشروع تحليلي وقد لا يتوازن إذا كانت بعض أطراف القيد بدون مشروع.','Project reports may not balance independently if journal legs lack project dimensions.')}</p>}
    {report&&<><div className={styles.metrics}>
     <div><Receipt size={19}/><strong>{showMoney(report.summary.income_minor,en)}</strong><span>{t('الإيرادات المرحّلة','Posted income')}</span></div>
     <div><BookOpen size={19}/><strong>{showMoney(report.summary.expenses_minor,en)}</strong><span>{t('المصروفات المرحّلة','Posted expenses')}</span></div>

@@ -97,4 +97,11 @@ test('cumulative and period SQL enforce tenant, entity, project and posted filte
  for(const predicate of ['e.company_id=','e.entity_id=','e.state=','l.project_id='])
   assert.equal(sqlReport.split(predicate).length-1,3,predicate);
 });
+test('accounting project picker sends selected project to scoped report API',()=>{
+ const ui=fs.readFileSync('app/accounting-panel.tsx','utf8');
+ const api=fs.readFileSync('lib/bunyra/ledger.ts','utf8');
+ assert.match(api,/SELECT id,name FROM projects WHERE company_id=\$\{company\}/);
+ assert.match(ui,/reportProject\?'&project='/);
+ assert.match(ui,/ledger\.projects\.map\(p=>/);
+});
 console.log(JSON.stringify({passed}));

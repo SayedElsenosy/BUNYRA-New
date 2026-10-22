@@ -39,14 +39,15 @@ async function hash(data:unknown){
 }
 export async function ledgerOverview(sql:Sql,actor:Actor,company:string,platform=false){
  await managerAccess(sql,actor,company,'finance.read',platform);
- const [entities,accounts,journals,centers,entries]=await Promise.all([
+ const [entities,accounts,journals,centers,entries,projects]=await Promise.all([
   sql`SELECT id,code,name,is_default,active FROM ledger_entities WHERE company_id=${company} ORDER BY is_default DESC,code`,
   sql`SELECT id,entity_id,code,name,kind,role,reconcilable,active FROM ledger_accounts WHERE company_id=${company} ORDER BY code LIMIT 1500`,
   sql`SELECT id,entity_id,code,name,kind,active FROM ledger_journals WHERE company_id=${company} ORDER BY code LIMIT 500`,
   sql`SELECT id,entity_id,project_id,code,name,active FROM ledger_cost_centers WHERE company_id=${company} ORDER BY code LIMIT 1000`,
-  sql`SELECT id,entity_id,journal_id,entry_date,reference,description,state,source_type,source_id,posted_at FROM ledger_entries WHERE company_id=${company} ORDER BY entry_date DESC,created_at DESC LIMIT 100`
+  sql`SELECT id,entity_id,journal_id,entry_date,reference,description,state,source_type,source_id,posted_at FROM ledger_entries WHERE company_id=${company} ORDER BY entry_date DESC,created_at DESC LIMIT 100`,
+  sql`SELECT id,name FROM projects WHERE company_id=${company} ORDER BY name`
  ]);
- return {entities,accounts,journals,centers,entries};
+ return {entities,accounts,journals,centers,entries,projects};
 }
 export async function ledgerCreateAccount(sql:Sql,actor:Actor,input:unknown,platform=false){
  const c=accountSchema.parse(input);await managerAccess(sql,actor,c.company_id,'finance.write',platform);
