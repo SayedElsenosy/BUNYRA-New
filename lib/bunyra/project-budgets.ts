@@ -1,10 +1,10 @@
 import {z} from 'zod';
 import {access,ServiceError,uuid,type Sql,type Actor} from './service';
-const month=z.string().regex(/^\\d{4}-(0[1-9]|1[0-2])-01$/);
+const month=z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-01$/);
 const base=z.object({company_id:uuid,entity_id:uuid});
 const query=base.extend({from_month:month,to_month:month,project_id:uuid.nullable().default(null)}).strict();
 const draft=base.extend({project_id:uuid,expense_account_id:uuid,period_month:month,
- amount_minor:z.string().regex(/^[1-9]\\d{0,17}$/),reason:z.string().trim().min(5).max(500)}).strict();
+ amount_minor:z.string().regex(/^[1-9]\d{0,17}$/),reason:z.string().trim().min(5).max(500)}).strict();
 const approve=z.object({company_id:uuid,budget_id:uuid}).strict();
 async function manager(sql:Sql,actor:Actor,company:string,action:'finance.read'|'finance.write'|'finance.approve',platform:boolean){
  const ctx=await access(sql,actor,company,action,platform);

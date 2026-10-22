@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useState,type FormEvent,type ReactNode} from 'react';
+import ProjectBudgetPanel from './project-budget-panel';
 import {BookOpen,Building2,Landmark,Receipt,RefreshCw} from 'lucide-react';
 import styles from './accounting-panel.module.css';
 
@@ -292,6 +293,8 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
    ],assetData.assets.filter(a=>a.entity_id===entityId))}
   </>}
   {section==='accounting-reports'&&ledger&&<>
+   <ProjectBudgetPanel companyId={companyId} entityId={entityId} projects={ledger.projects} accounts={ledger.accounts}
+    from={from} to={to} projectId={reportProject} en={en} asOwner={asOwner}/>
    <div className={styles.toolbar}><label>{t('من تاريخ','From')}<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>{t('إلى تاريخ','To')}<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><label>{t('المشروع','Project')}<select value={reportProject} onChange={e=>setReportProject(e.target.value)}><option value="">{t('كل المشاريع / الشركة','All projects / company')}</option>{ledger.projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label></div>
    {reportProject&&<p className={styles.muted}>{t('تقرير المشروع تحليلي وقد لا يتوازن إذا كانت بعض أطراف القيد بدون مشروع.','Project reports may not balance independently if journal legs lack project dimensions.')}</p>}
    {report&&<><div className={styles.metrics}>
