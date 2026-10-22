@@ -29,4 +29,33 @@ test('posting is guarded and posted journals are immutable',()=>{
  assert.match(schema,/UNIQUE\(company_id,entity_id,idempotency_key\)/);
  assert.match(schema,/GRANT EXECUTE ON FUNCTION bunyra_ledger_post_entry\(uuid,uuid\) TO bunyra_tenant/);
 });
+const reportSource=ts.transpileModule(fs.readFileSync('lib/bunyra/ledger-report-utils.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
+fs.writeFileSync(dir+'/ledger-report-utils.mjs',reportSource);
+const {summarizeTrialBalance}=await import('../'+dir+'/ledger-report-utils.mjs');
+test('posted balances produce a balanced trial balance and assets/liabilities equation',()=>{
+ const x=summarizeTrialBalance([
+  {kind:'asset',debit_minor:'100000',credit_minor:'0'},
+  {kind:'liability',debit_minor:'0',credit_minor:'100000'}
+ ]);
+ assert.equal(x.balanced,true);
+ assert.equal(x.accounting_equation_holds,true);
+ assert.equal(x.assets_minor,'100000');
+});
+test('income and expense generate correct period profit',()=>{
+ const x=summarizeTrialBalance([
+  {kind:'asset',debit_minor:'100000',credit_minor:'60000'},
+  {kind:'income',debit_minor:'0',credit_minor:'100000'},
+  {kind:'expense',debit_minor:'60000',credit_minor:'0'}
+ ]);
+ assert.equal(x.balanced,true);
+ assert.equal(x.profit_minor,'40000');
+ assert.equal(x.accounting_equation_holds,true);
+});
+test('trial balance exposes unbalanced inputs and respects arbitrary precision',()=>{
+ const x=summarizeTrialBalance([
+  {kind:'asset',debit_minor:'9007199254740993',credit_minor:'0'},
+  {kind:'liability',debit_minor:'0',credit_minor:'9007199254740992'}
+ ]);
+ assert.equal(x.balanced,false);assert.equal(x.accounting_equation_holds,false);
+});
 console.log(JSON.stringify({passed}));

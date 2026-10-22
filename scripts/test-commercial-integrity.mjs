@@ -93,14 +93,33 @@ export async function runCommercialIntegrityTests(raw){
  await check('repeat booking approval is rejected',()=>deny(()=>commercial.updateBooking(fresh(),ops,{company_id:company,booking_id:booking.id},'approve'),'INVALID_STATUS'));
  await check('fresh tenant query cannot change a committed unit with an unset transition flag',async()=>{const t=fresh();bindTenant(t,company,admin.userId);await deny(()=>t`UPDATE inventory_units SET area=area+1 WHERE id=${unit}`,'23514')});
  await commercial.updateBooking(fresh(),accountant,{company_id:company,booking_id:booking.id,received_amount:'200.00'},'confirm_receipt');
+ await check('receipt creates exactly one financial cash-in event',async()=>{
+  const ev=await raw`SELECT event_type,processing_kind,amount_minor::text AS amount FROM finance_events
+   WHERE company_id=${company} AND source_kind='booking' AND source_id=${booking.id}`;
+  assert.equal(ev.length,1);assert.equal(ev[0].event_type,'booking_receipt_confirmed');
+  assert.equal(ev[0].processing_kind,'cash_received');assert.equal(ev[0].amount,'20000');
+ });
  let contract;
  await check('contract uses the booking snapshot after inventory version changes',async()=>{contract=await commercial.createContract(fresh(),ops,{company_id:company,booking_id:booking.id,date:'2026-10-20'});assert.equal(contract.calculation.total_minor,'200000');const i=await raw`SELECT amount_minor::text,paid_minor::text FROM contract_installments WHERE contract_id=${contract.contract.id} ORDER BY number`;assert.equal(i.reduce((s,r)=>s+BigInt(r.amount_minor),0n),200000n);assert.equal(i[0].paid_minor,'20000');assert.equal(i.length,4)});
+ await check('contract allocation is informational not duplicate cash',async()=>{
+  const ev=await raw`SELECT event_type,processing_kind FROM finance_events
+    WHERE company_id=${company} AND (contract_id=${contract.contract.id} OR source_id=${booking.id})`;
+  assert.ok(ev.some(x=>x.event_type==='contract_signed'&&x.processing_kind==='informational'));
+  assert.ok(ev.some(x=>x.event_type==='booking_receipt_allocated'&&x.processing_kind==='informational'));
+  assert.equal(ev.filter(x=>x.processing_kind==='cash_received').length,1);
+ });
  await check('contract marks the unit sold and retains booked geometry',async()=>{assert.equal((await raw`SELECT status FROM inventory_units WHERE id=${unit}`)[0].status,'sold');assert.ok((await raw`SELECT payment_plan_snapshot FROM contracts WHERE id=${contract.contract.id}`)[0].payment_plan_snapshot.unit)});
  await check('sales cannot read contract installments without finance permission',async()=>{const d=await commercial.commercialOverview(fresh(),s1,company);assert.equal(d.bookings.length,1);assert.equal(d.contracts.length,0);assert.equal(d.due.length,0)});
  const receipt=(await raw`SELECT id,installment_id FROM collections WHERE contract_id=${contract.contract.id}`)[0];
  const adjustment=async amount=>{const a=await finance.createAdjustment(fresh(),accountant,{company_id:company,contract_id:contract.contract.id,collection_id:receipt.id,kind:'refund',amount,reason:'Fixture refund'});await finance.approveAdjustment(fresh(),manager,{company_id:company,adjustment_id:a.id});return a;};
  let refund;
  await check('refund infers the original receipt installment',async()=>{refund=await adjustment('150.00');await finance.executeAdjustment(fresh(),accountant,{company_id:company,adjustment_id:refund.id});assert.equal((await raw`SELECT installment_id FROM financial_adjustments WHERE id=${refund.id}`)[0].installment_id,receipt.installment_id)});
+ await check('refund execution enqueues one cash-out event',async()=>{
+  const ev=await raw`SELECT event_type,processing_kind,amount_minor::text AS amount FROM finance_events
+    WHERE company_id=${company} AND source_kind='adjustment' AND source_id=${refund.id}`;
+  assert.equal(ev.length,1);assert.equal(ev[0].event_type,'adjustment_refund_executed');
+  assert.equal(ev[0].processing_kind,'cash_refunded');assert.equal(ev[0].amount,'15000');
+ });
  await check('executed adjustment cannot execute twice',()=>deny(()=>finance.executeAdjustment(fresh(),accountant,{company_id:company,adjustment_id:refund.id}),'INVALID_STATUS'));
  await check('cumulative refunds cannot exceed the receipt',async()=>{const a=await adjustment('150.00');await deny(()=>finance.executeAdjustment(fresh(),accountant,{company_id:company,adjustment_id:a.id}),'OVER_ADJUSTMENT');assert.equal((await raw`SELECT paid_minor::text FROM contract_installments WHERE id=${receipt.installment_id}`)[0].paid_minor,'5000')});
  await check('competing refunds serialize and only one consumes the remaining amount',async()=>{const a=await adjustment('50.00'),b=await adjustment('50.00');const r=await Promise.allSettled([a,b].map(a=>finance.executeAdjustment(fresh(),accountant,{company_id:company,adjustment_id:a.id})));assert.equal(r.filter(r=>r.status==='fulfilled').length,1);assert.equal((await raw`SELECT sum(amount_minor)::text n FROM financial_adjustments WHERE collection_id=${receipt.id} AND status='executed'`)[0].n,'20000')});
