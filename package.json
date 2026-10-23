@@ -62,7 +62,9 @@
     "test:project-budgets": "node scripts/test-project-budgets.mjs",
     "test:supplier-payments": "node scripts/test-supplier-payments.mjs",
     "test:supplier-payments-integration": "node scripts/run-supplier-payments-integration-tests.mjs",
-    "test:project-budgets-integration": "node scripts/run-project-budgets-integration-tests.mjs"
+    "test:project-budgets-integration": "node scripts/run-project-budgets-integration-tests.mjs",
+    "test:finance-outbox-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-finance-outbox-integration-tests.mjs && node scripts/run-finance-outbox-concurrency-tests.mjs",
+    "test:payment-accounts-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-payment-account-integration-tests.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

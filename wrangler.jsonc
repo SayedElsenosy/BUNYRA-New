@@ -1,10 +1,11 @@
 {
   "name": "bunyra-new",
-  "main": ".open-next/worker.js",
+  "main": "custom-worker.ts",
   "compatibility_date": "2026-10-18",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
   "assets": {"directory": ".open-next/assets", "binding": "ASSETS"},
-  "observability": {"enabled": true}
+  "observability": {"enabled": true},
+  "triggers": {"crons": ["*/30 * * * *"]}
 }

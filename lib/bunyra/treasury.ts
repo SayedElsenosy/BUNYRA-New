@@ -1,3 +1,4 @@
+import {listPaymentAccounts} from './payment-accounts';
 import {z} from 'zod';
 import {access,ServiceError,uuid,type Actor,type Sql} from './service';
 import {assertBankStatementBalance} from './treasury-utils';
@@ -24,14 +25,14 @@ export async function treasuryOverview(sql:Sql,actor:Actor,company:string,platfo
  await manager(sql,actor,company,'finance.read',platform);
  const [statements,lines,matches,candidates]=await Promise.all([
   sql`SELECT id,entity_id,bank_account_id,statement_ref,date_from,date_to,
-    opening_minor::text,closing_minor::text,status,closed_at FROM treasury_bank_statements
+    opening_minor::text,closing_minor::text,status,closed_at,COALESCE((SELECT p.currency_code FROM company_payment_accounts p WHERE p.company_id=treasury_bank_statements.company_id AND p.account_id=treasury_bank_statements.bank_account_id),'EGP') AS currency_code FROM treasury_bank_statements
     WHERE company_id=${company} ORDER BY date_to DESC LIMIT 200`,
   sql`SELECT id,entity_id,statement_id,external_ref,booked_on,signed_minor::text,description FROM treasury_bank_lines
     WHERE company_id=${company} ORDER BY booked_on DESC LIMIT 1000`,
   sql`SELECT id,entity_id,bank_line_id,ledger_line_id,matched_at FROM treasury_bank_matches
     WHERE company_id=${company} ORDER BY matched_at DESC LIMIT 1000`,
   sql`SELECT l.id,l.entity_id,l.account_id,a.code AS account_code,e.reference,
-     l.debit_minor::text,l.credit_minor::text,e.entry_date
+     l.debit_minor::text,l.credit_minor::text,l.amount_currency_minor::text,l.currency_code,e.entry_date
      FROM ledger_lines l
      JOIN ledger_entries e ON e.company_id=l.company_id AND e.entity_id=l.entity_id AND e.id=l.entry_id
      JOIN ledger_accounts a ON a.company_id=l.company_id AND a.entity_id=l.entity_id AND a.id=l.account_id
@@ -39,7 +40,13 @@ export async function treasuryOverview(sql:Sql,actor:Actor,company:string,platfo
        AND NOT EXISTS(SELECT 1 FROM treasury_bank_matches x WHERE x.ledger_line_id=l.id)
      ORDER BY e.entry_date DESC LIMIT 500`
  ]);
- return {statements,lines,matches,candidates,matching_scope:'posted_bank_gl_lines_exact_amount'};
+ const payment_accounts=await listPaymentAccounts(sql,company);
+ const balances=await sql`SELECT p.id,p.currency_code,COALESCE(sum(CASE WHEN e.state='posted' THEN COALESCE(l.amount_currency_minor,l.debit_minor-l.credit_minor) ELSE 0 END),0)::text AS native_balance_minor,
+ COALESCE(sum(CASE WHEN e.state='posted' THEN l.debit_minor-l.credit_minor ELSE 0 END),0)::text AS base_balance_minor
+ FROM company_payment_accounts p LEFT JOIN ledger_lines l ON l.company_id=p.company_id AND l.entity_id=p.entity_id AND l.account_id=p.account_id
+ LEFT JOIN ledger_entries e ON e.company_id=l.company_id AND e.entity_id=l.entity_id AND e.id=l.entry_id
+ WHERE p.company_id=${company} GROUP BY p.id,p.currency_code`;
+ return {payment_accounts,balances,statements,lines,matches,candidates,matching_scope:'posted_bank_gl_lines_exact_amount'};
 }
 export async function createBankStatement(sql:Sql,actor:Actor,input:unknown,platform=false){
  const c=statement.parse(input);await manager(sql,actor,c.company_id,'finance.write',platform);

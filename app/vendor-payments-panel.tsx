@@ -4,7 +4,7 @@ import styles from './accounting-panel.module.css';
 
 type Bill={id:string;entity_id:string;invoice_number:string;status:string;paid_minor:string;remaining_minor:string};
 type Payment={id:string;bill_id:string;entity_id:string;paid_on:string;amount_minor:string;posted_entry_id:string};
-type Account={id:string;entity_id:string;code:string;name:string;role:string;kind:string;active?:boolean};
+type Account={id:string;entity_id:string;code:string;name:string;role:string;kind:string;active?:boolean;currency_code?:string};
 type Journal={id:string;entity_id:string;name:string;kind:string;active?:boolean};
 type Props={companyId:string;entityId:string;en:boolean;asOwner:boolean;bills:Bill[];payments:Payment[];
  accounts:Account[];journals:Journal[];onChanged:()=>void};
@@ -28,7 +28,7 @@ export default function VendorPaymentsPanel({companyId,entityId,en,asOwner,bills
  const change=(v:Partial<typeof input>)=>{setInput(p=>({...p,...v}));setKey(crypto.randomUUID());};
  const unpaid=bills.filter(b=>b.entity_id===entityId&&b.status==='posted'&&BigInt(b.remaining_minor||'0')>BigInt(0));
  const chosen=accounts.find(a=>a.id===input.cash_account_id);
- const cash=accounts.filter(a=>a.entity_id===entityId&&a.kind==='asset'&&['bank','cash'].includes(a.role)&&a.active!==false);
+ const cash=accounts.filter(a=>a.entity_id===entityId&&a.kind==='asset'&&['bank','cash'].includes(a.role)&&a.active!==false&&(a.currency_code||'EGP')==='EGP');
  const selectableJournals=journals.filter(j=>j.entity_id===entityId&&j.active!==false&&
    (chosen?j.kind===chosen.role:['cash','bank'].includes(j.kind)));
  async function submit(e:FormEvent<HTMLFormElement>){

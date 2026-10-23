@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {identity,sameOrigin,json,failure} from '../../../lib/bunyra/http';
-import {ledgerOverview,ledgerCreateAccount,ledgerCreateJournal,ledgerCreateCostCenter,ledgerCreateDraft,ledgerPost} from '../../../lib/bunyra/ledger';
+import {initializeAccounting,ledgerOverview,ledgerCreateAccount,ledgerCreateJournal,ledgerCreateCostCenter,ledgerCreateDraft,ledgerPost} from '../../../lib/bunyra/ledger';
 export const dynamic='force-dynamic';
 export async function GET(request:Request){
  try{
@@ -14,6 +14,7 @@ export async function POST(request:Request){
   const {sql,actor}=await identity(),url=new URL(request.url);
   const {operation,...input}=z.record(z.string(),z.unknown()).parse(await request.json());
   const platform=url.searchParams.get('mode')==='platform';
+  if(operation==='initialize')return json(await initializeAccounting(sql,actor,input,platform));
   if(operation==='account')return json(await ledgerCreateAccount(sql,actor,input,platform),201);
   if(operation==='journal')return json(await ledgerCreateJournal(sql,actor,input,platform),201);
   if(operation==='cost_center')return json(await ledgerCreateCostCenter(sql,actor,input,platform),201);
