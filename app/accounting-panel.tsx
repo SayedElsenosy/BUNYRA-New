@@ -2,6 +2,7 @@
 import {useEffect,useState,type FormEvent,type ReactNode} from 'react';
 import ProjectBudgetPanel from './project-budget-panel';
 import VendorPaymentsPanel from './vendor-payments-panel';
+import VendorCreditsPanel from './vendor-credits-panel';
 import {BookOpen,Building2,Landmark,Receipt,RefreshCw} from 'lucide-react';
 import styles from './accounting-panel.module.css';
 
@@ -35,7 +36,7 @@ function accountingLabel(value:string,en:boolean){return accountingLabels[value]
 type AssetData={assets:any[]};
 type ListData={entities:any[];accounts:any[];journals:any[];entries:any[];projects:{id:string;name:string}[]};
 type EventData={receipt_controls:any[];events:any[];mappings:any[];attempts:any[];queue:{waiting:number;retrying:number;blocked:number};automation:{enabled:boolean;last_run_at?:string;last_run_result?:{posted:number;failed:number}}};
-type VendorData={vendors:any[];bills:any[];mappings:any[];payments:any[];can_approve:boolean};
+type VendorData={credits:any[];refunds:any[];vendors:any[];bills:any[];mappings:any[];payments:any[];can_approve:boolean};
 type TreasuryData={payment_accounts:any[];balances:any[];statements:any[];lines:any[];matches:any[];candidates:any[]};
 type Report={summary:any;trial_balance:any[];project_analytics:any[];profit_and_loss:{lines:any[];income_minor:string;expenses_minor:string;net_profit_minor:string};balance_sheet:{lines:any[];assets_minor:string;liabilities_minor:string;equity_minor:string;accumulated_earnings_minor:string;total_liabilities_and_equity_minor:string;balanced:boolean}};
 function minor(value:string){const m=/^(-?)(\d{1,14})(?:\.(\d{1,2}))?$/.exec(value.trim());if(!m)throw Error('INVALID_AMOUNT');return (BigInt(m[1]+m[2])*BigInt(100)+(m[1]?BigInt(-1):BigInt(1))*BigInt((m[3]||'').padEnd(2,'0'))).toString();}
@@ -65,6 +66,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
  const [voucher,setVoucher]=useState({reference:'',journal_id:'',debit_id:'',credit_id:'',amount:'',entry_date:initialDate});
  const [mapping,setMapping]=useState({journal_id:'',cash_account_id:'',advance_account_id:''});
  const [apMapping,setApMapping]=useState({journal_id:'',payable_account_id:''});
+ const [vendorView,setVendorView]=useState<'bills'|'credits'|'refunds'>('bills');
  const [vendor,setVendor]=useState({code:'',name:'',tax_registration:''});
  const [bill,setBill]=useState({vendor_id:'',invoice_number:'',expense_account_id:'',description:'',amount:'',invoice_date:initialDate,due_date:initialDate});
  const [bank,setBank]=useState({bank_account_id:'',statement_ref:'',date_from:initialDate,date_to:initialDate,opening:'0',closing:'0'});
@@ -234,6 +236,12 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
    </div>
   </>}
   {section==='vendor-payables'&&ledger&&payables&&<>
+   <div className={styles.toolbar} role="group" aria-label={t('أقسام الموردين','Supplier sections')}>
+    {(['bills','credits','refunds'] as const).map(v=><button key={v} type="button" aria-pressed={vendorView===v} onClick={()=>setVendorView(v)}>{v==='bills'?t('الفواتير والسداد','Invoices & payments'):v==='credits'?t('إشعارات الخصم','Credit notes'):t('المبالغ المستردة','Received refunds')}</button>)}
+   </div>
+   {vendorView!=='bills'&&<VendorCreditsPanel key={companyId+entityId} companyId={companyId} entityId={entityId} en={en} asOwner={asOwner} canApprove={payables.can_approve}
+    mode={vendorView} bills={payables.bills} credits={payables.credits||[]} refunds={payables.refunds||[]} accounts={treasury?.payment_accounts||[]} onChanged={()=>setRevision(v=>v+1)}/>}
+   {vendorView==='bills'&&<>
    <div className={styles.metrics}><div><Building2 size={19}/><strong>{payables.vendors.length}</strong><span>{t('مورد ومقاول','Vendors')}</span></div><div><Receipt size={19}/><strong>{payables.bills.length}</strong><span>{t('فواتير الموردين','Vendor bills')}</span></div></div>
    <div className={styles.columns}>
     <form className={styles.card} onSubmit={submit(()=>void action('vendor-payables','vendor',vendor))}>
@@ -266,10 +274,11 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
     </div><button className="primary" disabled={busy}>{t('إنشاء الفاتورة','Create bill')}</button>
    </form>
    <h3>{t('فواتير الموردين','Supplier bills')}</h3>
-   {renderTable([{key:'invoice_number',ar:'رقم الفاتورة',english:'Invoice'},{key:'total_minor',ar:'القيمة',english:'Amount',fmt:r=>showMoney(r.total_minor,en)},{key:'paid_minor',ar:'المسدّد',english:'Paid',fmt:r=>showMoney(r.paid_minor,en)},{key:'remaining_minor',ar:'المتبقي',english:'Remaining',fmt:r=>showMoney(r.remaining_minor,en)},{key:'status',ar:'الحالة',english:'Status'},{key:'id',ar:'الإجراءات',english:'Actions',fmt:r=><div className={styles.actions}>{r.status==='draft'&&<button disabled={busy} onClick={()=>void action('vendor-payables','approve_bill',{bill_id:r.id})}>{t('اعتماد','Approve')}</button>}{r.status==='approved'&&<button disabled={busy} onClick={()=>void action('vendor-payables','post_bill',{bill_id:r.id})}>{t('ترحيل','Post')}</button>}</div>}],payables.bills.filter(b=>b.entity_id===entityId))}
+   {renderTable([{key:'invoice_number',ar:'رقم الفاتورة',english:'Invoice'},{key:'total_minor',ar:'القيمة',english:'Amount',fmt:r=>showMoney(r.total_minor,en)},{key:'credited_minor',ar:'الخصم',english:'Credited',fmt:r=>showMoney(r.credited_minor,en)},{key:'net_total_minor',ar:'صافي الفاتورة',english:'Net invoice',fmt:r=>showMoney(r.net_total_minor,en)},{key:'refundable_minor',ar:'مستحق استرداده',english:'Refund due',fmt:r=>showMoney(r.refundable_minor,en)},{key:'paid_minor',ar:'صافي المسدّد',english:'Net paid',fmt:r=>showMoney(r.paid_minor,en)},{key:'remaining_minor',ar:'المتبقي',english:'Remaining',fmt:r=>showMoney(r.remaining_minor,en)},{key:'status',ar:'الحالة',english:'Status'},{key:'id',ar:'الإجراءات',english:'Actions',fmt:r=><div className={styles.actions}>{r.status==='draft'&&<button disabled={busy} onClick={()=>void action('vendor-payables','approve_bill',{bill_id:r.id})}>{t('اعتماد','Approve')}</button>}{r.status==='approved'&&<button disabled={busy} onClick={()=>void action('vendor-payables','post_bill',{bill_id:r.id})}>{t('ترحيل','Post')}</button>}</div>}],payables.bills.filter(b=>b.entity_id===entityId))}
    <VendorPaymentsPanel companyId={companyId} entityId={entityId} en={en} asOwner={asOwner} canApprove={payables.can_approve}
     bills={payables.bills} payments={payables.payments||[]}
     accounts={ledger.accounts} journals={ledger.journals} onChanged={()=>setRevision(v=>v+1)}/>
+   </>}
   </>}
   {section==='treasury'&&ledger&&treasury&&<>
    <form className={styles.card} onSubmit={submit(()=>void action('treasury','create_account',{entity_id:entityId,...paymentAccount}))}>

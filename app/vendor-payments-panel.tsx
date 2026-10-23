@@ -27,6 +27,7 @@ export default function VendorPaymentsPanel({companyId,entityId,en,asOwner,canAp
  const [key,setKey]=useState(()=>crypto.randomUUID()),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [correction,setCorrection]=useState({payment_id:'',reversed_on:new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Cairo'}),reason:''});
  const errorText=(code:string)=>({
+  VENDOR_PAYMENT_REFUND_CONFLICT:t('يوجد مبلغ مسترد مرتبط بالسداد؛ راجع مستندات الاسترداد قبل التصحيح.','A refund has already been received. Review refund documents before correcting this payment.'),
   VENDOR_PAYMENT_RECONCILED:t('السداد مطابق مع البنك؛ يجب مراجعته من خلال دورة البنك قبل تصحيحه.','This payment is bank-reconciled and must be reviewed through the bank workflow.'),
   VENDOR_REVERSAL_BEFORE_PAYMENT:t('تاريخ العكس لا يمكن أن يسبق تاريخ السداد.','The correction date cannot precede the payment.'),
   VENDOR_REVERSAL_CONFLICT:t('السداد معكوس بالفعل بتفاصيل مختلفة. حدّث السجل.','The payment was already reversed with different details. Refresh the list.'),

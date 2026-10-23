@@ -26,18 +26,14 @@ const payableMapping=z.object({company_id:uuid,entity_id:uuid,journal_id:uuid,pa
 const billAction=z.object({company_id:uuid,bill_id:uuid}).strict();
 export async function vendorPayablesOverview(sql:Sql,actor:Actor,company:string,platform=false){
  const ctx=await manager(sql,actor,company,'finance.read',platform);
- const [vendors,bills,mappings,payments]=await Promise.all([
+ const [vendors,bills,mappings,payments,credits,refunds]=await Promise.all([
   sql`SELECT id,code,name,tax_registration,active,created_at
      FROM finance_vendors WHERE company_id=${company} ORDER BY code LIMIT 500`,
   sql`SELECT b.id,b.entity_id,b.vendor_id,b.invoice_number,b.invoice_date,b.due_date,b.total_minor::text,
     b.status,b.posted_entry_id,b.approved_at,
-    COALESCE((SELECT sum(p.amount_minor::numeric) FROM finance_vendor_payments p
-       WHERE p.company_id=b.company_id AND p.entity_id=b.entity_id AND p.bill_id=b.id
-        AND NOT EXISTS(SELECT 1 FROM finance_vendor_payment_reversals r WHERE r.company_id=p.company_id AND r.entity_id=p.entity_id AND r.payment_id=p.id)),0)::text AS paid_minor,
-    (b.total_minor::numeric-COALESCE((SELECT sum(p.amount_minor::numeric) FROM finance_vendor_payments p
-       WHERE p.company_id=b.company_id AND p.entity_id=b.entity_id AND p.bill_id=b.id
-        AND NOT EXISTS(SELECT 1 FROM finance_vendor_payment_reversals r WHERE r.company_id=p.company_id AND r.entity_id=p.entity_id AND r.payment_id=p.id)),0))::text AS remaining_minor
-    FROM finance_vendor_bills b WHERE b.company_id=${company}
+    balance.credited_minor::text,balance.net_total_minor::text,balance.paid_minor::text,balance.remaining_minor::text,balance.refundable_minor::text
+    FROM finance_vendor_bills b JOIN finance_vendor_bill_balances balance
+     ON balance.company_id=b.company_id AND balance.entity_id=b.entity_id AND balance.bill_id=b.id WHERE b.company_id=${company}
     ORDER BY b.created_at DESC LIMIT 300`,
   sql`SELECT company_id,entity_id,journal_id,payable_account_id FROM finance_payable_mappings
     WHERE company_id=${company}`,
@@ -46,9 +42,17 @@ export async function vendorPayablesOverview(sql:Sql,actor:Actor,company:string,
     EXISTS(SELECT 1 FROM ledger_lines l JOIN treasury_bank_matches m ON m.company_id=l.company_id AND m.entity_id=l.entity_id AND m.ledger_line_id=l.id
       WHERE l.company_id=p.company_id AND l.entity_id=p.entity_id AND l.entry_id=p.posted_entry_id) AS reconciled
     FROM finance_vendor_payments p LEFT JOIN finance_vendor_payment_reversals r ON r.company_id=p.company_id AND r.entity_id=p.entity_id AND r.payment_id=p.id
-    WHERE p.company_id=${company} ORDER BY p.created_at DESC LIMIT 500`
+    WHERE p.company_id=${company} ORDER BY p.created_at DESC LIMIT 500`,
+  sql`SELECT c.id,c.entity_id,c.bill_id,b.invoice_number,c.reference,c.credit_date,c.reason,c.amount_minor::text,c.posted_entry_id,
+    least(c.amount_minor-coalesce((SELECT sum(r.amount_minor) FROM finance_vendor_refunds r WHERE r.company_id=c.company_id AND r.entity_id=c.entity_id AND r.credit_id=c.id),0),balance.refundable_minor)::text AS refundable_minor
+   FROM finance_vendor_credits c JOIN finance_vendor_bill_balances balance ON balance.company_id=c.company_id AND balance.entity_id=c.entity_id AND balance.bill_id=c.bill_id
+   JOIN finance_vendor_bills b ON b.company_id=c.company_id AND b.entity_id=c.entity_id AND b.id=c.bill_id
+   WHERE c.company_id=${company} ORDER BY c.created_at DESC LIMIT 300`,
+  sql`SELECT r.id,r.entity_id,r.bill_id,r.credit_id,r.payment_account_id,a.name AS payment_account_name,r.received_on,r.reference,r.amount_minor::text,r.posted_entry_id
+   FROM finance_vendor_refunds r JOIN company_payment_accounts a ON a.company_id=r.company_id AND a.entity_id=r.entity_id AND a.id=r.payment_account_id
+   WHERE r.company_id=${company} ORDER BY r.created_at DESC LIMIT 500`
  ]);
- return {vendors,bills,mappings,payments,can_approve:ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'finance.approve'),implemented_scope:'vendor_bills_payments_and_corrections'};
+ return {vendors,bills,mappings,payments,credits,refunds,can_approve:ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'finance.approve'),implemented_scope:'vendor_bills_payments_and_corrections'};
 }
 export async function createFinanceVendor(sql:Sql,actor:Actor,input:unknown,platform=false){
  const c=vendorInput.parse(input);await manager(sql,actor,c.company_id,'finance.write',platform);
@@ -137,4 +141,26 @@ export async function reverseVendorPayment(sql:Sql,actor:Actor,input:unknown,pla
  const c=reversePaymentInput.parse(input);await manager(sql,actor,c.company_id,'finance.approve',platform);
  const [row]=await sql`SELECT bunyra_reverse_vendor_payment(${c.company_id}::uuid,${c.payment_id}::uuid,${c.reversed_on}::date,${c.reason}) AS reversal_id`;
  return {reversal_id:row.reversal_id,status:'reversed'};
+}
+
+const creditInput=z.object({company_id:uuid,bill_id:uuid,reference:z.string().trim().min(2).max(100),credit_date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),reason:z.string().trim().min(3).max(500),idempotency_key:z.string().min(8).max(100),
+ lines:z.array(z.object({bill_line_id:uuid,amount_minor:z.string().regex(/^[1-9]\d{0,17}$/)}).strict()).min(1).max(150)}).strict();
+export async function postVendorCredit(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=creditInput.parse(input);await manager(sql,actor,c.company_id,'finance.approve',platform);
+ const [row]=await sql`SELECT bunyra_post_vendor_credit(${c.company_id}::uuid,${c.bill_id}::uuid,${c.reference},${c.credit_date}::date,${c.reason},${c.idempotency_key},${JSON.stringify(c.lines)}::jsonb) AS credit_id`;
+ return {credit_id:row.credit_id,status:'posted'};
+}
+const refundInput=z.object({company_id:uuid,credit_id:uuid,payment_account_id:uuid,received_on:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),amount_minor:z.string().regex(/^[1-9]\d{0,17}$/),reference:z.string().trim().min(2).max(120),idempotency_key:z.string().min(8).max(100)}).strict();
+export async function receiveVendorRefund(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=refundInput.parse(input);await manager(sql,actor,c.company_id,'finance.approve',platform);
+ const [row]=await sql`SELECT bunyra_receive_vendor_refund(${c.company_id}::uuid,${c.credit_id}::uuid,${c.payment_account_id}::uuid,${c.received_on}::date,${c.amount_minor}::bigint,${c.reference},${c.idempotency_key}) AS refund_id`;
+ return {refund_id:row.refund_id,status:'posted'};
+}
+export async function vendorCreditBillLines(sql:Sql,actor:Actor,company:string,billId:string,platform=false){
+ uuid.parse(billId);await manager(sql,actor,company,'finance.read',platform);
+ const rows=await sql`SELECT l.id,l.line_number,l.description,l.amount_minor::text,
+   (l.amount_minor-coalesce((SELECT sum(c.amount_minor) FROM finance_vendor_credit_lines c WHERE c.company_id=l.company_id AND c.entity_id=l.entity_id AND c.bill_line_id=l.id),0))::text AS remaining_minor
+  FROM finance_vendor_bill_lines l JOIN finance_vendor_bills b ON b.company_id=l.company_id AND b.entity_id=l.entity_id AND b.id=l.bill_id
+  WHERE l.company_id=${company} AND l.bill_id=${billId} AND b.status='posted' ORDER BY l.line_number LIMIT 150`;
+ return {lines:rows};
 }
