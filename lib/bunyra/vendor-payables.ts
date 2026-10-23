@@ -1,9 +1,11 @@
 import {z} from 'zod';
 import {access,ServiceError,uuid,type Sql,type Actor} from './service';
 import {totalPayableMinor} from './payables-utils';
+import {hasPermission} from './permissions';
 async function manager(sql:Sql,actor:Actor,company:string,action:'finance.read'|'finance.write'|'finance.approve',platform:boolean){
  const c=await access(sql,actor,company,action,platform);
  if(!c.owner&&!['finance_manager','company_admin'].includes(c.role))throw new ServiceError('FORBIDDEN',403);
+ return c;
 }
 const vendorInput=z.object({company_id:uuid,code:z.string().trim().min(2).max(40),name:z.string().trim().min(2).max(200),
  tax_registration:z.string().trim().max(50).default('')}).strict();
@@ -23,25 +25,30 @@ const billInput=z.object({
 const payableMapping=z.object({company_id:uuid,entity_id:uuid,journal_id:uuid,payable_account_id:uuid}).strict();
 const billAction=z.object({company_id:uuid,bill_id:uuid}).strict();
 export async function vendorPayablesOverview(sql:Sql,actor:Actor,company:string,platform=false){
- await manager(sql,actor,company,'finance.read',platform);
+ const ctx=await manager(sql,actor,company,'finance.read',platform);
  const [vendors,bills,mappings,payments]=await Promise.all([
   sql`SELECT id,code,name,tax_registration,active,created_at
      FROM finance_vendors WHERE company_id=${company} ORDER BY code LIMIT 500`,
   sql`SELECT b.id,b.entity_id,b.vendor_id,b.invoice_number,b.invoice_date,b.due_date,b.total_minor::text,
     b.status,b.posted_entry_id,b.approved_at,
     COALESCE((SELECT sum(p.amount_minor::numeric) FROM finance_vendor_payments p
-       WHERE p.company_id=b.company_id AND p.entity_id=b.entity_id AND p.bill_id=b.id),0)::text AS paid_minor,
+       WHERE p.company_id=b.company_id AND p.entity_id=b.entity_id AND p.bill_id=b.id
+        AND NOT EXISTS(SELECT 1 FROM finance_vendor_payment_reversals r WHERE r.company_id=p.company_id AND r.entity_id=p.entity_id AND r.payment_id=p.id)),0)::text AS paid_minor,
     (b.total_minor::numeric-COALESCE((SELECT sum(p.amount_minor::numeric) FROM finance_vendor_payments p
-       WHERE p.company_id=b.company_id AND p.entity_id=b.entity_id AND p.bill_id=b.id),0))::text AS remaining_minor
+       WHERE p.company_id=b.company_id AND p.entity_id=b.entity_id AND p.bill_id=b.id
+        AND NOT EXISTS(SELECT 1 FROM finance_vendor_payment_reversals r WHERE r.company_id=p.company_id AND r.entity_id=p.entity_id AND r.payment_id=p.id)),0))::text AS remaining_minor
     FROM finance_vendor_bills b WHERE b.company_id=${company}
     ORDER BY b.created_at DESC LIMIT 300`,
   sql`SELECT company_id,entity_id,journal_id,payable_account_id FROM finance_payable_mappings
     WHERE company_id=${company}`,
-  sql`SELECT id,bill_id,entity_id,journal_id,cash_account_id,paid_on,amount_minor::text,
-    posted_entry_id,created_at FROM finance_vendor_payments WHERE company_id=${company}
-    ORDER BY created_at DESC LIMIT 500`
+  sql`SELECT p.id,p.bill_id,p.entity_id,p.journal_id,p.cash_account_id,p.paid_on,p.amount_minor::text,
+    p.posted_entry_id,p.created_at,r.id AS reversal_id,r.posted_entry_id AS reversal_entry_id,r.reversed_on,r.reason AS reversal_reason,
+    EXISTS(SELECT 1 FROM ledger_lines l JOIN treasury_bank_matches m ON m.company_id=l.company_id AND m.entity_id=l.entity_id AND m.ledger_line_id=l.id
+      WHERE l.company_id=p.company_id AND l.entity_id=p.entity_id AND l.entry_id=p.posted_entry_id) AS reconciled
+    FROM finance_vendor_payments p LEFT JOIN finance_vendor_payment_reversals r ON r.company_id=p.company_id AND r.entity_id=p.entity_id AND r.payment_id=p.id
+    WHERE p.company_id=${company} ORDER BY p.created_at DESC LIMIT 500`
  ]);
- return {vendors,bills,mappings,payments,implemented_scope:'vendor_bills_and_gl_posting'};
+ return {vendors,bills,mappings,payments,can_approve:ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'finance.approve'),implemented_scope:'vendor_bills_payments_and_corrections'};
 }
 export async function createFinanceVendor(sql:Sql,actor:Actor,input:unknown,platform=false){
  const c=vendorInput.parse(input);await manager(sql,actor,c.company_id,'finance.write',platform);
@@ -123,4 +130,11 @@ export async function payVendorBill(sql:Sql,actor:Actor,input:unknown,platform=f
   ${c.company_id}::uuid,${c.bill_id}::uuid,${c.journal_id}::uuid,${c.cash_account_id}::uuid,
   ${c.paid_on}::date,${c.amount_minor}::bigint,${c.idempotency_key}::text) AS payment_id`)[0];
  return {payment_id:row.payment_id,status:'posted'};
+}
+
+const reversePaymentInput=z.object({company_id:uuid,payment_id:uuid,reversed_on:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),reason:z.string().trim().min(3).max(500)}).strict();
+export async function reverseVendorPayment(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=reversePaymentInput.parse(input);await manager(sql,actor,c.company_id,'finance.approve',platform);
+ const [row]=await sql`SELECT bunyra_reverse_vendor_payment(${c.company_id}::uuid,${c.payment_id}::uuid,${c.reversed_on}::date,${c.reason}) AS reversal_id`;
+ return {reversal_id:row.reversal_id,status:'reversed'};
 }
