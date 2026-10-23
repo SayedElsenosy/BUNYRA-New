@@ -32,6 +32,8 @@ jobs:
         run: npm run -s test:fixed-assets-integration
       - name: Supplier partial payments, supplier balances and rollback
         run: npm run -s test:supplier-payments-integration
+      - name: Supplier payment corrections, bank matching race and closed periods
+        run: npm run -s test:supplier-reversals-integration
       - name: Budget approval, immutable revisions and rollback
         run: npm run -s test:project-budgets-integration
       - name: General ledger double-entry, immutability and RLS

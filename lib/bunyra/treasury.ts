@@ -38,6 +38,10 @@ export async function treasuryOverview(sql:Sql,actor:Actor,company:string,platfo
      JOIN ledger_accounts a ON a.company_id=l.company_id AND a.entity_id=l.entity_id AND a.id=l.account_id
      WHERE l.company_id=${company} AND a.role='bank' AND e.state='posted'
        AND NOT EXISTS(SELECT 1 FROM treasury_bank_matches x WHERE x.ledger_line_id=l.id)
+       AND NOT EXISTS(SELECT 1 FROM finance_vendor_payment_reversals r JOIN finance_vendor_payments p
+        ON p.company_id=r.company_id AND p.entity_id=r.entity_id AND p.id=r.payment_id
+        WHERE r.company_id=l.company_id AND r.entity_id=l.entity_id
+         AND (p.posted_entry_id=l.entry_id OR r.posted_entry_id=l.entry_id))
      ORDER BY e.entry_date DESC LIMIT 500`
  ]);
  const payment_accounts=await listPaymentAccounts(sql,company);

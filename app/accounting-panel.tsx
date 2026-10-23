@@ -35,7 +35,7 @@ function accountingLabel(value:string,en:boolean){return accountingLabels[value]
 type AssetData={assets:any[]};
 type ListData={entities:any[];accounts:any[];journals:any[];entries:any[];projects:{id:string;name:string}[]};
 type EventData={receipt_controls:any[];events:any[];mappings:any[];attempts:any[];queue:{waiting:number;retrying:number;blocked:number};automation:{enabled:boolean;last_run_at?:string;last_run_result?:{posted:number;failed:number}}};
-type VendorData={vendors:any[];bills:any[];mappings:any[];payments:any[]};
+type VendorData={vendors:any[];bills:any[];mappings:any[];payments:any[];can_approve:boolean};
 type TreasuryData={payment_accounts:any[];balances:any[];statements:any[];lines:any[];matches:any[];candidates:any[]};
 type Report={summary:any;trial_balance:any[];project_analytics:any[];profit_and_loss:{lines:any[];income_minor:string;expenses_minor:string;net_profit_minor:string};balance_sheet:{lines:any[];assets_minor:string;liabilities_minor:string;equity_minor:string;accumulated_earnings_minor:string;total_liabilities_and_equity_minor:string;balanced:boolean}};
 function minor(value:string){const m=/^(-?)(\d{1,14})(?:\.(\d{1,2}))?$/.exec(value.trim());if(!m)throw Error('INVALID_AMOUNT');return (BigInt(m[1]+m[2])*BigInt(100)+(m[1]?BigInt(-1):BigInt(1))*BigInt((m[3]||'').padEnd(2,'0'))).toString();}
@@ -267,7 +267,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
    </form>
    <h3>{t('فواتير الموردين','Supplier bills')}</h3>
    {renderTable([{key:'invoice_number',ar:'رقم الفاتورة',english:'Invoice'},{key:'total_minor',ar:'القيمة',english:'Amount',fmt:r=>showMoney(r.total_minor,en)},{key:'paid_minor',ar:'المسدّد',english:'Paid',fmt:r=>showMoney(r.paid_minor,en)},{key:'remaining_minor',ar:'المتبقي',english:'Remaining',fmt:r=>showMoney(r.remaining_minor,en)},{key:'status',ar:'الحالة',english:'Status'},{key:'id',ar:'الإجراءات',english:'Actions',fmt:r=><div className={styles.actions}>{r.status==='draft'&&<button disabled={busy} onClick={()=>void action('vendor-payables','approve_bill',{bill_id:r.id})}>{t('اعتماد','Approve')}</button>}{r.status==='approved'&&<button disabled={busy} onClick={()=>void action('vendor-payables','post_bill',{bill_id:r.id})}>{t('ترحيل','Post')}</button>}</div>}],payables.bills.filter(b=>b.entity_id===entityId))}
-   <VendorPaymentsPanel companyId={companyId} entityId={entityId} en={en} asOwner={asOwner}
+   <VendorPaymentsPanel companyId={companyId} entityId={entityId} en={en} asOwner={asOwner} canApprove={payables.can_approve}
     bills={payables.bills} payments={payables.payments||[]}
     accounts={ledger.accounts} journals={ledger.journals} onChanged={()=>setRevision(v=>v+1)}/>
   </>}
