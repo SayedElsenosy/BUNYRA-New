@@ -2,8 +2,9 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import styles from './accounting-panel.module.css';
 type Bill={id:string;entity_id:string;invoice_number:string;invoice_date:string;status:string;refundable_minor:string};
-type Credit={id:string;entity_id:string;bill_id:string;invoice_number:string;reference:string;credit_date:string;reason:string;amount_minor:string;refundable_minor:string;posted_entry_id:string};
-type Refund={id:string;entity_id:string;credit_id:string;payment_account_id:string;payment_account_name:string;received_on:string;reference:string;amount_minor:string;posted_entry_id:string};
+type Reversal={reversal_id?:string;reversal_entry_id?:string;reversed_on?:string;reversal_reason?:string};
+type Credit=Reversal&{id:string;entity_id:string;bill_id:string;invoice_number:string;reference:string;credit_date:string;reason:string;amount_minor:string;refundable_minor:string;posted_entry_id:string;has_active_refunds?:boolean};
+type Refund=Reversal&{id:string;entity_id:string;credit_id:string;payment_account_id:string;payment_account_name:string;received_on:string;reference:string;amount_minor:string;posted_entry_id:string;reconciled?:boolean};
 type Account={id:string;entity_id:string;name:string;currency_code:string};
 type Line={id:string;line_number:number;description:string;amount_minor:string;remaining_minor:string};
 type Props={mode:'credits'|'refunds';companyId:string;entityId:string;en:boolean;asOwner:boolean;canApprove:boolean;bills:Bill[];credits:Credit[];refunds:Refund[];accounts:Account[];onChanged:()=>void};
@@ -16,7 +17,16 @@ export default function VendorCreditsPanel({mode,companyId,entityId,en,asOwner,c
  const [refund,setRefund]=useState({credit_id:'',payment_account_id:'',received_on:today(),amount:'',reference:''});
  const [creditKey,setCreditKey]=useState(()=>crypto.randomUUID()),[refundKey,setRefundKey]=useState(()=>crypto.randomUUID());
  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revision,setRevision]=useState(0);
+ const [correction,setCorrection]=useState({id:'',kind:'credit' as 'credit'|'refund',reference:'',reversed_on:today(),reason:''});
  const errorText=(code:string)=>({
+  VENDOR_CREDIT_REFUND_CONFLICT:t('صحّح الاستردادات المرتبطة أولًا، واختر تاريخًا لا يسبق تصحيحها.','Correct linked refunds first, then choose a date on or after their corrections.'),
+  VENDOR_CREDIT_REVERSED:t('إشعار الخصم معكوس بالفعل. حدّث السجل واستخدم مستندًا جديدًا.','This credit is already reversed. Refresh and use a new document.'),
+  VENDOR_REFUND_REVERSED:t('الاسترداد معكوس بالفعل. حدّث السجل.','This refund is already reversed. Refresh the records.'),
+  VENDOR_REFUND_RECONCILED:t('الاسترداد مطابق مع البنك؛ راجع دورة البنك قبل تصحيحه.','This refund is bank reconciled. Review the bank workflow before correcting it.'),
+  VENDOR_CREDIT_RECONCILED:t('المستند مطابق مع البنك؛ راجع دورة البنك أولًا.','This document is bank reconciled. Review the bank workflow first.'),
+  VENDOR_CREDIT_REVERSAL_BEFORE_SOURCE:t('تاريخ التصحيح لا يمكن أن يسبق إشعار الخصم.','Correction cannot precede the credit note.'),
+  VENDOR_REFUND_REVERSAL_BEFORE_SOURCE:t('تاريخ التصحيح لا يمكن أن يسبق الاسترداد.','Correction cannot precede the refund.'),
+  VENDOR_REVERSAL_CONFLICT:t('المستند معكوس بالفعل بتفاصيل مختلفة. حدّث السجل.','The document was reversed with different details. Refresh the records.'),
   VENDOR_CREDIT_LINES_INVALID:t('راجع بنود الفاتورة والمبالغ المدخلة.','Review the invoice lines and amounts.'),
   VENDOR_CREDIT_EXCEEDS_LINE:t('الخصم يتجاوز المتبقي في أحد البنود. حدّث البنود وراجع المبلغ.','A credit exceeds the remaining amount on a line. Refresh the lines and review it.'),
   VENDOR_CREDIT_BEFORE_BILL:t('تاريخ الإشعار لا يمكن أن يسبق الفاتورة.','The credit date cannot precede the invoice.'),
@@ -48,7 +58,13 @@ export default function VendorCreditsPanel({mode,companyId,entityId,en,asOwner,c
  async function postRefund(e:FormEvent<HTMLFormElement>){e.preventDefault();if(busy||!canApprove)return;setBusy(true);setError('');setNotice('');
   try{const {amount,...body}=refund;await send('receive_refund',{...body,amount_minor:toMinor(amount),idempotency_key:refundKey});setRefundKey(crypto.randomUUID());setRefund(p=>({...p,amount:'',reference:'',payment_account_id:''}));setNotice(t('تم تسجيل المبلغ المستلم وترحيله إلى الحساب المختار.','Received refund posted to the selected account.'));onChanged();
   }catch(e){setError(errorText(e instanceof Error?e.message:''))}finally{setBusy(false);}}
- const visibleCredits=credits.filter(c=>c.entity_id===entityId),eligible=visibleCredits.filter(c=>BigInt(c.refundable_minor)>BigInt(0));
+ async function reverse(e:FormEvent<HTMLFormElement>){e.preventDefault();if(busy||!canApprove)return;setBusy(true);setError('');setNotice('');
+  try{await send('reverse_'+correction.kind,{[correction.kind+'_id']:correction.id,reversed_on:correction.reversed_on,reason:correction.reason});
+   setCorrection(p=>({...p,id:'',reason:''}));setRevision(v=>v+1);setNotice(t('تم ترحيل التصحيح وتحديث الأرصدة مع حفظ المستند الأصلي.','Correction posted and balances updated. The original document is preserved.'));onChanged();
+  }catch(e){setError(errorText(e instanceof Error?e.message:''))}finally{setBusy(false);}}
+ const startCorrection=(kind:'credit'|'refund',id:string,reference:string)=>{setCorrection({kind,id,reference,reversed_on:today(),reason:''});setError('');setNotice('');};
+ const reversalStatus=(r:Reversal)=><><strong>{t('معكوس','Reversed')}</strong><small>{r.reversed_on} · {r.reversal_reason} · {r.reversal_entry_id?.slice(0,8)}</small></>;
+ const visibleCredits=credits.filter(c=>c.entity_id===entityId),eligible=visibleCredits.filter(c=>!c.reversal_id&&BigInt(c.refundable_minor)>BigInt(0));
  return <div className={styles.root}>
   {error&&<div role="alert" className={styles.error}>{error}</div>}{notice&&<div role="status" className={styles.notice}>{notice}</div>}
   {mode==='credits'&&<form className={styles.card} onSubmit={postCredit}><h3>{t('إشعار خصم مورد مرتبط بفاتورة','Supplier credit note')}</h3>
@@ -75,9 +91,16 @@ export default function VendorCreditsPanel({mode,companyId,entityId,en,asOwner,c
     <label>{t('مرجع البنك أو الإيصال','Bank or receipt reference')}<input required minLength={2} maxLength={120} value={refund.reference} onChange={e=>refundChange({reference:e.target.value})}/></label>
    </div><button disabled={busy||!canApprove||!eligible.length}>{t('تسجيل الاستلام وترحيله','Post received refund')}</button>
   </form>}
-  {mode==='credits'&&<><h3>{t('إشعارات الخصم المرحّلة','Posted credit notes')}</h3><div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t('الإشعار / الفاتورة','Credit / invoice')}</th><th>{t('التاريخ','Date')}</th><th>{t('المبلغ','Amount')}</th><th>{t('المتاح استرداده','Refund available')}</th><th>{t('السبب / القيد','Reason / GL')}</th></tr></thead><tbody>{visibleCredits.map(c=><tr key={c.id}><td>{c.reference} · {c.invoice_number||bills.find(b=>b.id===c.bill_id)?.invoice_number}</td><td>{c.credit_date}</td><td>{money(c.amount_minor)}</td><td>{money(c.refundable_minor)}</td><td>{c.reason} · {c.posted_entry_id.slice(0,8)}</td></tr>)}{!visibleCredits.length&&<tr><td colSpan={5}>{t('لا توجد إشعارات خصم حتى الآن.','No credit notes yet.')}</td></tr>}</tbody></table></div>
+  {correction.id&&canApprove&&((mode==='credits'&&correction.kind==='credit')||(mode==='refunds'&&correction.kind==='refund'))&&<form className={styles.card} onSubmit={reverse}>
+   <h3>{correction.kind==='credit'?t('تصحيح إشعار خصم','Correct credit note'):t('تصحيح استرداد مسجل','Correct recorded refund')} · {correction.reference}</h3>
+   <p>{t('يسجل قيدًا عكسيًا كاملًا بنفس حسابات وتوزيع المستند الأصلي. هذا تصحيح للسجل ولا ينفذ تحويلًا بنكيًا.','Posts an exact counter-entry using the original accounts and dimensions. This corrects the record and does not initiate a bank transfer.')}</p>
+   <div className={styles.fields}><label>{t('تاريخ التصحيح','Correction date')}<input required type="date" value={correction.reversed_on} onChange={e=>setCorrection({...correction,reversed_on:e.target.value})}/></label>
+   <label>{t('سبب التصحيح','Correction reason')}<textarea required minLength={3} maxLength={500} value={correction.reason} onChange={e=>setCorrection({...correction,reason:e.target.value})}/></label></div>
+   <button disabled={busy}>{t('اعتماد وترحيل التصحيح','Approve and post correction')}</button><button type="button" disabled={busy} onClick={()=>setCorrection({...correction,id:''})}>{t('رجوع','Back')}</button>
+  </form>}
+  {mode==='credits'&&<><h3>{t('إشعارات الخصم المرحّلة','Posted credit notes')}</h3><div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t('الإشعار / الفاتورة','Credit / invoice')}</th><th>{t('التاريخ','Date')}</th><th>{t('المبلغ','Amount')}</th><th>{t('المتاح استرداده','Refund available')}</th><th>{t('السبب / القيد','Reason / GL')}</th><th>{t('الحالة والتصحيح','Status & correction')}</th></tr></thead><tbody>{visibleCredits.map(c=><tr key={c.id}><td>{c.reference} · {c.invoice_number||bills.find(b=>b.id===c.bill_id)?.invoice_number}</td><td>{c.credit_date}</td><td>{money(c.amount_minor)}</td><td>{money(c.refundable_minor)}</td><td>{c.reason} · {c.posted_entry_id.slice(0,8)}</td><td>{c.reversal_id?reversalStatus(c):c.has_active_refunds?t('صحّح الاسترداد أولًا','Correct linked refunds first'):canApprove?<button disabled={busy} onClick={()=>startCorrection('credit',c.id,c.reference)}>{t('عكس إشعار الخصم','Reverse credit note')}</button>:t('مرحّل','Posted')}</td></tr>)}{!visibleCredits.length&&<tr><td colSpan={6}>{t('لا توجد إشعارات خصم حتى الآن.','No credit notes yet.')}</td></tr>}</tbody></table></div>
   </>}
-  {mode==='refunds'&&<><h3>{t('المبالغ المستردة المسجلة','Recorded supplier refunds')}</h3><div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t('المرجع','Reference')}</th><th>{t('الحساب','Account')}</th><th>{t('التاريخ','Date')}</th><th>{t('المبلغ','Amount')}</th><th>{t('القيد','GL entry')}</th></tr></thead><tbody>{refunds.filter(r=>r.entity_id===entityId).map(r=><tr key={r.id}><td>{r.reference}</td><td>{r.payment_account_name||accounts.find(a=>a.id===r.payment_account_id)?.name||'—'}</td><td>{r.received_on}</td><td>{money(r.amount_minor)}</td><td>{r.posted_entry_id.slice(0,8)}</td></tr>)}{!refunds.some(r=>r.entity_id===entityId)&&<tr><td colSpan={5}>{t('لا توجد مبالغ مستردة مسجلة.','No refunds recorded.')}</td></tr>}</tbody></table></div>
+  {mode==='refunds'&&<><h3>{t('المبالغ المستردة المسجلة','Recorded supplier refunds')}</h3><div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>{t('المرجع','Reference')}</th><th>{t('الحساب','Account')}</th><th>{t('التاريخ','Date')}</th><th>{t('المبلغ','Amount')}</th><th>{t('القيد','GL entry')}</th><th>{t('الحالة والتصحيح','Status & correction')}</th></tr></thead><tbody>{refunds.filter(r=>r.entity_id===entityId).map(r=><tr key={r.id}><td>{r.reference}</td><td>{r.payment_account_name||accounts.find(a=>a.id===r.payment_account_id)?.name||'—'}</td><td>{r.received_on}</td><td>{money(r.amount_minor)}</td><td>{r.posted_entry_id.slice(0,8)}</td><td>{r.reversal_id?reversalStatus(r):r.reconciled?t('مطابق مع البنك','Bank reconciled'):canApprove?<button disabled={busy} onClick={()=>startCorrection('refund',r.id,r.reference)}>{t('عكس الاسترداد','Reverse refund')}</button>:t('مرحّل','Posted')}</td></tr>)}{!refunds.some(r=>r.entity_id===entityId)&&<tr><td colSpan={6}>{t('لا توجد مبالغ مستردة مسجلة.','No refunds recorded.')}</td></tr>}</tbody></table></div>
   </>}
  </div>;
 }
