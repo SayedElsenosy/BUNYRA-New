@@ -67,7 +67,8 @@
     "test:payment-accounts-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-payment-account-integration-tests.mjs",
     "test:supplier-reversals-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-supplier-reversal-integration-tests.mjs",
     "test:supplier-credits-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-supplier-credit-integration-tests.mjs",
-    "test:supplier-credit-corrections-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-supplier-credit-correction-tests.mjs"
+    "test:supplier-credit-corrections-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-supplier-credit-correction-tests.mjs",
+    "test:vendor-statements-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-vendor-statement-tests.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

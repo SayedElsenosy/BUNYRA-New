@@ -38,6 +38,8 @@ jobs:
         run: npm run -s test:supplier-credits-integration
       - name: Supplier credit and refund corrections, bank races and source integrity
         run: npm run -s test:supplier-credit-corrections-integration
+      - name: Supplier statements, exact opening balances, paging and XLSX exports
+        run: npm run -s test:vendor-statements-integration
       - name: Budget approval, immutable revisions and rollback
         run: npm run -s test:project-budgets-integration
       - name: General ledger double-entry, immutability and RLS
