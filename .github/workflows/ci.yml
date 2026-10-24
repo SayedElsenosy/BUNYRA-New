@@ -31,6 +31,7 @@ jobs:
       - run: node --check scripts/run-supplier-reversal-integration-tests.mjs
       - run: node --check scripts/run-supplier-credit-integration-tests.mjs
       - run: node --check scripts/run-supplier-credit-correction-tests.mjs
+      - run: node --check scripts/run-vendor-statement-tests.mjs
       - run: node --check scripts/run-project-budgets-integration-tests.mjs
       - run: node --check scripts/run-finance-outbox-integration-tests.mjs
       - run: node --check scripts/run-finance-outbox-concurrency-tests.mjs
