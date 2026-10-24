@@ -29,7 +29,7 @@ fill; cash receipt remains a separate form. All labels are bilingual with Latin
 digits. Original supplier invoice/refund account names are retained in responses.
 
 This slice keeps supplier documents in EGP, with no guessed VAT, FX, automatic
-cash movement or revenue. Corrections of posted credit notes/refund receipts and
-supplier debit notes are subsequent workflows; immutable records stay intact.
+cash movement or revenue. Posted credit-note/refund corrections are described in
+`supplier-credit-corrections-2026-10-24.md`; supplier debit notes remain a subsequent workflow.
 Migrations 063–065 are tested on guarded DEV and rehearsed independently before
 production activation. Synthetic integration journals stay in DEV only.

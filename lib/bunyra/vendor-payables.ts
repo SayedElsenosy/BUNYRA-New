@@ -44,12 +44,19 @@ export async function vendorPayablesOverview(sql:Sql,actor:Actor,company:string,
     FROM finance_vendor_payments p LEFT JOIN finance_vendor_payment_reversals r ON r.company_id=p.company_id AND r.entity_id=p.entity_id AND r.payment_id=p.id
     WHERE p.company_id=${company} ORDER BY p.created_at DESC LIMIT 500`,
   sql`SELECT c.id,c.entity_id,c.bill_id,b.invoice_number,c.reference,c.credit_date,c.reason,c.amount_minor::text,c.posted_entry_id,
-    least(c.amount_minor-coalesce((SELECT sum(r.amount_minor) FROM finance_vendor_refunds r WHERE r.company_id=c.company_id AND r.entity_id=c.entity_id AND r.credit_id=c.id),0),balance.refundable_minor)::text AS refundable_minor
+    x.id AS reversal_id,x.posted_entry_id AS reversal_entry_id,x.reversed_on,x.reason AS reversal_reason,
+    EXISTS(SELECT 1 FROM finance_active_vendor_refunds r WHERE r.company_id=c.company_id AND r.entity_id=c.entity_id AND r.credit_id=c.id) AS has_active_refunds,
+    CASE WHEN x.id IS NOT NULL THEN '0' ELSE least(c.amount_minor-coalesce((SELECT sum(r.amount_minor) FROM finance_active_vendor_refunds r WHERE r.company_id=c.company_id AND r.entity_id=c.entity_id AND r.credit_id=c.id),0),balance.refundable_minor)::text END AS refundable_minor
    FROM finance_vendor_credits c JOIN finance_vendor_bill_balances balance ON balance.company_id=c.company_id AND balance.entity_id=c.entity_id AND balance.bill_id=c.bill_id
    JOIN finance_vendor_bills b ON b.company_id=c.company_id AND b.entity_id=c.entity_id AND b.id=c.bill_id
+   LEFT JOIN finance_vendor_credit_reversals x ON x.company_id=c.company_id AND x.entity_id=c.entity_id AND x.credit_id=c.id
    WHERE c.company_id=${company} ORDER BY c.created_at DESC LIMIT 300`,
-  sql`SELECT r.id,r.entity_id,r.bill_id,r.credit_id,r.payment_account_id,a.name AS payment_account_name,r.received_on,r.reference,r.amount_minor::text,r.posted_entry_id
+  sql`SELECT r.id,r.entity_id,r.bill_id,r.credit_id,r.payment_account_id,a.name AS payment_account_name,r.received_on,r.reference,r.amount_minor::text,r.posted_entry_id,
+    x.id AS reversal_id,x.posted_entry_id AS reversal_entry_id,x.reversed_on,x.reason AS reversal_reason,
+    EXISTS(SELECT 1 FROM ledger_lines l JOIN treasury_bank_matches m ON m.company_id=l.company_id AND m.entity_id=l.entity_id AND m.ledger_line_id=l.id
+      WHERE l.company_id=r.company_id AND l.entity_id=r.entity_id AND l.entry_id=r.posted_entry_id) AS reconciled
    FROM finance_vendor_refunds r JOIN company_payment_accounts a ON a.company_id=r.company_id AND a.entity_id=r.entity_id AND a.id=r.payment_account_id
+   LEFT JOIN finance_vendor_refund_reversals x ON x.company_id=r.company_id AND x.entity_id=r.entity_id AND x.refund_id=r.id
    WHERE r.company_id=${company} ORDER BY r.created_at DESC LIMIT 500`
  ]);
  return {vendors,bills,mappings,payments,credits,refunds,can_approve:ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'finance.approve'),implemented_scope:'vendor_bills_payments_and_corrections'};
@@ -159,8 +166,23 @@ export async function receiveVendorRefund(sql:Sql,actor:Actor,input:unknown,plat
 export async function vendorCreditBillLines(sql:Sql,actor:Actor,company:string,billId:string,platform=false){
  uuid.parse(billId);await manager(sql,actor,company,'finance.read',platform);
  const rows=await sql`SELECT l.id,l.line_number,l.description,l.amount_minor::text,
-   (l.amount_minor-coalesce((SELECT sum(c.amount_minor) FROM finance_vendor_credit_lines c WHERE c.company_id=l.company_id AND c.entity_id=l.entity_id AND c.bill_line_id=l.id),0))::text AS remaining_minor
+   (l.amount_minor-coalesce((SELECT sum(c.amount_minor) FROM finance_vendor_credit_lines c WHERE c.company_id=l.company_id AND c.entity_id=l.entity_id AND c.bill_line_id=l.id
+    AND NOT EXISTS(SELECT 1 FROM finance_vendor_credit_reversals x WHERE x.company_id=c.company_id AND x.entity_id=c.entity_id AND x.credit_id=c.credit_id)),0))::text AS remaining_minor
   FROM finance_vendor_bill_lines l JOIN finance_vendor_bills b ON b.company_id=l.company_id AND b.entity_id=l.entity_id AND b.id=l.bill_id
   WHERE l.company_id=${company} AND l.bill_id=${billId} AND b.status='posted' ORDER BY l.line_number LIMIT 150`;
  return {lines:rows};
+}
+
+const correctionFields={company_id:uuid,reversed_on:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),reason:z.string().trim().min(3).max(500)};
+const reverseCreditInput=z.object({...correctionFields,credit_id:uuid}).strict();
+export async function reverseVendorCredit(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=reverseCreditInput.parse(input);await manager(sql,actor,c.company_id,'finance.approve',platform);
+ const [row]=await sql`SELECT bunyra_reverse_vendor_credit(${c.company_id}::uuid,${c.credit_id}::uuid,${c.reversed_on}::date,${c.reason}) AS reversal_id`;
+ return {reversal_id:row.reversal_id,status:'reversed'};
+}
+const reverseRefundInput=z.object({...correctionFields,refund_id:uuid}).strict();
+export async function reverseVendorRefund(sql:Sql,actor:Actor,input:unknown,platform=false){
+ const c=reverseRefundInput.parse(input);await manager(sql,actor,c.company_id,'finance.approve',platform);
+ const [row]=await sql`SELECT bunyra_reverse_vendor_refund(${c.company_id}::uuid,${c.refund_id}::uuid,${c.reversed_on}::date,${c.reason}) AS reversal_id`;
+ return {reversal_id:row.reversal_id,status:'reversed'};
 }

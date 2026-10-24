@@ -42,6 +42,12 @@ export async function treasuryOverview(sql:Sql,actor:Actor,company:string,platfo
         ON p.company_id=r.company_id AND p.entity_id=r.entity_id AND p.id=r.payment_id
         WHERE r.company_id=l.company_id AND r.entity_id=l.entity_id
          AND (p.posted_entry_id=l.entry_id OR r.posted_entry_id=l.entry_id))
+       AND NOT EXISTS(SELECT 1 FROM finance_vendor_refund_reversals r JOIN finance_vendor_refunds d
+        ON d.company_id=r.company_id AND d.entity_id=r.entity_id AND d.id=r.refund_id
+        WHERE r.company_id=l.company_id AND r.entity_id=l.entity_id AND (d.posted_entry_id=l.entry_id OR r.posted_entry_id=l.entry_id))
+       AND NOT EXISTS(SELECT 1 FROM finance_vendor_credit_reversals r JOIN finance_vendor_credits d
+        ON d.company_id=r.company_id AND d.entity_id=r.entity_id AND d.id=r.credit_id
+        WHERE r.company_id=l.company_id AND r.entity_id=l.entity_id AND (d.posted_entry_id=l.entry_id OR r.posted_entry_id=l.entry_id))
      ORDER BY e.entry_date DESC LIMIT 500`
  ]);
  const payment_accounts=await listPaymentAccounts(sql,company);

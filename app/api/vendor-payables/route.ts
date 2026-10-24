@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {identity,sameOrigin,json,failure} from '../../../lib/bunyra/http';
-import {vendorPayablesOverview,createFinanceVendor,createVendorBill,approveVendorBill,configurePayableMapping,postVendorBill,payVendorBill,reverseVendorPayment,postVendorCredit,receiveVendorRefund,vendorCreditBillLines} from '../../../lib/bunyra/vendor-payables';
+import {vendorPayablesOverview,createFinanceVendor,createVendorBill,approveVendorBill,configurePayableMapping,postVendorBill,payVendorBill,reverseVendorPayment,postVendorCredit,receiveVendorRefund,vendorCreditBillLines,reverseVendorCredit,reverseVendorRefund} from '../../../lib/bunyra/vendor-payables';
 export const dynamic='force-dynamic';
 export async function GET(request:Request){
  try{const {sql,actor}=await identity(),url=new URL(request.url);
@@ -21,6 +21,8 @@ export async function POST(request:Request){
   if(operation==='reverse_payment')return json(await reverseVendorPayment(sql,actor,input,owner));
   if(operation==='credit_note')return json(await postVendorCredit(sql,actor,input,owner));
   if(operation==='receive_refund')return json(await receiveVendorRefund(sql,actor,input,owner));
+  if(operation==='reverse_credit')return json(await reverseVendorCredit(sql,actor,input,owner));
+  if(operation==='reverse_refund')return json(await reverseVendorRefund(sql,actor,input,owner));
   if(operation==='post_bill')return json(await postVendorBill(sql,actor,input,owner));
   return json({error:'INVALID_OPERATION'},400);
  }catch(e){return failure(e);}
