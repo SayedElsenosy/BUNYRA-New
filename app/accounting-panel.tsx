@@ -4,6 +4,7 @@ import ProjectBudgetPanel from './project-budget-panel';
 import VendorPaymentsPanel from './vendor-payments-panel';
 import VendorCreditsPanel from './vendor-credits-panel';
 import VendorStatementPanel from './vendor-statement-panel';
+import VendorAgingPanel from './vendor-aging-panel';
 import {BookOpen,Building2,Landmark,Receipt,RefreshCw} from 'lucide-react';
 import styles from './accounting-panel.module.css';
 
@@ -67,7 +68,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
  const [voucher,setVoucher]=useState({reference:'',journal_id:'',debit_id:'',credit_id:'',amount:'',entry_date:initialDate});
  const [mapping,setMapping]=useState({journal_id:'',cash_account_id:'',advance_account_id:''});
  const [apMapping,setApMapping]=useState({journal_id:'',payable_account_id:''});
- const [vendorView,setVendorView]=useState<'bills'|'credits'|'refunds'|'statement'>('bills');
+ const [vendorView,setVendorView]=useState<'bills'|'credits'|'refunds'|'statement'|'aging'>('bills');
  const [vendor,setVendor]=useState({code:'',name:'',tax_registration:''});
  const [bill,setBill]=useState({vendor_id:'',invoice_number:'',expense_account_id:'',description:'',amount:'',invoice_date:initialDate,due_date:initialDate});
  const [bank,setBank]=useState({bank_account_id:'',statement_ref:'',date_from:initialDate,date_to:initialDate,opening:'0',closing:'0'});
@@ -238,8 +239,9 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
   </>}
   {section==='vendor-payables'&&ledger&&payables&&<>
    <div className={styles.toolbar} role="group" aria-label={t('أقسام الموردين','Supplier sections')}>
-    {(['bills','credits','refunds','statement'] as const).map(v=><button key={v} type="button" aria-pressed={vendorView===v} onClick={()=>setVendorView(v)}>{v==='bills'?t('الفواتير والسداد','Invoices & payments'):v==='credits'?t('إشعارات الخصم','Credit notes'):v==='refunds'?t('المبالغ المستردة','Received refunds'):t('كشف حساب المورد','Supplier statement')}</button>)}
+    {(['bills','credits','refunds','statement','aging'] as const).map(v=><button key={v} type="button" aria-pressed={vendorView===v} onClick={()=>setVendorView(v)}>{v==='bills'?t('الفواتير والسداد','Invoices & payments'):v==='credits'?t('إشعارات الخصم','Credit notes'):v==='refunds'?t('المبالغ المستردة','Received refunds'):v==='statement'?t('كشف حساب المورد','Supplier statement'):t('أعمار المستحقات','Payable aging')}</button>)}
    </div>
+   {vendorView==='aging'&&<VendorAgingPanel key={companyId+entityId} companyId={companyId} entityId={entityId} en={en} asOwner={asOwner} vendors={payables.vendors}/>}
    {vendorView==='statement'&&<VendorStatementPanel key={companyId+entityId} companyId={companyId} entityId={entityId} en={en} asOwner={asOwner} vendors={payables.vendors}/>}
    {(vendorView==='credits'||vendorView==='refunds')&&<VendorCreditsPanel key={companyId+entityId} companyId={companyId} entityId={entityId} en={en} asOwner={asOwner} canApprove={payables.can_approve}
     mode={vendorView} bills={payables.bills} credits={payables.credits||[]} refunds={payables.refunds||[]} accounts={treasury?.payment_accounts||[]} onChanged={()=>setRevision(v=>v+1)}/>}

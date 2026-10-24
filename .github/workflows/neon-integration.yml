@@ -40,6 +40,8 @@ jobs:
         run: npm run -s test:supplier-credit-corrections-integration
       - name: Supplier statements, exact opening balances, paging and XLSX exports
         run: npm run -s test:vendor-statements-integration
+      - name: Supplier aging, historical cutoffs, ledger differences and complete exports
+        run: npm run -s test:vendor-aging-integration
       - name: Budget approval, immutable revisions and rollback
         run: npm run -s test:project-budgets-integration
       - name: General ledger double-entry, immutability and RLS
