@@ -21,13 +21,14 @@ import SavedOffersPanel from './saved-offers-panel';
 import CrmPanel from './crm-panel';
 import CommercialPanel from './commercial-panel';
 import AccountingPanel from './accounting-panel';
+import CustomerAccountsPanel from './customer-accounts-panel';
 import SalesPipelinePanel from './sales-pipeline-panel';
 import BuyerRequestPanel from './buyer-request-panel';
 import {moduleLabel,type CompanyView} from './company-navigation';
 function ModuleContent({companyId,en,onChanged,view='home',asOwner=false,active=true,allowedViews}:{companyId:string;en:boolean;onChanged?:()=>void;view?:CompanyView;asOwner?:boolean;active?:boolean;allowedViews?:readonly CompanyView[]}){
  const props={companyId,en,asOwner};
  return <section className="company-module-workspace" aria-label={moduleLabel(view,en)}>{!['home','work','search'].includes(view)&&<h2 className="module-title">{moduleLabel(view,en)}</h2>}{
- view==='targets'?<SalesTargetsPanel {...props} active={active}/>:view==='home'?<RoleDashboardPanel {...props} active={active}/>:view==='alerts'?<WorkspaceAlertsPanel {...props} active={active}/>:['work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='deals-insights'?<DealsInsightsPanel {...props} active={active}/>:view==='pipeline-reports'?<CrmPanel {...props}/>:
+ view==='customer-accounts'?<CustomerAccountsPanel {...props} active={active}/>:view==='targets'?<SalesTargetsPanel {...props} active={active}/>:view==='home'?<RoleDashboardPanel {...props} active={active}/>:view==='alerts'?<WorkspaceAlertsPanel {...props} active={active}/>:['work','search'].includes(view)?<WorkspaceHubPanel {...props} section={view as 'home'|'work'|'search'} active={active}/>:view==='commissions'?<CommissionPanel {...props} active={active}/>:view==='reports'?<SalesReportsPanel {...props} active={active}/>:view==='deals-insights'?<DealsInsightsPanel {...props} active={active}/>:view==='pipeline-reports'?<CrmPanel {...props}/>:
  view==='projects'?<ProjectWizard {...props} onChanged={onChanged}/>:
  ['inventory','pricing','import','plans'].includes(view)?<InventoryPanel {...props} section={view as 'inventory'|'pricing'|'import'|'plans'}/>:
  view==='offers'?<SavedOffersPanel {...props} active={active}/>:view==='customers'?<CrmPanel {...props}/>:

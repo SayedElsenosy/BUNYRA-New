@@ -82,4 +82,5 @@ test('finance managers continue to see all permitted project screens',()=>{
  const a=allowedCompanyViews(ctx('finance_manager'),['p1','p2']);
  assert.ok(['bookings','contracts','collections','receipts','adjustments','commissions'].every(x=>a.includes(x)));
 });
+test('Customer accounts follows full-ledger access and finance.read denials',()=>{assert.ok(allowedCompanyViews(ctx('finance_manager')).includes('customer-accounts'));assert.ok(!allowedCompanyViews(ctx('sales')).includes('customer-accounts'));assert.ok(!allowedCompanyViews(ctx('accountant')).includes('customer-accounts'));assert.ok(!allowedCompanyViews(ctx('company_admin',null,[{action:'finance.read',project_id:null,allowed:false}])).includes('customer-accounts'));});
 console.log(JSON.stringify({passed:results.length,results},null,2));
