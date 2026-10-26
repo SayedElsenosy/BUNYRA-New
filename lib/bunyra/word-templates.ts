@@ -58,41 +58,73 @@ export async function uploadWordTemplate(sql:Sql,actor:Actor,company:string,file
  }catch(error){await storage.remove(key).catch(()=>{});throw error;}
  return {id,name:title,original_name:file.name,file_size:bytes.length};
 }
+type ContractWordSnapshot={
+ contract_number:string;signed_date:string;status:string;value_final_minor:string;currency:string;
+ customer_name:string;customer_phone:string;customer_email:string;correspondence_address:string;
+ national_id:string;unit_code:string;unit_area:string;project_name:string;
+ installments:Array<{number:number;due_date:string;amount_minor:string;paid_minor:string;status:string}>;
+};
+type ContractWordFile={object_key:string;sha256:string;file_size:number;original_name:string};
+async function issuedWordFile(sql:Sql,company:string,id:string){
+ const [file]=await sql`SELECT object_key,sha256,file_size,original_name FROM contract_word_files
+  WHERE company_id=${company} AND contract_id=${id}`;
+ return file as ContractWordFile|undefined;
+}
+async function readIssuedWord(file:ContractWordFile,storage:Storage){
+ const bytes=await storage.get(file.object_key);
+ if(bytes.length!==file.file_size||await digest(bytes)!==file.sha256)throw new ServiceError("FILE_INTEGRITY",503);
+ return {bytes,name:file.original_name};
+}
 export async function downloadContractWord(sql:Sql,actor:Actor,company:string,id:string,platform=false,storage:Storage=planStorage()){
  uuid.parse(company);uuid.parse(id);
- const contract=await requireContract(sql,actor,company,id,"bookings.read",platform);
- const [template]=await sql`SELECT f.object_key,f.sha256,f.file_size
-  FROM contract_templates t JOIN contract_template_files f ON f.company_id=t.company_id AND f.template_id=t.id
-  WHERE t.company_id=${company} AND t.active LIMIT 1`;
- if(!template)throw new ServiceError("TEMPLATE_NOT_CONFIGURED",404);
- const [row]=await sql`SELECT c.contract_number,c.status,c.value_final_minor,c.signed_at,c.payment_plan_snapshot,
-    b.customer_name,b.customer_phone,b.customer_email,b.correspondence_address,
-    u.code AS unit_code,u.area::text AS unit_area,p.name AS project_name,cr.national_id
-    FROM contracts c JOIN bookings b ON b.company_id=c.company_id AND b.id=c.booking_id
-    JOIN crm_customers cr ON cr.company_id=c.company_id AND cr.id=c.customer_id
-    JOIN inventory_units u ON u.company_id=c.company_id AND u.id=c.unit_id
-    JOIN projects p ON p.company_id=c.company_id AND p.id=c.project_id
-    WHERE c.company_id=${company} AND c.id=${contract.id} LIMIT 1`;
- if(!row)throw new ServiceError("NOT_FOUND",404);
- const installments=await sql`SELECT number,due_date::text AS due_date,amount_minor::text,paid_minor::text,status
-    FROM contract_installments WHERE company_id=${company} AND contract_id=${id} ORDER BY number,id`;
- const bytes=await storage.get(template.object_key);
- if(bytes.length!==template.file_size||await digest(bytes)!==template.sha256)throw new ServiceError("FILE_INTEGRITY",503);
+ // Authorization is rechecked on every download, including cached issued files.
+ await requireContract(sql,actor,company,id,"bookings.read",platform);
+ const issued=await issuedWordFile(sql,company,id);
+ if(issued)return readIssuedWord(issued,storage);
+ const [snapshot]=await sql`SELECT template_object_key,template_sha256,template_file_size,data_snapshot
+  FROM contract_word_snapshots WHERE company_id=${company} AND contract_id=${id}`;
+ if(!snapshot)throw new ServiceError("CONTRACT_WORD_SNAPSHOT_REQUIRED",409);
+ if(!snapshot.template_object_key)throw new ServiceError("TEMPLATE_NOT_CONFIGURED_AT_SIGNING",409);
+ const row=snapshot.data_snapshot as ContractWordSnapshot;
+ if(!row||!Array.isArray(row.installments)||!row.installments.length)
+  throw new ServiceError("CONTRACT_WORD_SNAPSHOT_INVALID",409);
+ const bytes=await storage.get(snapshot.template_object_key);
+ if(bytes.length!==snapshot.template_file_size||await digest(bytes)!==snapshot.template_sha256)
+  throw new ServiceError("FILE_INTEGRITY",503);
  checkedZip(bytes);
+ let result:Uint8Array;
  try{
-  const values={
-   contract_number:row.contract_number,signed_date:new Date(String(row.signed_at)).toISOString().slice(0,10),
+  result=renderWordTemplate(bytes,{
+   contract_number:row.contract_number,signed_date:row.signed_date,
    contract_status:row.status,customer_name:row.customer_name,customer_phone:row.customer_phone,
-   customer_email:row.customer_email,customer_national_id:row.national_id??"",
+   customer_email:row.customer_email,customer_national_id:row.national_id,
    customer_address:row.correspondence_address,project_name:row.project_name,
    unit_number:row.unit_code,unit_area:row.unit_area,
-   contract_value:majorAmount(String(row.value_final_minor)),
-   currency:((row.payment_plan_snapshot as {book?:{currency?:string}}|null)?.book?.currency??"EGP"),
-   installments:installments.map(i=>({number:i.number,due_date:i.due_date,
-    amount:majorAmount(String(i.amount_minor)),paid:majorAmount(String(i.paid_minor)),status:i.status})),
-  };
-  const result=renderWordTemplate(bytes,values);
-  return {bytes:result,name:"BUNYRA-Contract-"+safeName(String(row.contract_number))+".docx"};
- }catch(error){console.error("DOCX render error",error instanceof Error?error.message:"Invalid template");
-  throw new ServiceError("TEMPLATE_RENDER_FAILED",422);}
+   contract_value:majorAmount(row.value_final_minor),currency:row.currency,
+   installments:row.installments.map(i=>({number:i.number,due_date:i.due_date,
+    amount:majorAmount(i.amount_minor),paid:majorAmount(i.paid_minor),status:i.status})),
+  });
+ }catch{
+  throw new ServiceError("TEMPLATE_RENDER_FAILED",422);
+ }
+ if(result.length>10*1024*1024)throw new ServiceError("INVALID_FILE_SIZE",413);
+ const key=company+"/contracts/issued/"+id+"/"+crypto.randomUUID()+".docx";
+ const checksum=await digest(result),name="BUNYRA-Contract-"+safeName(row.contract_number)+".docx";
+ // Every contender uses its own key; it can never overwrite the winner's bytes.
+ await storage.put(key,result,wordContentType);
+ await sql.transaction([
+  sql`INSERT INTO contract_word_files(company_id,contract_id,object_key,sha256,file_size,original_name,generated_by)
+   VALUES(${company},${id},${key},${checksum},${result.length},${name},${actor.userId})
+   ON CONFLICT(company_id,contract_id) DO NOTHING`,
+  sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data)
+   SELECT ${company},${actor.userId},${actor.email},'contract.word_issued',
+    jsonb_build_object('contract_id',${id}::text,'sha256',${checksum})
+   FROM contract_word_files WHERE company_id=${company} AND contract_id=${id} AND object_key=${key}`,
+ ]);
+ // A separate query sees a concurrent winner after INSERT's conflict wait.
+ const winner=await issuedWordFile(sql,company,id);
+ if(!winner)throw new ServiceError("SERVICE_UNAVAILABLE",503);
+ if(winner.object_key===key)return {bytes:result,name};
+ await storage.remove(key).catch(()=>{});
+ return readIssuedWord(winner,storage);
 }

@@ -13,7 +13,14 @@ export default function GenerateWordButton({company,id,platform=false}:{
     body:JSON.stringify({company_id:company}),
    });
    if(!response.ok){const e=await response.json().catch(()=>({}));
-    throw new Error(e.error==="TEMPLATE_NOT_CONFIGURED"?"لم يتم رفع قالب Word للشركة بعد.":e.error||"تعذر إنشاء العقد");}
+    const messages:Record<string,string>={
+     TEMPLATE_NOT_CONFIGURED:"لم يتم رفع قالب Word للشركة بعد.",
+     CONTRACT_WORD_SNAPSHOT_REQUIRED:"هذا العقد أقدم من نظام حفظ النسخ الثابتة. يلزم مراجعة النسخة الأصلية؛ لا يمكن إعادة إنشائها من البيانات الحالية.",
+     TEMPLATE_NOT_CONFIGURED_AT_SIGNING:"لم يكن هناك قالب محفوظ وقت التعاقد. يلزم إصدار تعاقدي معتمد بدل إنشاء نسخة بأثر رجعي.",
+     CONTRACT_WORD_SNAPSHOT_INVALID:"بيانات نسخة التعاقد غير مكتملة. راجع المسؤول عن العقود.",
+     FILE_INTEGRITY:"تعذر التحقق من سلامة ملف العقد المحفوظ. تواصل مع المسؤول.",
+    };
+    throw new Error(messages[e.error]||"تعذر تحميل نسخة العقد. حاول مجددًا أو تواصل مع المسؤول");}
    const blob=await response.blob();
    const location=URL.createObjectURL(blob);
    const a=document.createElement("a");

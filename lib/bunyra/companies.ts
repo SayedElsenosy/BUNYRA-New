@@ -96,7 +96,7 @@ export async function reviewCompanyRequest(sql: Sql, actor: Actor, input: unknow
 
 const IMPACT = ['commission_ledger','unit_lineage','workspace_alert_reads','crm_lead_routing_settings','crm_customers','crm_leads','buyer_requests','sales_offers','bookings','contracts','contract_installments','collections','financial_adjustments','booking_documents','customer_notifications','crm_sales_teams','plan_layout_revisions','price_books','memberships', 'invitations', 'custom_roles', 'organization_nodes', 'projects', 'inventory_units', 'unit_status_history', 'inventory_imports', 'project_plan_files', 'plan_layouts', 'audit_logs'] as const;
 // Child-first order so foreign keys never block the purge. audit_logs and the company row are retained.
-const PURGE = ['workspace_alert_reads','crm_lead_routing_settings','commission_ledger','unit_lineage','customer_notifications','financial_adjustments','booking_documents','collections','contract_installments','contracts','bookings','sales_offers','buyer_requests','crm_lead_transfers','crm_interactions','crm_follow_ups','crm_leads','crm_sales_team_members','crm_sales_teams','crm_pipeline_stages','crm_customers','price_book_entry_plans','price_book_entries','price_book_plans','project_pricing','price_books','plan_unit_shapes', 'unit_status_history','plan_layout_revisions', 'plan_layouts', 'inventory_units', 'inventory_imports', 'project_plan_files', 'project_setups', 'member_placements', 'member_permissions', 'organization_nodes', 'invitations', 'app_accounts','memberships', 'custom_roles', 'projects', 'company_settings'] as const;
+const PURGE = ['contract_template_files','contract_templates','workspace_alert_reads','crm_lead_routing_settings','commission_ledger','unit_lineage','customer_notifications','financial_adjustments','booking_documents','collections','contract_installments','contracts','bookings','sales_offers','buyer_requests','crm_lead_transfers','crm_interactions','crm_follow_ups','crm_leads','crm_sales_team_members','crm_sales_teams','crm_pipeline_stages','crm_customers','price_book_entry_plans','price_book_entries','price_book_plans','project_pricing','price_books','plan_unit_shapes', 'unit_status_history','plan_layout_revisions', 'plan_layouts', 'inventory_units', 'inventory_imports', 'project_plan_files', 'project_setups', 'member_placements', 'member_permissions', 'organization_nodes', 'invitations', 'app_accounts','memberships', 'custom_roles', 'projects', 'company_settings'] as const;
 
 export async function deletionImpact(sql: Sql, actor: Actor, id: string) {
   await requireOwner(sql, actor);
@@ -149,9 +149,10 @@ export async function purgeCompany(sql: Sql, actor: Actor, input: unknown, stora
     OR EXISTS(SELECT 1 FROM treasury_bank_statements WHERE company_id=${c.id})
     OR EXISTS(SELECT 1 FROM finance_fixed_assets WHERE company_id=${c.id})
     OR EXISTS(SELECT 1 FROM finance_project_budgets WHERE company_id=${c.id})
-    OR EXISTS(SELECT 1 FROM finance_event_attempts WHERE company_id=${c.id}) AS retained`;
+    OR EXISTS(SELECT 1 FROM finance_event_attempts WHERE company_id=${c.id})
+    OR EXISTS(SELECT 1 FROM contract_word_snapshots WHERE company_id=${c.id}) AS retained`;
   if (history.retained) throw new ServiceError('COMPANY_HAS_ACCOUNTING_HISTORY', 409);
-  const keys = (await sql`SELECT object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL UNION SELECT object_key FROM booking_documents WHERE company_id=${c.id} UNION SELECT object_key FROM sales_offers WHERE company_id=${c.id}`).map(r => r.object_key as string);
+  const keys = (await sql`SELECT object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL UNION SELECT object_key FROM booking_documents WHERE company_id=${c.id} UNION SELECT object_key FROM sales_offers WHERE company_id=${c.id} UNION SELECT object_key FROM contract_template_files WHERE company_id=${c.id}`).map(r => r.object_key as string);
   if (keys.length && !storage) throw new ServiceError('STORAGE_NOT_CONFIGURED', 503);
   const { counts } = await deletionImpact(sql, actor, c.id);
   const purged = `EXISTS(SELECT 1 FROM companies WHERE id=$1 AND purged_at IS NOT NULL AND version=${c.version + 1})`;
@@ -160,6 +161,7 @@ export async function purgeCompany(sql: Sql, actor: Actor, input: unknown, stora
     sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM project_plan_files WHERE company_id=${c.id} AND object_key IS NOT NULL AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version + 1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
     sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM booking_documents WHERE company_id=${c.id} AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version+1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
     sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM sales_offers WHERE company_id=${c.id} AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version+1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
+    sql`INSERT INTO storage_cleanup_jobs(company_id,object_key) SELECT company_id,object_key FROM contract_template_files WHERE company_id=${c.id} AND EXISTS(SELECT 1 FROM companies WHERE id=${c.id} AND purged_at IS NOT NULL AND version=${c.version+1}) ON CONFLICT(company_id,object_key) DO NOTHING`,
     // Unposted captured events precede contracts/customers in child-first order.
     sql.query(`DELETE FROM finance_events WHERE company_id=$1 AND status<>'posted' AND ${purged}`, [c.id]),
     sql.query(`DELETE FROM ledger_cost_centers WHERE company_id=$1 AND ${purged}`, [c.id]),
