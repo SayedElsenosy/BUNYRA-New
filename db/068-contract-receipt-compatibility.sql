@@ -141,7 +141,9 @@ BEGIN
     AND m.role IN('company_admin','accountant','finance_manager')
  ) THEN RAISE EXCEPTION 'RECEIPT_FINANCE_PERMISSION_REQUIRED' USING ERRCODE='42501'; END IF;
  SELECT * INTO r FROM receipts
- WHERE company_id=NEW.company_id AND id=NEW.receipt_id FOR UPDATE;
+ WHERE company_id=NEW.company_id AND id=NEW.receipt_id;
+ -- One terminal event per receipt is serialized by the unique index;
+ -- receipt documents intentionally grant no UPDATE privileges.
  IF NOT FOUND OR r.method<>'CHEQUE' OR r.initial_state<>'PENDING'
  THEN RAISE EXCEPTION 'INVALID_CHEQUE' USING ERRCODE='23514'; END IF;
  IF NEW.new_state='CLEARED' AND NOT EXISTS(
