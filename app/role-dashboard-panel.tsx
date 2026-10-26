@@ -10,7 +10,7 @@ import {CartesianGrid,Legend,Line,LineChart,ResponsiveContainer,Tooltip,XAxis,YA
 import {majorAmount} from '../lib/bunyra/pricing-calculator';
 import {useWorkspaceLocation} from './workspace-location';
 
-type Metrics={customers:number;open_leads:number;available_units:number;bookings_pending:number;receipts_pending:number;active_contracts:number;tasks:number;overdue:number;today:number;waiting:number};
+type Metrics={customers:number;open_leads:number;available_units:number;booked_units:number;sold_units:number;bookings_pending:number;receipts_pending:number;active_contracts:number;tasks:number;overdue:number;today:number;waiting:number};
 type Money={currency:string;contracts:number;contract_value_minor:string;net_collected_minor:string|null;outstanding_minor:string|null;commissions_minor:string|null;earned_minor:string|null};
 type Urgent={id:string;kind:string;title:string;context:string;due_at:string|null;record_id:string;view:string;bucket:string;version:number|null};
 type Data={
@@ -78,6 +78,8 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
   if(isOps){
    if(can('bookings'))cards.push({id:'approvals',ar:'حجوزات تنتظر الاعتماد',en:'Awaiting approval',value:m.bookings_pending,view:'bookings',Icon:FileCheck2});
    if(can('inventory'))cards.push({id:'available',ar:'وحدات متاحة',en:'Available units',value:m.available_units,view:'inventory',Icon:Layers3});
+   if(can('inventory'))cards.push({id:'booked',ar:'وحدات محجوزة',en:'Booked units',value:m.booked_units,view:'inventory',Icon:Layers3});
+   if(can('inventory'))cards.push({id:'sold',ar:'وحدات مباعة',en:'Sold units',value:m.sold_units,view:'inventory',Icon:Layers3});
    cards.push({id:'work',ar:'مهام تحتاج إجراء',en:'Open work items',value:m.tasks,view:'work',Icon:ClipboardList});
   }else if(isFinance){
    if(can('receipts'))cards.push({id:'receipts',ar:'حجوزات تنتظر التحصيل',en:'Receipts awaiting confirmation',value:m.receipts_pending,view:'receipts',Icon:Wallet});
@@ -88,6 +90,8 @@ export default function RoleDashboardPanel({companyId,en=false,asOwner=false,act
    if(data.capabilities.crm&&can('customers'))cards.push({id:'customers',ar:'العملاء المسموحون',en:'Customers in scope',value:m.customers,view:'customers',Icon:UsersRound});
    if(data.capabilities.bookings&&can('bookings'))cards.push({id:'bookings',ar:'حجوزات تنتظر العمليات',en:'Pending bookings',value:m.bookings_pending,view:'bookings',Icon:FileCheck2});
    if(data.capabilities.inventory&&can('inventory')&&!isSales)cards.push({id:'inventory',ar:'الوحدات المتاحة',en:'Available units',value:m.available_units,view:'inventory',Icon:Layers3});
+   if(data.capabilities.inventory&&can('inventory')&&!isSales)cards.push({id:'booked',ar:'الوحدات المحجوزة',en:'Booked units',value:m.booked_units,view:'inventory',Icon:Layers3});
+   if(data.capabilities.inventory&&can('inventory')&&!isSales)cards.push({id:'sold',ar:'الوحدات المباعة',en:'Sold units',value:m.sold_units,view:'inventory',Icon:Layers3});
   }
   cards.push({id:'overdue',ar:'مهام متأخرة',en:'Overdue tasks',value:m.overdue,view:'work',Icon:CalendarClock});
  }

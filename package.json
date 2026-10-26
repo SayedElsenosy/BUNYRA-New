@@ -110,7 +110,9 @@
     "wrangler": "4.151.1",
     "write-excel-file": "^4.1.1",
     "zod": "^3.25.76",
-    "decimal.js": "^10.6.0"
+    "decimal.js": "^10.6.0",
+    "docxtemplater": "^3.71.1",
+    "pizzip": "^3.3.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",

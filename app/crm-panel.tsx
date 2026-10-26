@@ -100,7 +100,7 @@ export default function CrmPanel({companyId,en=false,asOwner=false}:{companyId:s
  const details=route.view==='customers'&&route.record?selected:null;
  return <section className="crm-shell">
   {route.record&&<div className="context-banner">{t('ملف العميل','Customer profile')} <button onClick={()=>navigate({record:'',action:''})}>{t('كل العملاء','All customers')}</button></div>}
-  <div className="page-heading"><div><div className="eyebrow">{en?'BUNYRA · CRM':'إدارة العملاء'}</div><h2>{t('العملاء','Customers')}</h2><p>{t('قائمة موحدة لكل عميل ومرحلته الحالية وإجراءاته ومواعيده.','One list for every customer, their stage, actions and follow-ups.')}</p></div>
+  <div className="page-heading"><div><div className="eyebrow">{en?'BUNYRA · CRM':'إدارة العملاء'}</div><h2>{t('العملاء','Customers')}</h2><a href={"/customers?company="+encodeURIComponent(companyId)+(asOwner?"&mode=platform":"")}>{t("قائمة العملاء الكاملة","Full customer list")}</a><p>{t('قائمة موحدة لكل عميل ومرحلته الحالية وإجراءاته ومواعيده.','One list for every customer, their stage, actions and follow-ups.')}</p></div>
    {data?.can_write&&<button className="primary" onClick={()=>{setForm(blank());setCreating(true);}}><Plus size={17}/>{t('إضافة عميل','Add customer')}</button>}
   </div>
   {message&&<div className="crm-message" role="status">{message}<button onClick={()=>setMessage('')} aria-label={t('إغلاق','Close')}><X size={15}/></button></div>}

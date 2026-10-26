@@ -96,6 +96,8 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
     'customers',(SELECT count(*)::int FROM visible_customers),
     'open_leads',(SELECT count(*)::int FROM visible_leads WHERE status NOT IN('won','lost')),
     'available_units',(SELECT count(*)::int FROM visible_units WHERE status='available'),
+    'booked_units',(SELECT count(*)::int FROM visible_units WHERE status IN('pending','reserved')),
+    'sold_units',(SELECT count(*)::int FROM visible_units WHERE status='sold'),
     'bookings_pending',(SELECT count(*)::int FROM visible_bookings WHERE status='submitted'),
     'receipts_pending',(SELECT count(*)::int FROM visible_bookings WHERE status IN('approved','accounts_pending') AND project_id=ANY($8::uuid[])),
     'active_contracts',(SELECT count(*)::int FROM authorized_signed),
@@ -119,7 +121,8 @@ export async function roleDashboard(sql:Sql,actor:Actor,input:unknown,platform=f
    finance:financial,commissions,team:ctx.owner||['company_admin','sales_manager','sales_admin'].includes(ctx.role)
   },
   allowed_views:subscriptionAllowedViews(allowedCompanyViews(ctx,projects.map(p=>p.id as string)),assigned||null),
-  metrics:{...m.metrics,customers:entitled('crm')?m.metrics.customers:0,open_leads:entitled('crm')?m.metrics.open_leads:0,available_units:entitled('inventory')?m.metrics.available_units:0},
+  metrics:{...m.metrics,customers:entitled('crm')?m.metrics.customers:0,open_leads:entitled('crm')?m.metrics.open_leads:0,available_units:entitled('inventory')?m.metrics.available_units:0,
+   booked_units:entitled('inventory')?m.metrics.booked_units:0,sold_units:entitled('inventory')?m.metrics.sold_units:0},
   money:m.money,pipeline:entitled('crm')?m.pipeline:[],team:entitled('crm')?m.team:[],
   urgent:entitled('crm')?m.urgent:(m.urgent as Array<{kind:string}>).filter(item=>item.kind!=='follow_up'),
   trend:entitled('crm')?m.trend:(m.trend as Array<{calls:number}>).map(row=>({...row,calls:0})),
