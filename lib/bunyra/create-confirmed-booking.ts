@@ -58,7 +58,7 @@ export async function createConfirmedBooking(untrustedInput: unknown) {
     FROM crm_customers WHERE company_id=${companyId} AND id=${input.customer_id}::uuid`)[0];
   if (!customer) throw new ServiceError('CUSTOMER_NOT_FOUND', 404);
   const reserveMinor = minorUnits(input.reservation_amount).toString();
-  if (BigInt(reserveMinor) <= 0n || BigInt(reserveMinor) > BigInt(quote.calculation.down_payment_minor))
+  if (BigInt(reserveMinor) <= BigInt(0) || BigInt(reserveMinor) > BigInt(quote.calculation.down_payment_minor))
     throw new ServiceError('INVALID_AMOUNT', 400);
 
   const version = quote.unit?.version;
