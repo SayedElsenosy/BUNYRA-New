@@ -284,7 +284,7 @@ export default function AccountingPanel({companyId,en=false,asOwner=false,sectio
     accounts={ledger.accounts} journals={ledger.journals} onChanged={()=>setRevision(v=>v+1)}/>
    </>}
   </>}
-  {section==='treasury'&&ledger&&treasury&&<>
+  {section==='treasury'&&ledger&&treasury&&<><div className={styles.card}><a href={'/treasury?company='+companyId}>{t('عرض خزينة الإيصالات والشيكات','Open receipt and cheque treasury')}</a> · <a href={'/reports/aging?company='+companyId}>{t('تقرير أعمار الديون','Aging report')}</a></div>
    <form className={styles.card} onSubmit={submit(()=>void action('treasury','create_account',{entity_id:entityId,...paymentAccount}))}>
     <h3>{t('إضافة حساب بنكي أو صندوق','Add bank or cash account')}</h3>
     <div className={styles.columns}>
