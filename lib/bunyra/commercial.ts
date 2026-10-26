@@ -14,7 +14,7 @@ const bookingInput = z.object({ company_id: uuid, project_id: uuid, unit_id: uui
 const offerInput = z.object({ company_id: uuid, project_id: uuid, unit_id: uuid, plan_id: uuid, customer_id: uuid.nullable().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), language: z.enum(['ar', 'en']).default('ar') }).strict();
 const collectionInput = z.object({ ...paymentFields, company_id: uuid, contract_id: uuid, installment_id: uuid, amount: z.string().regex(/^\d{1,14}(\.\d{1,2})?$/), reference: z.string().trim().max(120).default('') }).strict();
 
-async function approvedQuote(sql: Sql, actor: Actor, c: { company_id: string; project_id: string; unit_id: string; plan_id: string; date: string }, platform = false) {
+export async function approvedQuote(sql: Sql, actor: Actor, c: { company_id: string; project_id: string; unit_id: string; plan_id: string; date: string }, platform = false) {
   const data = await unitPricing(sql, actor, c.company_id, c.project_id, c.unit_id, platform);
   if (!data.approved) throw new ServiceError('PRICE_NOT_APPROVED', 409);
   const plan = data.plans?.find(p => p.id === c.plan_id);

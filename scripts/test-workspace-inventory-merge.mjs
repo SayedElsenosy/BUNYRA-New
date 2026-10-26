@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const migration=read('db/067-workspace-inventory-hierarchy.sql');
+const schema=read('db/schema.ts');
+const booking=read('lib/bunyra/create-confirmed-booking.ts');
+const auth=read('lib/bunyra/http.ts');
+const tenant=read('lib/bunyra/tenant.ts');
+
+for(const table of ['phases','buildings','units']){
+ assert(migration.includes('CREATE TABLE '+table+' ('),'Missing hierarchy table '+table);
+ assert(migration.includes("'"+table+"'"),'Missing RLS enrollment for '+table);
+ assert(schema.includes('export const '+table+' = pgTable('),"Missing Drizzle mirror "+table);
+}
+assert(migration.includes('REFERENCES projects(company_id, id)'),'Projects FK must be company-scoped');
+assert(migration.includes('REFERENCES phases(company_id, project_id, id)'),'Buildings FK must be company-scoped');
+assert(migration.includes('REFERENCES buildings(company_id, project_id, id)'),'Unit building FK must be scoped');
+assert(migration.includes('REFERENCES inventory_units(company_id, project_id, id)'),'Unit canonical inventory FK must be scoped');
+assert(migration.includes("USING (company_id = (SELECT bunyra_tenant_company()))"),'RLS must use active company membership');
+assert(migration.includes("WITH CHECK (company_id = (SELECT bunyra_tenant_company()))"),'RLS must protect writes');
+assert(migration.includes("TO bunyra_tenant"),'Must grant only tenant role');
+assert(!migration.includes('CREATE TABLE projects'),'Project table already exists: must not duplicate');
+assert(migration.includes("UNIQUE(company_id, project_id, id)"),'Canonical extended units must retain composite unique');
+assert(schema.includes("export const projects = pgTable('projects'"),'Existing projects mirror missing');
+assert(schema.includes("export const inventoryUnits = pgTable('inventory_units'"),'Canonical inventory schema mirror missing');
+assert(booking.includes('await identity()'),'Session must come from BUNYRA auth');
+assert(auth.includes('getCurrentUser()'),'Identity must use verified BUNYRA session');
+assert(booking.includes('JOIN projects p ON p.company_id=m.company_id'),'Company scope must be resolved through project and membership');
+assert(booking.includes('m.user_id=${actor.userId} AND m.active'),'Membership must match authenticated user');
+assert(booking.includes("'bookings.create'") && booking.includes("'bookings.approve'"),'Both permissions required');
+assert(booking.includes("create.role !== 'company_admin'"),'Only admins can bypass manual approval');
+assert(booking.includes('sql.transaction(['),'Booking must be a single transaction');
+assert(booking.includes('FOR UPDATE'),'Unit must be locked atomically');
+assert(booking.includes("status='available'") && booking.includes("status='reserved'"),'Unit transition must use BUNYRA state');
+assert(booking.includes('unit_status_history') && booking.includes('audit_logs'),'Atomic booking must include history and audit');
+assert(tenant.includes('SET LOCAL ROLE bunyra_tenant'),'Runtime must use restricted tenant database role');
+assert(!booking.includes('NextAuth'),'Legacy auth cannot be used');
+assert(!booking.includes('request.json()'),'Service cannot depend on client auth input');
+const parsed=booking.split('const inputSchema =')[1]?.split('export async function')[0]??'';
+assert(!/tenant_id\s*:|company_id\s*:|user_id\s*:/.test(parsed),'Client payload must not contain security identity fields');
+console.log('Operational merge static guards passed: scoped FKs, RLS, session, locks, inventory single source.');
