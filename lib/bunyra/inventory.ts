@@ -10,7 +10,19 @@ export async function inventory(sql:Sql,actor:Actor,company:string,project:strin
  const ctx=await access(sql,actor,company,'inventory.read',platform,project);
  const canWrite=(ctx.owner||['company_admin','operations'].includes(ctx.role))&&(ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'inventory.write',project));
  const canPrice=ctx.owner||hasPermission(ctx.role,ctx.custom,ctx.overrides,'pricing.read',project);
- const rows=await sql`SELECT u.id,u.code,u.building,u.floor,u.category,u.area::text,CASE WHEN ${canWrite} THEN u.proposed_price_minor::text ELSE NULL END AS proposed_price_minor,CASE WHEN ${canPrice} AND e.source_unit_version=u.version AND u.active THEN e.price_minor::text ELSE NULL END AS approved_price_minor,b.currency AS pricing_currency,u.status,u.active,u.version,CASE WHEN ${canWrite} THEN u.details ELSE u.details-'price_per_sqm'-'out_price_per_sqm'-'source_div80'-'source_total_price' END AS details,count(*) OVER()::int AS total FROM inventory_units u LEFT JOIN project_pricing p ON p.company_id=u.company_id AND p.project_id=u.project_id LEFT JOIN price_books b ON b.id=p.book_id AND b.company_id=p.company_id AND b.project_id=p.project_id AND b.status='approved' LEFT JOIN price_book_entries e ON e.company_id=u.company_id AND e.project_id=u.project_id AND e.book_id=b.id AND e.unit_id=u.id WHERE u.company_id=${company} AND u.project_id=${project} AND (${f.search}='' OR strpos(lower(u.code),lower(${f.search}))>0 OR strpos(lower(u.category),lower(${f.search}))>0) AND (${f.status}='' OR u.status=${f.status}) AND (${f.building}='' OR u.building=${f.building}) AND (${f.floor}='' OR u.floor=${f.floor}) ORDER BY u.code LIMIT 100 OFFSET ${f.page*100}`;
+ const rows=await sql`SELECT u.id,u.code,u.building,u.floor,u.category,u.area::text,CASE WHEN ${canWrite} THEN u.proposed_price_minor::text ELSE NULL END AS proposed_price_minor,CASE WHEN ${canPrice} AND e.source_unit_version=u.version AND u.active THEN e.price_minor::text ELSE NULL END AS approved_price_minor,b.currency AS pricing_currency,u.status,u.active,u.version,CASE WHEN ${canWrite} THEN u.details ELSE u.details-'price_per_sqm'-'out_price_per_sqm'-'source_div80'-'source_total_price' END AS details,CASE WHEN ux.svg_coordinates IS NOT NULL THEN ux.svg_coordinates
+ WHEN shape.points IS NOT NULL THEN jsonb_build_object('points',shape.points)
+ ELSE NULL END AS svg_coordinates,count(*) OVER()::int AS total
+ FROM inventory_units u
+ LEFT JOIN units ux ON ux.company_id=u.company_id AND ux.project_id=u.project_id AND ux.id=u.id
+ LEFT JOIN LATERAL (
+  SELECT s.points FROM plan_unit_shapes s
+  JOIN plan_layouts l ON l.company_id=s.company_id AND l.project_id=s.project_id
+    AND l.file_id=s.file_id AND l.published=true
+  WHERE s.company_id=u.company_id AND s.project_id=u.project_id AND s.unit_id=u.id
+  ORDER BY s.page,s.file_id LIMIT 1
+ ) shape ON true
+ LEFT JOIN project_pricing p ON p.company_id=u.company_id AND p.project_id=u.project_id LEFT JOIN price_books b ON b.id=p.book_id AND b.company_id=p.company_id AND b.project_id=p.project_id AND b.status='approved' LEFT JOIN price_book_entries e ON e.company_id=u.company_id AND e.project_id=u.project_id AND e.book_id=b.id AND e.unit_id=u.id WHERE u.company_id=${company} AND u.project_id=${project} AND (${f.search}='' OR strpos(lower(u.code),lower(${f.search}))>0 OR strpos(lower(u.category),lower(${f.search}))>0) AND (${f.status}='' OR u.status=${f.status}) AND (${f.building}='' OR u.building=${f.building}) AND (${f.floor}='' OR u.floor=${f.floor}) ORDER BY u.code LIMIT 100 OFFSET ${f.page*100}`;
  return {units:rows,total:rows[0]?.total||0,page:f.page,can_write:canWrite,price_status:'draft'};
 }
 export async function saveUnit(sql:Sql,actor:Actor,input:unknown,platform=false){

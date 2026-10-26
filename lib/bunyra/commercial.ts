@@ -1,3 +1,4 @@
+import {generateInstallmentsExact} from './decimal-installments';
 import {paymentFields,listPaymentAccounts} from './payment-accounts';
 import { z } from 'zod';
 import { access, ServiceError, uuid, type Actor, type Sql } from './service';
@@ -128,7 +129,7 @@ export async function createContract(sql:Sql,actor:Actor,input:unknown,platform=
  if(!b.quote_snapshot?.calculation)throw new ServiceError('BOOKING_SNAPSHOT_REQUIRED',409);
  const snapshot=b.quote_snapshot,calc=snapshot.calculation,id=crypto.randomUUID();
  const number='BUN-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+id.slice(0,8).toUpperCase();
- const schedule=[...(BigInt(calc.down_payment_minor)>BigInt(0)?[{number:1,due_date:calc.down_payment_due,amount_minor:calc.down_payment_minor}]:[]),...calc.installments.map((i:{number:number;due_date:string;amount_minor:string},n:number)=>({...i,number:n+(BigInt(calc.down_payment_minor)>BigInt(0)?2:1)}))];
+ const schedule=generateInstallmentsExact(calc);
  const received=BigInt(b.received_amount_minor);
  if(received>BigInt(calc.down_payment_minor))throw new ServiceError('OVER_COLLECTION',409);
  const r=await sql.transaction([

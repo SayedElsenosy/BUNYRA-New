@@ -41,6 +41,7 @@ jobs:
       - run: node --check hosting/finance-scheduler.mjs
       - run: npm run test:tenant-client
       - run: node scripts/test-workspace-inventory-merge.mjs
+      - run: node scripts/test-phase2-operational-merge.mjs
       - run: npm run test:record-scopes
       - run: npm run test:navigation
       - run: npm run test:report-dates

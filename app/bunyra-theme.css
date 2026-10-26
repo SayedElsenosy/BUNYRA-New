@@ -185,3 +185,16 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,te
 @media(max-width:1180px){.role-dashboard-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:850px){.role-dashboard-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:570px){.role-dashboard{gap:13px}.role-dashboard-hero{padding:22px 18px;flex-wrap:wrap}.role-dashboard-hero:after{opacity:.5}.role-dashboard-hero h1{font-size:24px}.role-dashboard-refresh{width:100%;justify-content:center}.role-dashboard-kpis{gap:8px}.role-dashboard-kpi{padding:14px}.role-dashboard-kpi strong{font-size:26px}.role-dashboard-surface{padding:15px}.role-dashboard-section-title{flex-wrap:wrap}.role-dashboard-quick{grid-template-columns:1fr}}
+
+/* Real floorplan: all geometry is numeric and comes from published BUNYRA layouts. */
+.inventory-display-switch{display:flex;gap:8px;margin-block:12px;flex-wrap:wrap}
+.inventory-display-switch button{min-width:105px}
+.inventory-floorplan-panel{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:18px;margin-block:14px}
+.inventory-floorplan-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.floorplan-legend{display:flex;flex-wrap:wrap;gap:12px;margin-block:10px;font-size:12px;color:var(--ink)}
+.floorplan-legend-item{display:flex;align-items:center;gap:6px}
+.floorplan-legend-item i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.floorplan-svg-shell{position:relative;max-width:800px;margin-inline:auto}
+.floorplan-svg{display:block;width:100%;background:var(--tint);border:1px solid var(--line);border-radius:12px}
+.floorplan-info{position:absolute;bottom:12px;inset-inline-start:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:9px;padding:12px;box-shadow:0 4px 20px #0002;pointer-events:none}
+.floorplan-info p{margin:5px 0 0;font-size:12px}
