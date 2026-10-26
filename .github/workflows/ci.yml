@@ -85,6 +85,9 @@ jobs:
       - name: Install dependencies
         if: steps.enabled.outputs.ready == 'true'
         run: npm ci --ignore-scripts
+      - name: Build release bundle
+        if: steps.enabled.outputs.ready == 'true'
+        run: npm run build:cloudflare
       - name: Deploy the validated main commit
         if: steps.enabled.outputs.ready == 'true'
         run: npm run deploy:cloudflare
