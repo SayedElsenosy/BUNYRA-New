@@ -1,7 +1,8 @@
 import "server-only";
 import {z} from "zod";
 import PizZip from "pizzip";
-import Docxtemplater from "docxtemplater";
+import {renderWordTemplate,assertWordTemplate,sampleContractWord} from "./word-render.mjs";
+export {sampleContractWord};
 import {access,ServiceError,uuid,type Sql,type Actor} from "./service";
 import {requireContract} from "./record-scope";
 import {planStorage} from "./storage";
@@ -38,6 +39,7 @@ export async function uploadWordTemplate(sql:Sql,actor:Actor,company:string,file
  if(!file.name.toLowerCase().endsWith(".docx"))throw new ServiceError("INVALID_DOCX",400);
  const bytes=new Uint8Array(await file.arrayBuffer());
  checkedZip(bytes);
+ try{assertWordTemplate(bytes);}catch{throw new ServiceError('INVALID_DOCX_TEMPLATE',400);}
  const id=crypto.randomUUID(),fileId=crypto.randomUUID();
  const key=company+"/contracts/templates/"+id+".docx";
  const checksum=await digest(bytes);
@@ -76,10 +78,9 @@ export async function downloadContractWord(sql:Sql,actor:Actor,company:string,id
     FROM contract_installments WHERE company_id=${company} AND contract_id=${id} ORDER BY number,id`;
  const bytes=await storage.get(template.object_key);
  if(bytes.length!==template.file_size||await digest(bytes)!==template.sha256)throw new ServiceError("FILE_INTEGRITY",503);
- const zip=checkedZip(bytes);
+ checkedZip(bytes);
  try{
-  const doc=new Docxtemplater(zip,{paragraphLoop:true,linebreaks:true});
-  doc.render({
+  const values={
    contract_number:row.contract_number,signed_date:new Date(String(row.signed_at)).toISOString().slice(0,10),
    contract_status:row.status,customer_name:row.customer_name,customer_phone:row.customer_phone,
    customer_email:row.customer_email,customer_national_id:row.national_id??"",
@@ -89,31 +90,9 @@ export async function downloadContractWord(sql:Sql,actor:Actor,company:string,id
    currency:((row.payment_plan_snapshot as {book?:{currency?:string}}|null)?.book?.currency??"EGP"),
    installments:installments.map(i=>({number:i.number,due_date:i.due_date,
     amount:majorAmount(String(i.amount_minor)),paid:majorAmount(String(i.paid_minor)),status:i.status})),
-  });
-  const result=doc.getZip().generate({type:"uint8array",compression:"DEFLATE"});
+  };
+  const result=renderWordTemplate(bytes,values);
   return {bytes:result,name:"BUNYRA-Contract-"+safeName(String(row.contract_number))+".docx"};
  }catch(error){console.error("DOCX render error",error instanceof Error?error.message:"Invalid template");
   throw new ServiceError("TEMPLATE_RENDER_FAILED",422);}
-}
-export function sampleContractWord(){
- const zip=new PizZip();
- const items=[
- "BUNYRA | Contract {contract_number}",
- "Date: {signed_date}",
- "Customer: {customer_name} | Phone: {customer_phone}",
- "National ID: {customer_national_id}",
- "Project: {project_name} | Unit: {unit_number} | Area: {unit_area}",
- "Contract value: {contract_value} {currency}",
- "{#installments}Installment {number}: {amount} due {due_date}{/installments}",
- ];
- const paragraphs=items.map(s=>"<w:p><w:r><w:t xml:space=\"preserve\">"+s+"</w:t></w:r></w:p>").join("");
- zip.file("word/document.xml",'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
- '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+paragraphs+'<w:sectPr/></w:body></w:document>');
- zip.file("[Content_Types].xml",'<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
- '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
- '<Default Extension="xml" ContentType="application/xml"/>'+
- '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document"/></Types>');
- zip.file("_rels/.rels",'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
- '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
- return zip.generate({type:"uint8array",compression:"DEFLATE"});
 }

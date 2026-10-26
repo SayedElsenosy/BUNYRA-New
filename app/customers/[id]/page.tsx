@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {identity} from "../../../lib/bunyra/http";
 import {customerJourney} from "../../../lib/bunyra/customer-journey";
+import {assertCustomerReadable} from "../../../lib/bunyra/paged-records";
 import {uuid} from "../../../lib/bunyra/service";
 export const dynamic="force-dynamic";
 export default async function CustomerDetail({params,searchParams}:{
@@ -10,6 +11,7 @@ export default async function CustomerDetail({params,searchParams}:{
  const [{id},p]=await Promise.all([params,searchParams]);
  const company=uuid.parse(p.company),customer=uuid.parse(id),platform=p.mode==="platform";
  const {sql,actor}=await identity();
+ await assertCustomerReadable(sql,actor,company,customer,platform);
  const query={company,customer,tab:p.tab||"activity",page:p.page||"0"};
  const data=await customerJourney(sql,actor,query,platform);
  const c=data.customer as {full_name:string;phone:string;email:string};
@@ -32,7 +34,7 @@ export default async function CustomerDetail({params,searchParams}:{
   {!data.rows.length&&<p>لا توجد سجلات في القسم الحالي.</p>}
   <nav style={{display:"flex",gap:16,marginTop:20}}>
     {data.page>0&&<Link href={where(query.tab,data.page-1)}>← السابق</Link>}
-    <span>{data.page*20+1}–{Math.min(total,(data.page+1)*20)} من {total}</span>
+    <span>{total===0?0:data.page*20+1}–{Math.min(total,(data.page+1)*20)} من {total}</span>
     {(data.page+1)*20<total&&<Link href={where(query.tab,data.page+1)}>التالي →</Link>}
   </nav>
  </main>;
