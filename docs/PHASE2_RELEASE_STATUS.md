@@ -38,3 +38,6 @@ The current BUNYRA runtime targets Cloudflare Workers via `wrangler.jsonc`, not 
 - Browser E2E with signed-in Company Admin/Operations/Finance on the actual Cloudflare URL, including live pricing, booking approval, contract creation, receipt account posting and cheque actions, still requires a reachable deployment.
 - Integration scripts pinned to the dedicated Neon fixture database cannot be redirected to production; no unsafe override was added.
 - If needed, rollback the database only after assessing new data written since deployment. Use Neon snapshot restoration to a separate branch first, then plan a controlled cutover; do not blindly overwrite production.
+
+## Deployment retrigger (2026-10-26)
+After the repository owner configured the Cloudflare Actions secrets, the production deployment was re-requested. The GitHub push workflow validates and builds the exact new main commit before attempting Cloudflare deployment. Actual publication is verified only from the deploy job output (not a green skipped job).
