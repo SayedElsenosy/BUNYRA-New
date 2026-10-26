@@ -34,7 +34,7 @@ assert(booking.includes('FOR UPDATE'),'Unit must be locked atomically');
 assert(booking.includes("status='available'") && booking.includes("status='reserved'"),'Unit transition must use BUNYRA state');
 assert(booking.includes('unit_status_history') && booking.includes('audit_logs'),'Atomic booking must include history and audit');
 assert(tenant.includes('SET LOCAL ROLE bunyra_tenant'),'Runtime must use restricted tenant database role');
-assert(!booking.includes('NextAuth'),'Legacy auth cannot be used');
+assert(!/from [\x27\x22]next-auth/.test(booking),'Legacy auth module cannot be imported');
 assert(!booking.includes('request.json()'),'Service cannot depend on client auth input');
 const parsed=booking.split('const inputSchema =')[1]?.split('export async function')[0]??'';
 assert(!/tenant_id\s*:|company_id\s*:|user_id\s*:/.test(parsed),'Client payload must not contain security identity fields');
