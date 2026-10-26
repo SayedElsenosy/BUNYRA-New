@@ -9,7 +9,7 @@ export async function overdueInstallments(sql:Sql,actor:Actor,company:string,pag
  const ids=projects.filter(p=>projectAllowed(ctx,'finance.read',p.id)).map(p=>p.id as string);
  if(!ids.length)return {rows:[],total:0};
  const offset=(page-1)*50;
- const rows=await sql`SELECT c.customer_id,b.customer_name,
+ const rows=await sql`SELECT c.customer_id,MAX(b.customer_name) AS customer_name,
  COALESCE(c.payment_plan_snapshot->'book'->>'currency','EGP') AS currency_code,
  COALESCE(sum(i.amount_minor-i.paid_minor),0)::text AS total_minor,
  COALESCE(sum(i.amount_minor-i.paid_minor) FILTER(WHERE ((now() AT TIME ZONE 'Africa/Cairo')::date-i.due_date) BETWEEN 1 AND 30),0)::text AS days_1_30_minor,
@@ -22,7 +22,7 @@ export async function overdueInstallments(sql:Sql,actor:Actor,company:string,pag
  WHERE i.company_id=${company}::uuid AND c.project_id=ANY(${ids}::uuid[])
  AND c.status='active' AND i.status NOT IN('paid','waived')
  AND i.paid_minor<i.amount_minor AND i.due_date<(now() AT TIME ZONE 'Africa/Cairo')::date
- GROUP BY c.customer_id,b.customer_name,COALESCE(c.payment_plan_snapshot->'book'->>'currency','EGP')
+ GROUP BY c.customer_id,COALESCE(c.payment_plan_snapshot->'book'->>'currency','EGP')
  ORDER BY sum(i.amount_minor-i.paid_minor) DESC LIMIT 50 OFFSET ${offset}`;
  const total=(await sql`SELECT count(*)::int AS n FROM (
  SELECT c.customer_id,COALESCE(c.payment_plan_snapshot->'book'->>'currency','EGP')
