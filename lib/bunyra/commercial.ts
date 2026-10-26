@@ -13,7 +13,7 @@ import {bookingLeadMatches} from './booking-lead-source';
 
 const bookingInput = z.object({ company_id: uuid, project_id: uuid, unit_id: uuid, customer_id: uuid, source_offer_id:uuid.nullable().optional(),source_request_id:uuid.nullable().optional(), lead_id: uuid.nullable().optional(), plan_id: uuid, customer_name: z.string().trim().min(2).max(200), customer_phone: z.string().trim().min(3).max(50), customer_email: z.string().trim().email().or(z.literal('')).default(''), correspondence_address: z.string().trim().max(500).default(''), id_document_key: z.string().trim().max(500).default(''), payment_proof_key: z.string().trim().max(500).default(''), reservation_amount: z.string().regex(/^\d{1,14}(\.\d{1,2})?$/), notes: z.string().trim().max(2000).default(''), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();
 const offerInput = z.object({ company_id: uuid, project_id: uuid, unit_id: uuid, plan_id: uuid, customer_id: uuid.nullable().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), language: z.enum(['ar', 'en']).default('ar') }).strict();
-const collectionInput = z.object({ ...paymentFields, company_id: uuid, contract_id: uuid, installment_id: uuid, amount: z.string().regex(/^\d{1,14}(\.\d{1,2})?$/), reference: z.string().trim().max(120).default('') }).strict();
+const collectionInput = z.object({ ...paymentFields, company_id: uuid, contract_id: uuid, installment_id: uuid, amount: z.string().regex(/^\d{1,14}(\.\d{1,2})?$/), reference: z.string().trim().max(120).default(''), cheque_receipt_id:uuid.optional() }).strict();
 
 export async function approvedQuote(sql: Sql, actor: Actor, c: { company_id: string; project_id: string; unit_id: string; plan_id: string; date: string }, platform = false) {
   const data = await unitPricing(sql, actor, c.company_id, c.project_id, c.unit_id, platform);
@@ -149,5 +149,45 @@ export async function createContract(sql:Sql,actor:Actor,input:unknown,platform=
 export async function recordCollection(sql: Sql, actor: Actor, input: unknown, platform = false) {
   const c = collectionInput.parse(input); const ctx = await roleAccess(sql, actor, c.company_id, 'finance.write', platform); if (!ctx.owner && !['accountant','finance_manager','company_admin'].includes(ctx.role)) throw new ServiceError('FORBIDDEN',403); await requireContract(sql,actor,c.company_id,c.contract_id,'finance.write',platform); const amount=minorUnits(c.amount).toString();if(BigInt(amount)<=BigInt(0))throw new ServiceError('INVALID_AMOUNT',400);
   const installment=(await sql`SELECT * FROM contract_installments WHERE company_id=${c.company_id} AND id=${c.installment_id} AND contract_id=${c.contract_id} FOR UPDATE`)[0]; if(!installment)throw new ServiceError('NOT_FOUND',404); const remaining=BigInt(installment.amount_minor)-BigInt(installment.paid_minor); if(BigInt(amount)>remaining)throw new ServiceError('OVER_COLLECTION',409);
-  const r=await sql.transaction([sql`SELECT id FROM contracts WHERE company_id=${c.company_id} AND id=${c.contract_id} AND status='active' FOR UPDATE`,sql`SELECT id FROM contract_installments WHERE company_id=${c.company_id} AND id=${c.installment_id} FOR UPDATE`,sql`SELECT bunyra_pricing_assert(EXISTS(SELECT 1 FROM contracts c JOIN contract_installments i ON i.company_id=c.company_id AND i.contract_id=c.id WHERE c.company_id=${c.company_id} AND c.id=${c.contract_id} AND c.status='active' AND i.id=${c.installment_id} AND i.amount_minor-i.paid_minor>=${amount}::bigint),'OVER_COLLECTION')`,sql`INSERT INTO collections(company_id,contract_id,installment_id,amount_minor,reference,created_by,payment_account_id,receipt_exchange_rate) VALUES(${c.company_id},${c.contract_id},${c.installment_id},${amount}::bigint,${c.reference},${actor.userId},${c.payment_account_id||null}::uuid,${c.exchange_rate||null}::numeric) RETURNING id`,sql`UPDATE contract_installments SET paid_minor=paid_minor+${amount}::bigint,status=CASE WHEN paid_minor+${amount}::bigint>=amount_minor THEN 'paid' ELSE 'partial' END WHERE company_id=${c.company_id} AND id=${c.installment_id} RETURNING id,status,paid_minor::text`,sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) VALUES(${c.company_id},${actor.userId},${actor.email},'collection.confirmed',jsonb_build_object('contract_id',${c.contract_id}::text,'amount_minor',${amount}::bigint))`]);return {collection:r[3][0],installment:r[4][0]};
+  const isCheque=Boolean(c.cheque_receipt_id);
+  const command=isCheque?sql`WITH inserted AS (
+    INSERT INTO collections(company_id,contract_id,installment_id,amount_minor,reference,created_by,payment_account_id,receipt_exchange_rate)
+    VALUES(${c.company_id},${c.contract_id},${c.installment_id},${amount}::bigint,${c.reference},${actor.userId},${c.payment_account_id||null}::uuid,${c.exchange_rate||null}::numeric)
+    RETURNING id
+  ), resolved AS (
+    INSERT INTO receipt_cheque_events(company_id,receipt_id,new_state,collection_id,recorded_by)
+    SELECT ${c.company_id}::uuid,${c.cheque_receipt_id}::uuid,'CLEARED',inserted.id,${actor.userId} FROM inserted
+    RETURNING id
+  ) SELECT inserted.id FROM inserted JOIN resolved ON true`
+   :sql`INSERT INTO collections(company_id,contract_id,installment_id,amount_minor,reference,created_by,payment_account_id,receipt_exchange_rate)
+    VALUES(${c.company_id},${c.contract_id},${c.installment_id},${amount}::bigint,${c.reference},${actor.userId},${c.payment_account_id||null}::uuid,${c.exchange_rate||null}::numeric) RETURNING id`;
+  const validations=isCheque?[sql`SELECT bunyra_pricing_assert(EXISTS(
+    SELECT 1 FROM receipts r WHERE r.company_id=${c.company_id}::uuid
+      AND r.id=${c.cheque_receipt_id}::uuid AND r.contract_id=${c.contract_id}::uuid
+      AND r.installment_id=${c.installment_id}::uuid AND r.amount_minor=${amount}::bigint
+      AND r.method='CHEQUE' AND r.initial_state='PENDING' AND r.reference_number=${c.reference}
+      AND NOT EXISTS(SELECT 1 FROM receipt_cheque_events e
+        WHERE e.company_id=r.company_id AND e.receipt_id=r.id)
+  ),'CHEQUE_NOT_PENDING')`]:[];
+  const result=await sql.transaction([
+    sql`SELECT id FROM contracts WHERE company_id=${c.company_id} AND id=${c.contract_id} AND status='active' FOR UPDATE`,
+    sql`SELECT id FROM contract_installments WHERE company_id=${c.company_id} AND id=${c.installment_id} FOR UPDATE`,
+    sql`SELECT bunyra_pricing_assert(EXISTS(
+      SELECT 1 FROM contracts contract JOIN contract_installments i
+        ON i.company_id=contract.company_id AND i.contract_id=contract.id
+      WHERE contract.company_id=${c.company_id} AND contract.id=${c.contract_id}
+        AND contract.status='active' AND i.id=${c.installment_id}
+        AND i.amount_minor-i.paid_minor>=${amount}::bigint),'OVER_COLLECTION')`,
+    ...validations,
+    command,
+    sql`UPDATE contract_installments SET paid_minor=paid_minor+${amount}::bigint,
+      status=CASE WHEN paid_minor+${amount}::bigint>=amount_minor THEN 'paid' ELSE 'partial' END
+      WHERE company_id=${c.company_id} AND id=${c.installment_id} RETURNING id,status,paid_minor::text`,
+    sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data)
+      VALUES(${c.company_id},${actor.userId},${actor.email},'collection.confirmed',
+      jsonb_build_object('contract_id',${c.contract_id}::text,'amount_minor',${amount}::bigint,
+        'cheque_receipt_id',${c.cheque_receipt_id||null}::text))`
+  ]);
+  const position=isCheque?4:3;
+  return {collection:result[position][0],installment:result[position+1][0]};
 }

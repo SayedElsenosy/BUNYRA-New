@@ -164,14 +164,19 @@ CREATE VIEW receipt_status WITH (security_invoker=true) AS
         COALESCE(e.new_state,r.initial_state) AS cheque_state,
         e.collection_id AS cleared_collection_id,e.recorded_at AS resolved_at
  FROM receipts r LEFT JOIN receipt_cheque_events e
- ON e.company_id=r.company_id AND e.receipt_id=r.id;
+ ON e.company_id=r.company_id AND e.receipt_id=r.id
+ WHERE r.collection_id IS NULL OR NOT EXISTS(
+   SELECT 1 FROM receipt_cheque_events linked
+    WHERE linked.company_id=r.company_id AND linked.collection_id=r.collection_id
+      AND linked.new_state='CLEARED'
+ );
 GRANT SELECT ON receipt_status TO bunyra_tenant;
 
 -- A settlement from the EXISTING commercial/ERP flow receives a receipt
 -- in the SAME transaction. Cheques issued in PENDING state remain distinct
 -- until the existing collection/ledger system processes actual settlement.
 CREATE FUNCTION bunyra_mirror_collection_receipt() RETURNS trigger
- LANGUAGE plpgsql SET search_path=public,pg_temp AS $
+ LANGUAGE plpgsql SET search_path=public,pg_temp AS $mirror$
 DECLARE instrument text;
 BEGIN
  SELECT CASE WHEN a.kind='cash' THEN 'CASH'
@@ -185,7 +190,7 @@ BEGIN
    COALESCE(instrument,'UNSPECIFIED'),COALESCE(NEW.reference,''),'CLEARED',NEW.created_by)
  ON CONFLICT(company_id,collection_id) DO NOTHING;
  RETURN NEW;
-END $;
+END $mirror$;
 CREATE TRIGGER collections_mirror_immutable_receipt AFTER INSERT ON collections
  FOR EACH ROW EXECUTE FUNCTION bunyra_mirror_collection_receipt();
 

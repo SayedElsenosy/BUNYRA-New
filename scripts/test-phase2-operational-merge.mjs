@@ -24,6 +24,9 @@ for(const needed of [
  'bunyra_mirror_collection_receipt',
  'AFTER INSERT ON collections'
 ])assert(sql.includes(needed),'Missing financial migration invariant: '+needed);
+assert(sql.includes("AS $mirror$") && sql.includes("END $mirror$;"),"Receipt trigger SQL requires a matching dollar quote");
+assert(!sql.includes("AS $\\n")&&!sql.includes("END $;"),"Broken SQL dollar quote");
+assert(sql.includes("linked.new_state='CLEARED'"),"Do not double-list mirrored cleared receipts");
 assert(!sql.includes('CREATE TABLE contracts'),'Canonical contracts MUST NOT be duplicated');
 assert(!sql.includes('CREATE TABLE contract_installments'),'Canonical installments MUST NOT be duplicated');
 assert(!sql.includes('CREATE TABLE collections'),'Canonical collections MUST NOT be duplicated');
@@ -39,4 +42,11 @@ assert(ui.includes("view:'bookings'")&&ui.includes("action:'book_unit'"),'Floorp
 assert(panel.includes('<InventoryClient '),'Inventory workspace must show floorplan');
 assert(api.includes('createConfirmedBooking')&&api.includes('sameOrigin'),'Confirmed booking API must verify origin and identity');
 assert(live.includes('identity()'),'Original commercial API must use BUNYRA sessions');
+const cheques=read('lib/bunyra/cheques.ts'),chequeApi=read('app/api/treasury/cheques/route.ts'),chequeUi=read('app/cheque-panel.tsx');
+assert(cheques.includes("await requireContract("),"Cheque actions must enforce contract and project access");
+assert(cheques.includes("SELECT id FROM contracts")&&cheques.includes("FOR UPDATE"),"Cheque issue must lock contracts");
+assert(cheques.includes("'PENDING'")&&cheques.includes("'BOUNCED'"),"Issue and bounce flow must be present");
+assert(commercial.includes("cheque_receipt_id")&&commercial.includes("receipt_cheque_events"),"Cheque clearing must link the collection atomically");
+assert(chequeApi.includes("identity()")&&chequeApi.includes("sameOrigin(request)"),"Cheque API must use BUNYRA auth and origin protection");
+assert(chequeUi.includes("operation:'clear'")&&chequeUi.includes("operation:'bounce'"),"UI must support real cheque resolution");
 console.log('Phase 2 static guards passed: tenant-scoped ledgers, immutable receipts, Decimal.js, live SVG and booking workflow.');
