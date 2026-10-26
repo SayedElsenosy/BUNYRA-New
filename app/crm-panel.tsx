@@ -8,8 +8,8 @@ import {useWorkspaceLocation} from './workspace-location';
 
 type Customer=WorkspaceCustomer;
 type Overview=WorkspaceData&{stats:{customers:number;open_leads:number;overdue_follow_ups:number;won_leads:number}};
-type CustomerForm={full_name:string;phone:string;email:string;address:string;notes:string};
-const blank=():CustomerForm=>({full_name:'',phone:'',email:'',address:'',notes:''});
+type CustomerForm={full_name:string;phone:string;email:string;address:string;notes:string;national_id:string};
+const blank=():CustomerForm=>({full_name:'',phone:'',email:'',address:'',notes:'',national_id:''});
 
 export default function CrmPanel({companyId,en=false,asOwner=false}:{companyId:string;en?:boolean;asOwner?:boolean}){
  const [route,navigate]=useWorkspaceLocation();
@@ -122,6 +122,7 @@ export default function CrmPanel({companyId,en=false,asOwner=false}:{companyId:s
       <label>{t('الاسم بالكامل','Full name')}<input required minLength={2} value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})}/></label>
       <label>{t('رقم الهاتف','Phone')}<input required dir="ltr" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></label>
       <label>{t('البريد الإلكتروني','Email')}<input type="email" dir="ltr" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></label>
+      <label>{t('الرقم القومي','National ID')}<input dir="ltr" maxLength={30} value={form.national_id} onChange={e=>setForm({...form,national_id:e.target.value})}/></label>
       <label>{t('العنوان','Address')}<input value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/></label>
      </div>
      <p className="muted">{t('سيُضاف العميل تلقائيًا بمرحلة «جديد». استخدم «إضافة إجراء» لتحديث المرحلة والمتابعة.','Customer starts at New. Use Add Action to update their stage and next follow-up.')}</p>

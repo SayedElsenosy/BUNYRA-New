@@ -12,6 +12,7 @@ const customerInput = z.object({
   company_id: uuid,
   full_name: z.string().trim().min(2).max(160),
   phone,
+  national_id: z.string().trim().max(30).regex(/^[0-9A-Za-z -]*$/).default(''),
   email: z.union([email, z.literal('')]).default(''),
   address: z.string().trim().max(500).default(''),
   notes: z.string().trim().max(5000).default(''),
@@ -135,7 +136,7 @@ export async function createCustomer(sql: Sql, actor: Actor, input: unknown, asO
   if (!normalizedPhone) throw new ServiceError('INVALID_PHONE');
   const normalizedEmail = normalizeEmail(c.email);
   const rows = await sql.transaction([
-    sql`INSERT INTO crm_customers(company_id,full_name,phone,email,address,notes,normalized_phone,normalized_email,created_by) VALUES(${c.company_id},${c.full_name}::text,${c.phone}::text,${c.email}::text,${c.address}::text,${c.notes}::text,${normalizedPhone}::text,${normalizedEmail}::text,${actor.userId}::text) RETURNING id,full_name,phone,email,address,notes,version,created_at,updated_at`,
+    sql`INSERT INTO crm_customers(company_id,full_name,phone,email,address,notes,national_id,normalized_phone,normalized_email,created_by) VALUES(${c.company_id},${c.full_name}::text,${c.phone}::text,${c.email}::text,${c.address}::text,${c.notes}::text,${c.national_id||null}::text,${normalizedPhone}::text,${normalizedEmail}::text,${actor.userId}::text) RETURNING id,full_name,phone,email,address,notes,version,created_at,updated_at`,
     ...(initializeStage ? [
       sql`INSERT INTO crm_leads(company_id,customer_id,source,status,owner_user_id,created_by,stage_code,stage_changed_at)
            SELECT ${c.company_id}::uuid,id,'customer_record','new',${actor.userId}::text,${actor.userId}::text,'fresh',now()
