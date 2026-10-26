@@ -78,7 +78,7 @@ export async function downloadContractWord(sql:Sql,actor:Actor,company:string,id
  if(bytes.length!==template.file_size||await digest(bytes)!==template.sha256)throw new ServiceError("FILE_INTEGRITY",503);
  const zip=checkedZip(bytes);
  try{
-  const doc=new Docxtemplater(zip,{paragraphLoop:true,linebreaks:true,throwOnUndefined:false});
+  const doc=new Docxtemplater(zip,{paragraphLoop:true,linebreaks:true});
   doc.render({
    contract_number:row.contract_number,signed_date:new Date(String(row.signed_at)).toISOString().slice(0,10),
    contract_status:row.status,customer_name:row.customer_name,customer_phone:row.customer_phone,
