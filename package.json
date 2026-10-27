@@ -72,7 +72,9 @@
     "test:vendor-aging-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-vendor-aging-tests.mjs",
     "test:customer-accounts-integration": "node scripts/prepare-identity-tests.mjs && node scripts/run-customer-accounts-tests.mjs",
     "test:e2e:treasury": "playwright test e2e/treasury-cheque-bounce.spec.ts",
-    "test:word-templates": "node scripts/test-word-templates.mjs"
+    "test:word-templates": "node scripts/test-word-templates.mjs",
+    "test:enterprise-security": "node scripts/test-account-reset-security.mjs && node scripts/test-ledger-report-security.mjs && node scripts/test-document-revisions.mjs && node scripts/test-adjustment-authorization.mjs && node scripts/test-contract-word-issuance.mjs",
+    "test:enterprise-db": "node scripts/test-enterprise-hardening-db.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

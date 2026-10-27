@@ -11,10 +11,12 @@ const [{tenantSql},ledger,payments,commercial,pricing,crm,treasury,finance,adjus
 ]);
 const owner={userId:'identity-test-platform-owner',email:'platform-test@example.com'};
 const company=crypto.randomUUID(),project=crypto.randomUUID(),unit=crypto.randomUUID(),part=company.slice(0,8);
+const approver={userId:'payment-approver-'+part,email:'payment-approver@example.test'};
 const fresh=()=>tenantSql(raw),checks=[],check=async(name,fn)=>{await fn();checks.push(name);console.log('PASS '+name);};
 await raw.transaction([
  raw`INSERT INTO companies(id,name) VALUES(${company},${'Payment accounts DEV '+part})`,
  raw`INSERT INTO company_settings(company_id,currency) VALUES(${company},'USD')`,
+ raw`INSERT INTO memberships(company_id,user_id,email,role) VALUES(${company},${approver.userId},${approver.email},'finance_manager')`,
  raw`INSERT INTO projects(id,company_id,name) VALUES(${project},${company},'Foreign receipt test')`,
  raw`INSERT INTO inventory_units(id,company_id,project_id,code,building,floor,category,area,proposed_price_minor)
  VALUES(${unit},${company},${project},'FX-1','A','1','Office',100,100000)`
@@ -102,7 +104,7 @@ await check('manual base-only vouchers cannot silently enter a foreign bank acco
 await check('split foreign refunds clear native and base balances with exact cumulative rounding',async()=>{
  for(const amount of ['25.00','25.01']){
   const a=await adjustments.createAdjustment(fresh(),owner,{company_id:company,contract_id:contract.id,collection_id:collection.id,kind:'refund',amount,reason:'Return to original bank at original historical receipt rate'},true);
-  await adjustments.approveAdjustment(fresh(),owner,{company_id:company,adjustment_id:a.id},true);
+  await adjustments.approveAdjustment(fresh(),approver,{company_id:company,adjustment_id:a.id});
   await adjustments.executeAdjustment(fresh(),owner,{company_id:company,adjustment_id:a.id},true);
  }
  const overview=await treasury.treasuryOverview(fresh(),owner,company,true),balance=overview.balances.find(a=>a.id===usd2);

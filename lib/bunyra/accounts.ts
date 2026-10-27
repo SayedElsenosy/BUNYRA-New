@@ -35,13 +35,18 @@ export async function resetAccount(sql:Sql,actor:Actor,input:unknown,asOwner=fal
  const ctx=await access(sql,actor,c.company_id,'accounts.manage',asOwner);bindTenant(sql,null);try {
  if(await owner(sql,{userId:c.user_id,email:''}))throw new ServiceError('SELF_CHANGE_FORBIDDEN',409);
  const target=(await sql`SELECT m.role,a.password_hash FROM memberships m LEFT JOIN app_accounts a ON a.user_id=m.user_id AND a.company_id=m.company_id WHERE m.company_id=${c.company_id} AND m.user_id=${c.user_id}`)[0];if(!target)throw new ServiceError('NOT_FOUND',404);
- // Operations can edit basic details, but resetting an administrator's password
- // would grant its full authority and remains an administrator-only operation.
- if(c.password&&target.role==='company_admin'&&!ctx.owner&&!hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage'))throw new ServiceError('ADMIN_PASSWORD_FORBIDDEN',403);
+ // Account labels and credentials have different authority. A reset grants the
+ // target's complete access, including custom/project grants; role-name checks
+ // cannot make delegated account administration safe.
+ if(c.password&&!ctx.owner&&!hasPermission(ctx.role,ctx.custom,ctx.overrides,'members.manage'))throw new ServiceError(target.role==='company_admin'?'ADMIN_PASSWORD_FORBIDDEN':'FORBIDDEN',403);
  const hash=c.password?await hashPassword(c.password):target.password_hash;if(!hash)throw new ServiceError('ACCOUNT_PASSWORD_REQUIRED');
  const r=await sql.transaction([
   sql`SELECT id FROM companies WHERE id=${c.company_id} FOR UPDATE`,
-  sql`WITH target AS(SELECT m.user_id FROM memberships m WHERE m.company_id=${c.company_id} AND m.user_id=${c.user_id} AND NOT EXISTS(SELECT 1 FROM app_accounts a WHERE a.user_id=m.user_id AND a.company_id IS DISTINCT FROM m.company_id) FOR UPDATE), changed AS(INSERT INTO app_accounts(user_id,company_id,username,display_name,email,password_hash,created_by) SELECT user_id,${c.company_id},${c.username},${c.display_name},${c.email},${hash},${actor.userId} FROM target ON CONFLICT(user_id) DO UPDATE SET username=excluded.username,display_name=excluded.display_name,email=excluded.email,password_hash=excluded.password_hash,must_change_password=false,password_version=app_accounts.password_version+1,updated_at=now() RETURNING user_id) SELECT user_id FROM changed`,
+  c.password
+   ? sql`WITH target AS(SELECT m.user_id FROM memberships m WHERE m.company_id=${c.company_id} AND m.user_id=${c.user_id} AND NOT EXISTS(SELECT 1 FROM app_accounts a WHERE a.user_id=m.user_id AND a.company_id IS DISTINCT FROM m.company_id) FOR UPDATE), changed AS(INSERT INTO app_accounts(user_id,company_id,username,display_name,email,password_hash,created_by) SELECT user_id,${c.company_id},${c.username},${c.display_name},${c.email},${hash},${actor.userId} FROM target ON CONFLICT(user_id) DO UPDATE SET username=excluded.username,display_name=excluded.display_name,email=excluded.email,password_hash=excluded.password_hash,must_change_password=false,password_version=app_accounts.password_version+1,updated_at=now() RETURNING user_id) SELECT user_id FROM changed`
+   // Never write the earlier password snapshot during a profile edit: a password
+   // reset may have committed since it was read.
+   : sql`UPDATE app_accounts a SET username=${c.username},display_name=${c.display_name},email=${c.email},password_version=a.password_version+1,updated_at=now() WHERE a.user_id=${c.user_id} AND a.company_id=${c.company_id} AND EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=a.company_id AND m.user_id=a.user_id) RETURNING user_id`,
   sql`UPDATE memberships SET email=${c.email||c.username},version=version+1 WHERE company_id=${c.company_id} AND user_id=${c.user_id} AND EXISTS(SELECT 1 FROM app_accounts WHERE user_id=${c.user_id} AND company_id=${c.company_id})`,
   sql`DELETE FROM app_sessions WHERE user_id=${c.user_id} AND EXISTS(SELECT 1 FROM app_accounts WHERE user_id=${c.user_id} AND company_id=${c.company_id})`,
   sql`INSERT INTO audit_logs(company_id,actor_id,actor_email,action,after_data) SELECT ${c.company_id},${actor.userId},${actor.email},${c.password?'account.credentials_reset':'account.profile_updated'},${JSON.stringify({user_id:c.user_id,username:c.username,display_name:c.display_name,email:c.email})}::jsonb WHERE EXISTS(SELECT 1 FROM app_accounts WHERE user_id=${c.user_id} AND company_id=${c.company_id})`

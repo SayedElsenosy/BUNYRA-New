@@ -1,6 +1,7 @@
 name: Validate BUNYRA
 on:
   push:
+  pull_request:
 permissions:
   contents: read
 jobs:
@@ -18,6 +19,8 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run test:word-templates
+      - run: npm run test:enterprise-security
+      - run: npm run test:enterprise-db
       - run: npm run test:fixture-guard
       - run: npm run test:ledger-core
       - run: npm run test:finance-events

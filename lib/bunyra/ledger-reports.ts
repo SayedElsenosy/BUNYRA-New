@@ -8,6 +8,13 @@ export async function ledgerFinancialReport(sql:Sql,actor:Actor,input:unknown,pl
  const c=query.parse(input);
  const scope=await access(sql,actor,c.company_id,'finance.read',platform,c.project_id||undefined);
  if(!scope.owner&&!['company_admin','finance_manager'].includes(scope.role))throw new ServiceError('FORBIDDEN',403);
+ // A complete company statement includes every project and unallocated lines.
+ // Refuse it for restricted readers rather than leaking denied projects or
+ // silently presenting a partial, potentially unbalanced financial statement.
+ // Explicit project reports are already checked by access() above.
+ if(!scope.owner&&!c.project_id&&scope.overrides.some(permission=>
+  permission.action==='finance.read'&&permission.project_id!==null&&!permission.allowed
+ ))throw new ServiceError('FORBIDDEN',403);
  if(c.from>c.to)throw new ServiceError('INVALID_DATE_RANGE',400);
  const found=await sql`SELECT id FROM ledger_entities WHERE company_id=${c.company_id} AND id=${c.entity_id}`;
  if(!found.length)throw new ServiceError('NOT_FOUND',404);

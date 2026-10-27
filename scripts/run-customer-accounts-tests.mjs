@@ -11,10 +11,12 @@ const [{tenantSql,bindTenant},ledger,commercial,pricing,crm,payments,adjustments
  import('../.sites-runtime/tests/finance-adjustments.mjs'),import('../.sites-runtime/tests/customer-accounts.mjs'),import('../.sites-runtime/tests/customer-accounts-export.mjs'),import('../.sites-runtime/tests/finance-events.mjs')
 ]);
 const owner={userId:'identity-test-platform-owner',email:'platform-test@example.com'},fresh=()=>tenantSql(raw),checks=[];
+const approver={userId:'customer-approver-'+company,email:'customer-approver@example.test'};
 const check=async(n,fn)=>{await fn();checks.push(n);console.log('PASS '+n)};
 await raw`INSERT INTO companies(id,name) VALUES(${company},'Customer accounts DEV'),(${foreign},'Foreign customer accounts DEV')`;
 console.log('DEV customer-accounts fixture '+company);
 try{
+ await raw`INSERT INTO memberships(company_id,user_id,email,role) VALUES(${company},${approver.userId},${approver.email},'finance_manager')`;
  const entity=(await raw`SELECT id FROM ledger_entities WHERE company_id=${company}`)[0].id;
  await raw`INSERT INTO company_settings(company_id,currency) VALUES(${company},'EGP')`;
  await ledger.initializeAccounting(fresh(),owner,{company_id:company,entity_id:entity,language:'en'},true);
@@ -53,7 +55,7 @@ try{
  await check('all five aging buckets include exact 0,1,30,31,60,61,90,91 day boundaries',async()=>{const d=await aging();assert.equal(d.total,9);assert.deepEqual(d.buckets,{current:'20000',days_1_30:'20000',days_31_60:'20000',days_61_90:'20000',days_91_plus:'10000'});assert.equal(d.due_minor,'90000');assert.equal(d.ledger_net_minor,'80000');assert.equal(d.difference_minor,'10000')});
  const receipt=(await commercial.recordCollection(fresh(),owner,{company_id:company,contract_id:contract.id,installment_id:installments[0].id,amount:'40.00',reference:'Historical collection',payment_account_id:bank,exchange_rate:'1'},true)).collection;
  await raw`UPDATE collections SET received_at='2026-01-02T10:00:00Z' WHERE id=${receipt.id}`;
- const adjust=async(kind,amount,date)=>{const a=await adjustments.createAdjustment(fresh(),owner,{company_id:company,contract_id:contract.id,...(kind==='settlement'?{installment_id:installments[0].id}:{collection_id:receipt.id}),kind,amount,reason:'Historical customer report test'},true);await adjustments.approveAdjustment(fresh(),owner,{company_id:company,adjustment_id:a.id},true);await adjustments.executeAdjustment(fresh(),owner,{company_id:company,adjustment_id:a.id},true);await raw`UPDATE financial_adjustments SET executed_at=${date}::timestamptz WHERE id=${a.id}`;return a;};
+ const adjust=async(kind,amount,date)=>{const a=await adjustments.createAdjustment(fresh(),owner,{company_id:company,contract_id:contract.id,...(kind==='settlement'?{installment_id:installments[0].id}:{collection_id:receipt.id}),kind,amount,reason:'Historical customer report test'},true);await adjustments.approveAdjustment(fresh(),approver,{company_id:company,adjustment_id:a.id});await adjustments.executeAdjustment(fresh(),owner,{company_id:company,adjustment_id:a.id},true);await raw`UPDATE financial_adjustments SET executed_at=${date}::timestamptz WHERE id=${a.id}`;return a;};
  await adjust('refund','10.00','2026-01-03T10:00:00Z');await adjust('reversal','5.00','2026-01-04T10:00:00Z');await adjust('settlement','20.00','2026-01-05T10:00:00Z');
  await check('historical collections, partial refunds, reversals and settlements do not rewrite earlier cutoffs',async()=>{for(const [as_of,expected] of [['2026-01-01','10000'],['2026-01-02','6000'],['2026-01-03','7000'],['2026-01-04','7500'],['2026-01-05','5500']]){const d=await aging({as_of});assert.equal(d.rows.find(r=>r.installment_id===installments[0].id).balance_minor,expected,as_of)}});
  const usdContract=await contractFixture('USD','USD-1');await raw`INSERT INTO contract_installments(company_id,contract_id,number,due_date,amount_minor) VALUES(${company},${usdContract.id},1,'2026-01-31',10000)`;
