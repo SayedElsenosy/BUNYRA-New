@@ -1,5 +1,5 @@
 {
-  "release": "2026-10-21-follow-ups",
+  "release": "2026-10-27-enterprise-hardening",
   "design": "SayedElsenosy/BUNYRA",
   "navigation": "grouped-sidebar-single-section",
   "features": [
@@ -26,6 +26,12 @@
     "accessible-drag-and-move-dialog",
     "reasoned-follow-up-postponement",
     "atomic-recurring-follow-ups",
-    "company-time-follow-up-sla"
-  ]
+    "company-time-follow-up-sla",
+    "credential-reset-authorization",
+    "project-restricted-financial-statements",
+    "independent-adjustment-approval",
+    "immutable-booking-evidence",
+    "frozen-contract-word-issuance"
+  ],
+  "schema": "073-contract-word-issuance"
 }

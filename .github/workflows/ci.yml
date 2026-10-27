@@ -96,3 +96,6 @@ jobs:
       - name: Deploy the validated main commit
         if: steps.enabled.outputs.ready == 'true'
         run: npm run deploy:cloudflare
+      - name: Verify deployed service and release
+        if: steps.enabled.outputs.ready == 'true'
+        run: node scripts/verify-production-release.mjs
