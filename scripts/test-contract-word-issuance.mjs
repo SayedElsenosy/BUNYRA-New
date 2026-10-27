@@ -11,6 +11,7 @@ let source=ts.transpileModule(fs.readFileSync('lib/bunyra/word-templates.ts','ut
 source=source.replace('import "server-only";','');
 for(const name of ['service','record-scope','storage','pricing-calculator'])source=source.replaceAll(`from "./${name}"`,`from "./${name}.mjs"`);
 fs.writeFileSync(dir+'/word-templates.mjs',source);
+fs.copyFileSync('lib/bunyra/word-render.mjs',dir+'/word-render.mjs');
 fs.writeFileSync(dir+'/service.mjs',`import {z} from 'zod';export const uuid=z.string().uuid();export class ServiceError extends Error{constructor(code,status){super(code);this.code=code;this.status=status;}}export async function access(){return {};}`);
 fs.writeFileSync(dir+'/record-scope.mjs',`import {ServiceError} from './service.mjs';export async function requireContract(sql){sql.authChecks++;if(!sql.allowed)throw new ServiceError('FORBIDDEN',403);return {id:'contract'};}`);
 fs.writeFileSync(dir+'/storage.mjs',`export function planStorage(){throw Error('Explicit test storage required');}`);
